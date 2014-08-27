@@ -95,12 +95,6 @@ config SND_SOC_FSL_EASRC
 	  destination sample rate. It is a new design module compare with the
 	  old ASRC.
 
-config SND_SOC_FSL_ESAI_CLIENT
-	tristate "NXP ESAI CLIENT module support"
-	select SND_SOC_IMX_PCM_DMA if SND_IMX_SOC != n
-	help
-	  Say Y if you want to add ESAI CLIENT module support for NXP.
-
 config SND_SOC_FSL_XCVR
 	tristate "NXP Audio Transceiver (XCVR) module support"
 	select REGMAP_MMIO
@@ -125,7 +119,16 @@ config SND_SOC_FSL_DSP_AUDIOMIX
 	help
 	  Say Y if you want to add Audio MIX helper for DSP
 
+config SND_SOC_FSL_ESAI_CLIENT
+	tristate "NXP ESAI CLIENT module support"
+	select SND_SOC_IMX_PCM_DMA if SND_IMX_SOC != n
+	help
+	  Say Y if you want to add ESAI CLIENT module support for NXP.
+
 config SND_SOC_FSL_UTILS
+	tristate
+
+config SND_SOC_FSL_HDMI
 	tristate
 
 config SND_SOC_IMX_PCM_DMA
@@ -251,6 +254,11 @@ if SND_IMX_SOC
 config SND_SOC_IMX_SSI
 	tristate
 	select SND_SOC_FSL_UTILS
+
+config SND_SOC_IMX_HDMI_DMA
+	bool
+	select SND_SOC_GENERIC_DMAENGINE_PCM
+	select SND_SOC_IMX_PCM_DMA
 
 comment "SoC Audio support for Freescale i.MX boards:"
 
@@ -437,18 +445,6 @@ config SND_SOC_IMX_AUDMIX
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  an Audio Mixer.
 
-config SND_SOC_IMX_SI476X
-	tristate "SoC Audio support for i.MX boards with si476x"
-	select SND_SOC_IMX_PCM_DMA
-	select SND_SOC_IMX_AUDMUX
-	select SND_SOC_FSL_SSI
-	select SND_SOC_FSL_UTILS
-	select SND_SOC_SI476X
-	help
-	  SoC Audio support for i.MX boards with SI476x
-	  Say Y if you want to add support for Soc audio for the AMFM Tuner chip
-	  SI476x module.
-
 config SND_SOC_IMX_XCVR
 	tristate "SoC Audio support for i.MX boards with XCVR"
 	select SND_SOC_FSL_XCVR
@@ -456,15 +452,6 @@ config SND_SOC_IMX_XCVR
 	  SoC Audio support for i.MX boards with Audio Transceiver (XCVR)
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  an Audio Transceiver (XCVR).
-
-config SND_SOC_IMX_DSP
-	tristate "SoC Audio support for i.MX boards with DSP port"
-	select SND_SOC_FSL_DSP
-	select SND_SOC_COMPRESS
-	help
-	  SoC Audio support for i.MX boards with DSP audio
-	  Say Y if you want to add support for SoC audio on an i.MX board with
-	  IMX DSP.
 
 config SND_SOC_IMX_PDM_MIC
 	tristate "SoC Audio support for i.MX boards with PDM mic on SAI"
@@ -487,6 +474,38 @@ config SND_SOC_IMX_PCM512X
 	  SoC Audio support for i.MX boards with pcm512x
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  an pcm512x codec.
+
+config SND_SOC_IMX_DSP
+	tristate "SoC Audio support for i.MX boards with DSP port"
+	select SND_SOC_FSL_DSP
+	select SND_SOC_COMPRESS
+	help
+	  SoC Audio support for i.MX boards with DSP audio
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  IMX DSP.
+
+config SND_SOC_IMX_SI476X
+	tristate "SoC Audio support for i.MX boards with si476x"
+	select SND_SOC_IMX_PCM_DMA
+	select SND_SOC_IMX_AUDMUX
+	select SND_SOC_FSL_SSI
+	select SND_SOC_FSL_UTILS
+	select SND_SOC_SI476X
+	help
+	  SoC Audio support for i.MX boards with SI476x
+	  Say Y if you want to add support for Soc audio for the AMFM Tuner chip
+	  SI476x module.
+
+config SND_SOC_IMX_HDMI
+	tristate "SoC Audio support for i.MX boards with HDMI port"
+	depends on MFD_MXC_HDMI
+	select SND_SOC_IMX_HDMI_DMA
+	select SND_SOC_FSL_HDMI
+	select SND_SOC_HDMI_CODEC
+	help
+	  SoC Audio support for i.MX boards with HDMI audio
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  IMX HDMI.
 
 endif # SND_IMX_SOC
 
