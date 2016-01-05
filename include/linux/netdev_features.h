@@ -81,6 +81,10 @@ enum {
 	NETIF_F_GRO_HW_BIT,		/* Hardware Generic receive offload */
 	NETIF_F_HW_TLS_RECORD_BIT,	/* Offload TLS record */
 
+	/* Freescale DPA support */
+	NETIF_F_HW_QDISC_BIT,           /* Supports hardware Qdisc */
+	NETIF_F_HW_ACCEL_MQ_BIT,        /* Hardware-accelerated multiqueue */
+
 	/*
 	 * Add your fresh new feature above and remember to update
 	 * netdev_features_strings[] in net/core/ethtool.c and maybe
@@ -162,6 +166,10 @@ static inline int find_next_netdev_feature(u64 feature, unsigned long start)
 
 	return fls64(feature) - 1;
 }
+
+/* Freescale DPA support */
+#define NETIF_F_HW_QDISC       __NETIF_F(HW_QDISC)
+#define NETIF_F_HW_ACCEL_MQ    __NETIF_F(HW_ACCEL_MQ)
 
 /* This goes for the MSB to the LSB through the set feature bits,
  * mask_addr should be a u64 and bit an int
