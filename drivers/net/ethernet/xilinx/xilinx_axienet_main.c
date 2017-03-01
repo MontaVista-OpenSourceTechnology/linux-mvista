@@ -1752,6 +1752,10 @@ static int axienet_get_ts_config(struct axienet_local *lp, struct ifreq *ifr)
 /* Ioctl MII Interface */
 static int axienet_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 {
+#ifdef CONFIG_XILINX_AXI_EMAC_HWTSTAMP
+	struct axienet_local *lp = netdev_priv(dev);
+#endif
+
 	if (!netif_running(dev))
 		return -EINVAL;
 
