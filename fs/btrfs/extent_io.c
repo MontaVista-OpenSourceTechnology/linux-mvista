@@ -3906,8 +3906,7 @@ retry:
  * write_cache_pages - walk the list of dirty pages of the given address space and write all of them.
  * @mapping: address space structure to write
  * @wbc: subtract the number of written pages from *@wbc->nr_to_write
- * @writepage: function called for each page
- * @data: data passed to writepage function
+ * @data: data passed to __extent_writepage function
  *
  * If a page is already under I/O, write_cache_pages() skips it, even
  * if it's dirty.  This is desirable behaviour for memory-cleaning writeback,
@@ -3919,7 +3918,7 @@ retry:
  */
 static int extent_write_cache_pages(struct address_space *mapping,
 			     struct writeback_control *wbc,
-			     writepage_t writepage, void *data)
+			     void *data)
 {
 	struct inode *inode = mapping->host;
 	int ret = 0;
@@ -4010,7 +4009,7 @@ retry:
 				continue;
 			}
 
-			ret = (*writepage)(page, wbc, data);
+			ret = __extent_writepage(page, wbc, data);
 
 			if (unlikely(ret == AOP_WRITEPAGE_ACTIVATE)) {
 				unlock_page(page);
@@ -4158,7 +4157,7 @@ int extent_writepages(struct extent_io_tree *tree,
 		.bio_flags = 0,
 	};
 
-	ret = extent_write_cache_pages(mapping, wbc, __extent_writepage, &epd);
+	ret = extent_write_cache_pages(mapping, wbc, &epd);
 	flush_write_bio(&epd);
 	return ret;
 }
