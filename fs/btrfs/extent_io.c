@@ -3919,8 +3919,7 @@ retry:
  */
 static int extent_write_cache_pages(struct address_space *mapping,
 			     struct writeback_control *wbc,
-			     writepage_t writepage, void *data,
-			     void (*flush_fn)(void *))
+			     writepage_t writepage, void *data)
 {
 	struct inode *inode = mapping->host;
 	int ret = 0;
@@ -3984,7 +3983,7 @@ retry:
 			 * mapping
 			 */
 			if (!trylock_page(page)) {
-				flush_fn(data);
+				flush_write_bio(data);
 				lock_page(page);
 			}
 
@@ -4001,7 +4000,7 @@ retry:
 
 			if (wbc->sync_mode != WB_SYNC_NONE) {
 				if (PageWriteback(page))
-					flush_fn(data);
+					flush_write_bio(data);
 				wait_on_page_writeback(page);
 			}
 
@@ -4159,8 +4158,7 @@ int extent_writepages(struct extent_io_tree *tree,
 		.bio_flags = 0,
 	};
 
-	ret = extent_write_cache_pages(mapping, wbc, __extent_writepage, &epd,
-				       flush_write_bio);
+	ret = extent_write_cache_pages(mapping, wbc, __extent_writepage, &epd);
 	flush_write_bio(&epd);
 	return ret;
 }
