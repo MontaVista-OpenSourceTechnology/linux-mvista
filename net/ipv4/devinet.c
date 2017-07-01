@@ -952,11 +952,10 @@ static int inet_abc_len(__be32 addr)
 }
 
 
-int devinet_ioctl(struct net *net, unsigned int cmd, void __user *arg)
+int devinet_ioctl(struct net *net, unsigned int cmd, struct ifreq *ifr)
 {
-	struct ifreq ifr;
 	struct sockaddr_in sin_orig;
-	struct sockaddr_in *sin = (struct sockaddr_in *)&ifr.ifr_addr;
+	struct sockaddr_in *sin = (struct sockaddr_in *)&ifr->ifr_addr;
 	struct in_device *in_dev;
 	struct in_ifaddr **ifap = NULL;
 	struct in_ifaddr *ifa = NULL;
@@ -965,22 +964,16 @@ int devinet_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 	int ret = -EFAULT;
 	int tryaddrmatch = 0;
 
-	/*
-	 *	Fetch the caller's info block into kernel space
-	 */
-
-	if (copy_from_user(&ifr, arg, sizeof(struct ifreq)))
-		goto out;
-	ifr.ifr_name[IFNAMSIZ - 1] = 0;
+	ifr->ifr_name[IFNAMSIZ - 1] = 0;
 
 	/* save original address for comparison */
 	memcpy(&sin_orig, sin, sizeof(*sin));
 
-	colon = strchr(ifr.ifr_name, ':');
+	colon = strchr(ifr->ifr_name, ':');
 	if (colon)
 		*colon = 0;
 
-	dev_load(net, ifr.ifr_name);
+	dev_load(net, ifr->ifr_name);
 
 	switch (cmd) {
 	case SIOCGIFADDR:	/* Get interface address */
@@ -1020,7 +1013,7 @@ int devinet_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 	rtnl_lock();
 
 	ret = -ENODEV;
-	dev = __dev_get_by_name(net, ifr.ifr_name);
+	dev = __dev_get_by_name(net, ifr->ifr_name);
 	if (!dev)
 		goto done;
 
@@ -1037,7 +1030,7 @@ int devinet_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 			   This is checked above. */
 			for (ifap = &in_dev->ifa_list; (ifa = *ifap) != NULL;
 			     ifap = &ifa->ifa_next) {
-				if (!strcmp(ifr.ifr_name, ifa->ifa_label) &&
+				if (!strcmp(ifr->ifr_name, ifa->ifa_label) &&
 				    sin_orig.sin_addr.s_addr ==
 							ifa->ifa_local) {
 					break; /* found */
@@ -1050,7 +1043,7 @@ int devinet_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 		if (!ifa) {
 			for (ifap = &in_dev->ifa_list; (ifa = *ifap) != NULL;
 			     ifap = &ifa->ifa_next)
-				if (!strcmp(ifr.ifr_name, ifa->ifa_label))
+				if (!strcmp(ifr->ifr_name, ifa->ifa_label))
 					break;
 		}
 	}
@@ -1062,19 +1055,19 @@ int devinet_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 	switch (cmd) {
 	case SIOCGIFADDR:	/* Get interface address */
 		sin->sin_addr.s_addr = ifa->ifa_local;
-		goto rarok;
+		break;
 
 	case SIOCGIFBRDADDR:	/* Get the broadcast address */
 		sin->sin_addr.s_addr = ifa->ifa_broadcast;
-		goto rarok;
+		break;
 
 	case SIOCGIFDSTADDR:	/* Get the destination address */
 		sin->sin_addr.s_addr = ifa->ifa_address;
-		goto rarok;
+		break;
 
 	case SIOCGIFNETMASK:	/* Get the netmask for the interface */
 		sin->sin_addr.s_addr = ifa->ifa_mask;
-		goto rarok;
+		break;
 
 	case SIOCSIFFLAGS:
 		if (colon) {
@@ -1082,11 +1075,11 @@ int devinet_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 			if (!ifa)
 				break;
 			ret = 0;
-			if (!(ifr.ifr_flags & IFF_UP))
+			if (!(ifr->ifr_flags & IFF_UP))
 				inet_del_ifa(in_dev, ifap, 1);
 			break;
 		}
-		ret = dev_change_flags(dev, ifr.ifr_flags);
+		ret = dev_change_flags(dev, ifr->ifr_flags);
 		break;
 
 	case SIOCSIFADDR:	/* Set interface address (and family) */
@@ -1101,7 +1094,7 @@ int devinet_ioctl(struct net *net, unsigned int cmd, void __user *arg)
 				break;
 			INIT_HLIST_NODE(&ifa->hash);
 			if (colon)
-				memcpy(ifa->ifa_label, ifr.ifr_name, IFNAMSIZ);
+				memcpy(ifa->ifa_label, ifr->ifr_name, IFNAMSIZ);
 			else
 				memcpy(ifa->ifa_label, dev->name, IFNAMSIZ);
 		} else {
@@ -1188,10 +1181,6 @@ done:
 	rtnl_unlock();
 out:
 	return ret;
-rarok:
-	rtnl_unlock();
-	ret = copy_to_user(arg, &ifr, sizeof(struct ifreq)) ? -EFAULT : 0;
-	goto out;
 }
 
 static int inet_gifconf(struct net_device *dev, char __user *buf, int len, int size)
