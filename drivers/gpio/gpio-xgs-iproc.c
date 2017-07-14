@@ -288,7 +288,7 @@ struct iproc_gpio_irqcfg cca_gpio_irqcfg = {
 	 * Remove IRQF_NO_SUSPEND to be consistent with 8250_core.c setting,
 	 * since CCA gpio and uart share the same IRQ.
 	 */
-	.flags = IRQF_SHARED,
+	.flags = IRQF_SHARED | IRQF_NO_THREAD,
 	.handler = iproc_gpio_irq_handler_cca,
 	.ack = iproc_gpio_irq_ack_cca,
 	.mask = iproc_gpio_irq_mask_cca,
@@ -406,7 +406,7 @@ static int iproc_gpio_irq_set_type_ccb(u32 irq, u32 type)
 }
 
 struct iproc_gpio_irqcfg ccb_gpio_irqcfg = {
-	.flags = IRQF_NO_SUSPEND,
+	.flags = IRQF_NO_SUSPEND | IRQF_NO_THREAD,
 	.handler = iproc_gpio_irq_handler_ccb,
 	.ack = iproc_gpio_irq_ack_ccb,
 	.mask = iproc_gpio_irq_mask_ccb,
