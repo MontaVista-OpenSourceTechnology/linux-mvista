@@ -1219,7 +1219,12 @@ static void axienet_start_xmit_done(struct net_device *ndev,
 	/* Matches barrier in axienet_start_xmit */
 	smp_mb();
 
-	netif_wake_queue(ndev);
+	/* Fixme: With the existing multiqueue implementation
+	 * in the driver it is difficult to get the exact queue info.
+	 * We should wake only the particular queue
+	 * instead of waking all ndev queues.
+	 */
+	netif_tx_wake_all_queues(ndev);
 }
 
 /**
@@ -1396,18 +1401,18 @@ static int axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 
 	spin_lock_irqsave(&q->tx_lock, flags);
 	if (axienet_check_tx_bd_space(q, num_frag)) {
-		if (netif_queue_stopped(ndev)) {
+		if (__netif_queue_stopped(ndev, map)) {
 			spin_unlock_irqrestore(&q->tx_lock, flags);
 			return NETDEV_TX_BUSY;
 		}
 
-		netif_stop_queue(ndev);
+		netif_stop_subqueue(ndev, map);
 
 		/* Matches barrier in axienet_start_xmit_done */
 		smp_mb();
 
 		/* Space might have just been freed - check again */
-		if (axienet_check_tx_bd_space(1, num_frag)) {
+		if (axienet_check_tx_bd_space(q, num_frag)) {
 			spin_unlock_irqrestore(&q->tx_lock, flags);
 			return NETDEV_TX_BUSY;
 		}
