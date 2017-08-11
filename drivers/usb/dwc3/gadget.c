@@ -991,10 +991,6 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 			trb->ctrl |= DWC3_TRB_CTRL_ISP_IMI;
 	}
 
-	if ((!no_interrupt && !chain) ||
-			(dwc3_calc_trbs_left(dep) == 1))
-		trb->ctrl |= DWC3_TRB_CTRL_IOC;
-
 	if (chain)
 		trb->ctrl |= DWC3_TRB_CTRL_CHN;
 	/*
@@ -1012,6 +1008,9 @@ static void __dwc3_prepare_one_trb(struct dwc3_ep *dep, struct dwc3_trb *trb,
 		trb->ctrl |= DWC3_TRB_CTRL_SID_SOFN(stream_id);
 
 	trb->ctrl |= DWC3_TRB_CTRL_HWO;
+
+	if ((!no_interrupt && !chain) || (dwc3_calc_trbs_left(dep) == 1))
+		trb->ctrl |= DWC3_TRB_CTRL_IOC;
 
 	dwc3_ep_inc_enq(dep);
 
