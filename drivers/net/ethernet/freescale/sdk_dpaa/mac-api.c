@@ -504,15 +504,9 @@ static int memac_init_phy(struct net_device *net_dev,
 	struct phy_device       *phy_dev;
 	int err;
 
-	if (of_phy_is_fixed_link(mac_dev->phy_node)) {
-		err = of_phy_register_fixed_link(mac_dev->phy_node);
-		if (err)
-			return err;
-		phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
-				&adjust_link, 0, mac_dev->phy_if);
-
-	} else if ((macdev2enetinterface(mac_dev) == e_ENET_MODE_XGMII_10000) ||
-		   (macdev2enetinterface(mac_dev) == e_ENET_MODE_SGMII_2500)) {
+	if ((macdev2enetinterface(mac_dev) == e_ENET_MODE_XGMII_10000) ||
+	    (macdev2enetinterface(mac_dev) == e_ENET_MODE_SGMII_2500) ||
+	    of_phy_is_fixed_link(mac_dev->phy_node)) {
 		phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
 					 &adjust_link_void, 0,
 					 mac_dev->phy_if);
