@@ -23,9 +23,6 @@ obj-$(CONFIG_IMX8_MIPI_CSI2_SAM)  += imx8-mipi-csi2-sam.o
 obj-$(CONFIG_IMX8_ISI_CORE) += imx8-capture.o
 obj-$(CONFIG_IMX8_ISI_CAPTURE) 	  += imx8-isi-cap.o
 obj-$(CONFIG_IMX8_ISI_M2M)	+= imx8-isi-m2m.o
-<<<<<<< HEAD
+obj-$(CONFIG_IMX8_ISI_HW) 	  += imx8-isi-hw.o
 
 obj-y += hdmirx/
-=======
-obj-$(CONFIG_IMX8_ISI_HW) 	  += imx8-isi-hw.o
->>>>>>> 63f45af9448e... LF-1409-05: media: isi: config ISI HW driver as a separate driver
