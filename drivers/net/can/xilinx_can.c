@@ -513,6 +513,9 @@ static int xcan_chip_start(struct net_device *ndev)
 		   priv->read_reg(priv, XCAN_SR_OFFSET));
 
 	priv->can.state = CAN_STATE_ERROR_ACTIVE;
+	priv->tx_head = 0;
+	priv->tx_tail = 0;
+
 	return 0;
 }
 
@@ -1220,7 +1223,6 @@ static void xcan_tx_interrupt(struct net_device *ndev, u32 isr)
 	 */
 	spin_lock_irqsave(&priv->tx_lock, flags);
 
-<<<<<<< HEAD
 	frames_in_fifo = priv->tx_head - priv->tx_tail;
 
 	if (WARN_ON_ONCE(frames_in_fifo == 0)) {
@@ -1257,10 +1259,6 @@ static void xcan_tx_interrupt(struct net_device *ndev, u32 isr)
 		}
 	} else {
 		/* single frame in fifo, just clear TXOK */
-=======
-	while ((priv->tx_head - priv->tx_tail > 0) &&
-	       (isr & XCAN_IXR_TXOK_MASK)) {
->>>>>>> fe9feea8a90a... can: xilinx: fix warnings in the driver
 		priv->write_reg(priv, XCAN_ICR_OFFSET, XCAN_IXR_TXOK_MASK);
 	}
 
@@ -1685,6 +1683,8 @@ static int xcan_probe(struct platform_device *pdev)
 	priv->reg_base = addr;
 	priv->tx_max = tx_max;
 	spin_lock_init(&priv->tx_lock);
+	priv->tx_head = 0;
+	priv->tx_tail = 0;
 
 	/* Get IRQ for the device */
 	ndev->irq = platform_get_irq(pdev, 0);
