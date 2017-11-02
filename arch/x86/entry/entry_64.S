@@ -621,7 +621,7 @@ GLOBAL(retint_user)
 GLOBAL(swapgs_restore_regs_and_return_to_usermode)
 #ifdef CONFIG_DEBUG_ENTRY
 	/* Assert that pt_regs indicates user mode. */
-	testl	$3, CS(%rsp)
+	testb	$3, CS(%rsp)
 	jnz	1f
 	ud2
 1:
@@ -670,7 +670,7 @@ do_preempt_schedule_irq:
 GLOBAL(restore_regs_and_return_to_kernel)
 #ifdef CONFIG_DEBUG_ENTRY
 	/* Assert that pt_regs indicates kernel mode. */
-	testl	$3, CS(%rsp)
+	testb	$3, CS(%rsp)
 	jz	1f
 	ud2
 1:
