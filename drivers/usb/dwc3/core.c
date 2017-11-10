@@ -1030,8 +1030,6 @@ static int dwc3_core_get_phy(struct dwc3 *dwc)
 			dev_err(dev, "no usb2 phy configured\n");
 			return ret;
 		}
-	} else {
-		dwc3_set_phydata(dev, dwc->usb2_generic_phy);
 	}
 
 	dwc->usb3_generic_phy = devm_phy_get(dev, "usb3-phy");
@@ -1045,8 +1043,6 @@ static int dwc3_core_get_phy(struct dwc3 *dwc)
 			dev_err(dev, "no usb3 phy configured\n");
 			return ret;
 		}
-	} else {
-		dwc3_set_phydata(dev, dwc->usb3_generic_phy);
 	}
 
 	return 0;
