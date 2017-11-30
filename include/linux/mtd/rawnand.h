@@ -600,11 +600,6 @@ struct nand_ecc_ctrl {
 			int page);
 };
 
-static inline int nand_standard_page_accessors(struct nand_ecc_ctrl *ecc)
-{
-	return !(ecc->options & NAND_ECC_CUSTOM_PAGE_ACCESS);
-}
-
 /**
  * struct nand_buffers - buffer structure for read/write
  * @ecccalc:	buffer pointer for calculated ECC, size is oobsize.
