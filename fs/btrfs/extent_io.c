@@ -140,7 +140,7 @@ static void add_extent_changeset(struct extent_state *state, unsigned bits,
 	BUG_ON(ret < 0);
 }
 
-static void flush_write_bio(void *data);
+static void flush_write_bio(struct extent_page_data *epd);
 
 static inline struct btrfs_fs_info *
 tree_fs_info(struct extent_io_tree *tree)
@@ -3459,10 +3459,9 @@ done:
  * and the end_io handler clears the writeback ranges
  */
 static int __extent_writepage(struct page *page, struct writeback_control *wbc,
-			      void *data)
+			      struct extent_page_data *epd)
 {
 	struct inode *inode = page->mapping->host;
-	struct extent_page_data *epd = data;
 	u64 start = page_offset(page);
 	u64 page_end = start + PAGE_SIZE - 1;
 	int ret;
@@ -3918,7 +3917,7 @@ retry:
  */
 static int extent_write_cache_pages(struct address_space *mapping,
 			     struct writeback_control *wbc,
-			     void *data)
+			     struct extent_page_data *epd)
 {
 	struct inode *inode = mapping->host;
 	int ret = 0;
@@ -3982,7 +3981,7 @@ retry:
 			 * mapping
 			 */
 			if (!trylock_page(page)) {
-				flush_write_bio(data);
+				flush_write_bio(epd);
 				lock_page(page);
 			}
 
@@ -3999,7 +3998,7 @@ retry:
 
 			if (wbc->sync_mode != WB_SYNC_NONE) {
 				if (PageWriteback(page))
-					flush_write_bio(data);
+					flush_write_bio(epd);
 				wait_on_page_writeback(page);
 			}
 
@@ -4009,7 +4008,7 @@ retry:
 				continue;
 			}
 
-			ret = __extent_writepage(page, wbc, data);
+			ret = __extent_writepage(page, wbc, epd);
 
 			if (unlikely(ret == AOP_WRITEPAGE_ACTIVATE)) {
 				unlock_page(page);
@@ -4054,7 +4053,7 @@ retry:
 		 * page in our current bio, and thus deadlock, so flush the
 		 * write bio here.
 		 */
-		flush_write_bio(data);
+		flush_write_bio(epd);
 		goto retry;
 	}
 
@@ -4065,10 +4064,8 @@ retry:
 	return ret;
 }
 
-static void flush_write_bio(void *data)
+static void flush_write_bio(struct extent_page_data *epd)
 {
-	struct extent_page_data *epd = data;
-
 	if (epd->bio) {
 		int ret;
 
