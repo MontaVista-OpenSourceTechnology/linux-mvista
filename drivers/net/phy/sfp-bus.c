@@ -11,7 +11,7 @@
 struct sfp_bus {
 	struct kref kref;
 	struct list_head node;
-	struct device_node *device_node;
+	struct fwnode_handle *fwnode;
 
 	const struct sfp_socket_ops *socket_ops;
 	struct device *sfp_dev;
@@ -217,7 +217,7 @@ static const struct sfp_upstream_ops *sfp_get_upstream_ops(struct sfp_bus *bus)
 	return bus->registered ? bus->upstream_ops : NULL;
 }
 
-static struct sfp_bus *sfp_bus_get(struct device_node *np)
+static struct sfp_bus *sfp_bus_get(struct fwnode_handle *fwnode)
 {
 	struct sfp_bus *sfp, *new, *found = NULL;
 
@@ -226,7 +226,7 @@ static struct sfp_bus *sfp_bus_get(struct device_node *np)
 	mutex_lock(&sfp_mutex);
 
 	list_for_each_entry(sfp, &sfp_buses, node) {
-		if (sfp->device_node == np) {
+		if (sfp->fwnode == fwnode) {
 			kref_get(&sfp->kref);
 			found = sfp;
 			break;
@@ -235,7 +235,7 @@ static struct sfp_bus *sfp_bus_get(struct device_node *np)
 
 	if (!found && new) {
 		kref_init(&new->kref);
-		new->device_node = np;
+		new->fwnode = fwnode;
 		list_add(&new->node, &sfp_buses);
 		found = new;
 		new = NULL;
@@ -331,11 +331,24 @@ void sfp_upstream_stop(struct sfp_bus *bus)
 }
 EXPORT_SYMBOL_GPL(sfp_upstream_stop);
 
-struct sfp_bus *sfp_register_upstream(struct device_node *np,
-	struct net_device *ndev, void *upstream,
-	const struct sfp_upstream_ops *ops)
+/**
+ * sfp_register_upstream() - Register the neighbouring device
+ * @fwnode: firmware node for the SFP bus 
+ * @ndev: network device associated with the interface
+ * @upstream: the upstream private data
+ * @ops: the upstream's &struct sfp_upstream_ops
+ *
+ * Register the upstream device (eg, PHY) with the SFP bus. MAC drivers
+ * should use phylink, which will call this function for them. Returns
+ * a pointer to the allocated &struct sfp_bus.
+ *
+ * On error, returns %NULL.
+ */
+struct sfp_bus *sfp_register_upstream(struct fwnode_handle *fwnode,
+				      struct net_device *ndev, void *upstream,
+				      const struct sfp_upstream_ops *ops)
 {
-	struct sfp_bus *bus = sfp_bus_get(np);
+	struct sfp_bus *bus = sfp_bus_get(fwnode);
 	int ret = 0;
 
 	if (bus) {
@@ -441,7 +454,7 @@ EXPORT_SYMBOL_GPL(sfp_module_remove);
 struct sfp_bus *sfp_register_socket(struct device *dev, struct sfp *sfp,
 				    const struct sfp_socket_ops *ops)
 {
-	struct sfp_bus *bus = sfp_bus_get(dev->of_node);
+	struct sfp_bus *bus = sfp_bus_get(dev->fwnode);
 	int ret = 0;
 
 	if (bus) {
