@@ -717,7 +717,20 @@ int phylink_connect_phy(struct phylink *pl, struct phy_device *phy)
 }
 EXPORT_SYMBOL_GPL(phylink_connect_phy);
 
-int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn)
+/**
+ * phylink_of_phy_connect() - connect the PHY specified in the DT mode.
+ * @pl: a pointer to a &struct phylink returned from phylink_create()
+ * @dn: a pointer to a &struct device_node.
+ * @flags: PHY-specific flags to communicate to the PHY device driver
+ *
+ * Connect the phy specified in the device node @dn to the phylink instance
+ * specified by @pl. Actions specified in phylink_connect_phy() will be
+ * performed.
+ *
+ * Returns 0 on success or a negative errno.
+ */
+int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn,
+			   u32 flags)
 {
 	struct device_node *phy_node;
 	struct phy_device *phy_dev;
@@ -741,7 +754,8 @@ int phylink_of_phy_connect(struct phylink *pl, struct device_node *dn)
 		return 0;
 	}
 
-	phy_dev = of_phy_attach(pl->netdev, phy_node, 0, pl->link_interface);
+	phy_dev = of_phy_attach(pl->netdev, phy_node, flags,
+				pl->link_interface);
 	/* We're done with the phy_node handle */
 	of_node_put(phy_node);
 
