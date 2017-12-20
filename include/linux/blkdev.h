@@ -138,7 +138,7 @@ struct request {
 	struct work_struct work;
 #endif
 	union {
-		call_single_data_t csd;
+		struct __call_single_data csd;
 		u64 fifo_time;
 	};
 
