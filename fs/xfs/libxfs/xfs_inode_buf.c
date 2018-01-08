@@ -392,6 +392,19 @@ xfs_dinode_verify(
 	if (dip->di_magic != cpu_to_be16(XFS_DINODE_MAGIC))
 		return false;
 
+	/* Verify v3 integrity information first */
+	if (dip->di_version >= 3) {
+		if (!xfs_sb_version_hascrc(&mp->m_sb))
+			return false;
+		if (!xfs_verify_cksum((char *)dip, mp->m_sb.sb_inodesize,
+				      XFS_DINODE_CRC_OFF))
+			return false;
+		if (be64_to_cpu(dip->di_ino) != ino)
+			return false;
+		if (!uuid_equal(&dip->di_uuid, &mp->m_sb.sb_meta_uuid))
+			return false;
+	}
+
 	/* don't allow invalid i_size */
 	if (be64_to_cpu(dip->di_size) & (1ULL << 63))
 		return false;
@@ -407,16 +420,6 @@ xfs_dinode_verify(
 	/* only version 3 or greater inodes are extensively verified here */
 	if (dip->di_version < 3)
 		return true;
-
-	if (!xfs_sb_version_hascrc(&mp->m_sb))
-		return false;
-	if (!xfs_verify_cksum((char *)dip, mp->m_sb.sb_inodesize,
-			      XFS_DINODE_CRC_OFF))
-		return false;
-	if (be64_to_cpu(dip->di_ino) != ino)
-		return false;
-	if (!uuid_equal(&dip->di_uuid, &mp->m_sb.sb_meta_uuid))
-		return false;
 
 	flags = be16_to_cpu(dip->di_flags);
 	flags2 = be64_to_cpu(dip->di_flags2);
