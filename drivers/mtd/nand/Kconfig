@@ -315,10 +315,23 @@ config MTD_NAND_ATMEL
 
 config MTD_NAND_PXA3xx
 	tristate "NAND support on PXA3xx and Armada 370/XP"
+	depends on !MTD_NAND_MARVELL
 	depends on PXA3xx || ARCH_MMP || PLAT_ORION || ARCH_MVEBU
 	help
 	  This enables the driver for the NAND flash device found on
 	  PXA3xx processors (NFCv1) and also on Armada 370/XP (NFCv2).
+
+config MTD_NAND_MARVELL
+	tristate "NAND controller support on Marvell boards"
+	depends on PXA3xx || ARCH_MMP || PLAT_ORION || ARCH_MVEBU || \
+		   COMPILE_TEST
+	depends on HAS_IOMEM
+	help
+	  This enables the NAND flash controller driver for Marvell boards,
+	  including:
+	  - PXA3xx processors (NFCv1)
+	  - 32-bit Armada platforms (XP, 37x, 38x, 39x) (NFCv2)
+	  - 64-bit Aramda platforms (7k, 8k) (NFCv2)
 
 config MTD_NAND_SLC_LPC32XX
 	tristate "NXP LPC32xx SLC Controller"
