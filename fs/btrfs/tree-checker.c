@@ -104,10 +104,10 @@ static void file_extent_err(const struct btrfs_fs_info *fs_info,
 	(!IS_ALIGNED(btrfs_file_extent_##name((leaf), (fi)), (alignment)));   \
 })
 
-static int check_extent_data_item(struct extent_buffer *leaf,
+static int check_extent_data_item(struct btrfs_fs_info *fs_info,
+				  struct extent_buffer *leaf,
 				  struct btrfs_key *key, int slot)
 {
-	struct btrfs_fs_info *fs_info = leaf->fs_info;
 	struct btrfs_file_extent_item *fi;
 	u32 sectorsize = fs_info->sectorsize;
 	u32 item_size = btrfs_item_size_nr(leaf, slot);
@@ -188,10 +188,10 @@ static int check_extent_data_item(struct extent_buffer *leaf,
 	return 0;
 }
 
-static int check_csum_item(struct extent_buffer *leaf, struct btrfs_key *key,
+static int check_csum_item(struct btrfs_fs_info *fs_info,
+			   struct extent_buffer *leaf, struct btrfs_key *key,
 			   int slot)
 {
-	struct btrfs_fs_info *fs_info = leaf->fs_info;
 	u32 sectorsize = fs_info->sectorsize;
 	u32 csumsize = btrfs_super_csum_size(fs_info->super_copy);
 
@@ -244,10 +244,10 @@ static void dir_item_err(const struct btrfs_fs_info *fs_info,
 	va_end(args);
 }
 
-static int check_dir_item(struct extent_buffer *leaf,
+static int check_dir_item(struct btrfs_fs_info *fs_info,
+			  struct extent_buffer *leaf,
 			  struct btrfs_key *key, int slot)
 {
-	struct btrfs_fs_info *fs_info = leaf->fs_info;
 	struct btrfs_dir_item *di;
 	u32 item_size = btrfs_item_size_nr(leaf, slot);
 	u32 cur = 0;
@@ -764,7 +764,8 @@ static int check_inode_item(struct btrfs_fs_info *fs_info,
 /*
  * Common point to switch the item-specific validation.
  */
-static int check_leaf_item(struct extent_buffer *leaf,
+static int check_leaf_item(struct btrfs_fs_info *fs_info,
+			   struct extent_buffer *leaf,
 			   struct btrfs_key *key, int slot)
 {
 	int ret = 0;
@@ -772,15 +773,15 @@ static int check_leaf_item(struct extent_buffer *leaf,
 
 	switch (key->type) {
 	case BTRFS_EXTENT_DATA_KEY:
-		ret = check_extent_data_item(leaf, key, slot);
+		ret = check_extent_data_item(fs_info, leaf, key, slot);
 		break;
 	case BTRFS_EXTENT_CSUM_KEY:
-		ret = check_csum_item(leaf, key, slot);
+		ret = check_csum_item(fs_info, leaf, key, slot);
 		break;
 	case BTRFS_DIR_ITEM_KEY:
 	case BTRFS_DIR_INDEX_KEY:
 	case BTRFS_XATTR_ITEM_KEY:
-		ret = check_dir_item(leaf, key, slot);
+		ret = check_dir_item(fs_info, leaf, key, slot);
 		break;
 	case BTRFS_BLOCK_GROUP_ITEM_KEY:
 		ret = check_block_group_item(leaf, key, slot);
@@ -800,9 +801,9 @@ static int check_leaf_item(struct extent_buffer *leaf,
 	return ret;
 }
 
-static int check_leaf(struct extent_buffer *leaf, bool check_item_data)
+static int check_leaf(struct btrfs_fs_info *fs_info, struct extent_buffer *leaf,
+		      bool check_item_data)
 {
-	struct btrfs_fs_info *fs_info = leaf->fs_info;
 	/* No valid key type is 0, so all key should be larger than this key */
 	struct btrfs_key prev_key = {0, 0, 0};
 	struct btrfs_key key;
@@ -950,7 +951,7 @@ static int check_leaf(struct extent_buffer *leaf, bool check_item_data)
 			 * Check if the item size and content meet other
 			 * criteria
 			 */
-			ret = check_leaf_item(leaf, &key, slot);
+			ret = check_leaf_item(fs_info, leaf, &key, slot);
 			if (ret < 0)
 				return ret;
 		}
@@ -963,19 +964,20 @@ static int check_leaf(struct extent_buffer *leaf, bool check_item_data)
 	return 0;
 }
 
-int btrfs_check_leaf_full(struct extent_buffer *leaf)
+int btrfs_check_leaf_full(struct btrfs_fs_info *fs_info,
+			  struct extent_buffer *leaf)
 {
-	return check_leaf(leaf, true);
+	return check_leaf(fs_info, leaf, true);
 }
 
-int btrfs_check_leaf_relaxed(struct extent_buffer *leaf)
+int btrfs_check_leaf_relaxed(struct btrfs_fs_info *fs_info,
+			     struct extent_buffer *leaf)
 {
-	return check_leaf(leaf, false);
+	return check_leaf(fs_info, leaf, false);
 }
 
-int btrfs_check_node(struct extent_buffer *node)
+int btrfs_check_node(struct btrfs_fs_info *fs_info, struct extent_buffer *node)
 {
-	struct btrfs_fs_info *fs_info = node->fs_info;
 	unsigned long nr = btrfs_header_nritems(node);
 	struct btrfs_key key, next_key;
 	int slot;

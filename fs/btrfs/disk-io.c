@@ -541,9 +541,9 @@ static int csum_dirty_buffer(struct btrfs_fs_info *fs_info, struct page *page)
 		return -EINVAL;
 
 	if (btrfs_header_level(eb))
-		ret = btrfs_check_node(eb);
+		ret = btrfs_check_node(fs_info, eb);
 	else
-		ret = btrfs_check_leaf_full(eb);
+		ret = btrfs_check_leaf_full(fs_info, eb);
 
 	if (ret < 0) {
 		btrfs_err(fs_info,
@@ -669,12 +669,12 @@ static int btree_readpage_end_io_hook(struct btrfs_io_bio *io_bio,
 	 * that we don't try and read the other copies of this block, just
 	 * return -EIO.
 	 */
-	if (found_level == 0 && btrfs_check_leaf_full(eb)) {
+	if (found_level == 0 && btrfs_check_leaf_full(fs_info, eb)) {
 		set_bit(EXTENT_BUFFER_CORRUPT, &eb->bflags);
 		ret = -EIO;
 	}
 
-	if (found_level > 0 && btrfs_check_node(eb))
+	if (found_level > 0 && btrfs_check_node(fs_info, eb))
 		ret = -EIO;
 
 	if (!ret)
@@ -4155,7 +4155,7 @@ void btrfs_mark_buffer_dirty(struct extent_buffer *buf)
 	 * So here we should only check item pointers, not item data.
 	 */
 	if (btrfs_header_level(buf) == 0 &&
-	    btrfs_check_leaf_relaxed(buf)) {
+	    btrfs_check_leaf_relaxed(fs_info, buf)) {
 		btrfs_print_leaf(buf);
 		ASSERT(0);
 	}
