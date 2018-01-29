@@ -1427,6 +1427,9 @@ config MEMBARRIER
 
 	  If unsure, say Y.
 
+config ARCH_HAS_MEMBARRIER_CALLBACKS
+	bool
+
 config EMBEDDED
 	bool "Embedded system"
 	option allnoconfig_y
