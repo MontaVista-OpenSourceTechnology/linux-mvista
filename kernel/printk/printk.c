@@ -2487,7 +2487,7 @@ skip:
 
 		if (console_lock_spinning_disable_and_check()) {
 			printk_safe_exit_irqrestore(flags);
-			return;
+			goto out;
 		}
 
 		printk_safe_exit_irqrestore(flags);
@@ -2521,6 +2521,7 @@ skip:
 	if (retry && console_trylock())
 		goto again;
 
+out:
 	if (wake_klogd)
 		wake_up_klogd();
 }
