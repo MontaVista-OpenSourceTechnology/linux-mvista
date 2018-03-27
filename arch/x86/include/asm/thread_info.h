@@ -55,7 +55,7 @@ struct task_struct;
 
 struct thread_info {
 	unsigned long		flags;		/* low level flags */
-	int                     preempt_lazy_count;     /* 0 => lazy preemptable
+	int                     preempt_lazy_count;     /* 0 => lazy preemptable */
 	u32			status;		/* thread synchronous flags */
 };
 
