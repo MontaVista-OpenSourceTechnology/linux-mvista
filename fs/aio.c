@@ -590,6 +590,12 @@ static int kiocb_cancel(struct aio_kiocb *kiocb)
 	return cancel(&kiocb->common);
 }
 
+/*
+ * free_ioctx() should be RCU delayed to synchronize against the RCU
+ * protected lookup_ioctx() and also needs process context to call
+ * aio_free_ring(), so the double bouncing through kioctx->free_rcu and
+ * ->free_work.
+ */
 static void free_ioctx(struct swork_event *sev)
 {
 	struct kioctx *ctx = container_of(sev, struct kioctx, free_work);
@@ -607,8 +613,8 @@ static void free_ioctx_rcufn(struct rcu_head *head)
 {
 	struct kioctx *ctx = container_of(head, struct kioctx, free_rcu);
 
-	INIT_WORK(&ctx->free_work, free_ioctx);
-	schedule_work(&ctx->free_work);
+	INIT_SWORK(&ctx->free_work, free_ioctx);
+	swork_queue(&ctx->free_work);
 }
 
 static void free_ioctx_reqs(struct percpu_ref *ref)
@@ -619,8 +625,8 @@ static void free_ioctx_reqs(struct percpu_ref *ref)
 	if (ctx->rq_wait && atomic_dec_and_test(&ctx->rq_wait->count))
 		complete(&ctx->rq_wait->comp);
 
-	INIT_SWORK(&ctx->free_work, free_ioctx);
-	swork_queue(&ctx->free_work);
+	/* Synchronize against RCU protected table->table[] dereferences */
+	call_rcu(&ctx->free_rcu, free_ioctx_rcufn);
 }
 
 /*
