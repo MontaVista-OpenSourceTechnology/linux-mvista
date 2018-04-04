@@ -2063,6 +2063,7 @@ static int nicvf_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	 */
 	if (!nic->t88)
 		nic->max_queues *= 2;
+	nic->ptp_clock = ptp_clock;
 
 	/* MAP VF's configuration registers */
 	nic->reg_base = pcim_iomap(pdev, PCI_CFG_REG_BAR_NUM, 0);
