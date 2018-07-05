@@ -1029,6 +1029,12 @@ out_add_root:
 	set_bit(BTRFS_FS_QUOTA_ENABLED, &fs_info->flags);
 	spin_unlock(&fs_info->qgroup_lock);
 
+	ret = btrfs_commit_transaction(trans);
+	if (ret) {
+		trans = NULL;
+		goto out_free_path;
+	}
+
 	ret = qgroup_rescan_init(fs_info, 0, 1);
 	if (!ret) {
 	        qgroup_rescan_zero_tracking(fs_info);
