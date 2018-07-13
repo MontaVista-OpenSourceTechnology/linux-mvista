@@ -588,4 +588,6 @@ bool btrfs_check_rw_degradable(struct btrfs_fs_info *fs_info);
 void btrfs_report_missing_device(struct btrfs_fs_info *fs_info, u64 devid,
 				 u8 *uuid);
 
+int btrfs_bg_type_to_factor(u64 flags);
+
 #endif

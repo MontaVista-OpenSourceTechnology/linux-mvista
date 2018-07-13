@@ -4107,11 +4107,7 @@ static void update_space_info(struct btrfs_fs_info *info, u64 flags,
 	struct btrfs_space_info *found;
 	int factor;
 
-	if (flags & (BTRFS_BLOCK_GROUP_DUP | BTRFS_BLOCK_GROUP_RAID1 |
-		     BTRFS_BLOCK_GROUP_RAID10))
-		factor = 2;
-	else
-		factor = 1;
+	factor = btrfs_bg_type_to_factor(flags);
 
 	found = __find_space_info(info, flags);
 	ASSERT(found);
@@ -4753,6 +4749,7 @@ static int can_overcommit(struct btrfs_fs_info *fs_info,
 	u64 space_size;
 	u64 avail;
 	u64 used;
+	int factor;
 
 	/* Don't overcommit when in mixed mode. */
 	if (space_info->flags & BTRFS_BLOCK_GROUP_DATA)
@@ -4787,10 +4784,8 @@ static int can_overcommit(struct btrfs_fs_info *fs_info,
 	 * doesn't include the parity drive, so we don't have to
 	 * change the math
 	 */
-	if (profile & (BTRFS_BLOCK_GROUP_DUP |
-		       BTRFS_BLOCK_GROUP_RAID1 |
-		       BTRFS_BLOCK_GROUP_RAID10))
-		avail >>= 1;
+	factor = btrfs_bg_type_to_factor(profile);
+	avail = div_u64(avail, factor);
 
 	/*
 	 * If we aren't flushing all things, let us overcommit up to
@@ -6344,12 +6339,8 @@ static int update_block_group(struct btrfs_trans_handle *trans,
 		cache = btrfs_lookup_block_group(info, bytenr);
 		if (!cache)
 			return -ENOENT;
-		if (cache->flags & (BTRFS_BLOCK_GROUP_DUP |
-				    BTRFS_BLOCK_GROUP_RAID1 |
-				    BTRFS_BLOCK_GROUP_RAID10))
-			factor = 2;
-		else
-			factor = 1;
+		factor = btrfs_bg_type_to_factor(cache->flags);
+
 		/*
 		 * If this block group has free space cache written out, we
 		 * need to make sure to load it if we are removing space.  This
@@ -9599,13 +9590,7 @@ u64 btrfs_account_ro_block_groups_free_space(struct btrfs_space_info *sinfo)
 			continue;
 		}
 
-		if (block_group->flags & (BTRFS_BLOCK_GROUP_RAID1 |
-					  BTRFS_BLOCK_GROUP_RAID10 |
-					  BTRFS_BLOCK_GROUP_DUP))
-			factor = 2;
-		else
-			factor = 1;
-
+		factor = btrfs_bg_type_to_factor(block_group->flags);
 		free_bytes += (block_group->key.offset -
 			       btrfs_block_group_used(&block_group->item)) *
 			       factor;
@@ -10490,12 +10475,7 @@ int btrfs_remove_block_group(struct btrfs_trans_handle *trans,
 
 	memcpy(&key, &block_group->key, sizeof(key));
 	index = btrfs_bg_flags_to_raid_index(block_group->flags);
-	if (block_group->flags & (BTRFS_BLOCK_GROUP_DUP |
-				  BTRFS_BLOCK_GROUP_RAID1 |
-				  BTRFS_BLOCK_GROUP_RAID10))
-		factor = 2;
-	else
-		factor = 1;
+	factor = btrfs_bg_type_to_factor(block_group->flags);
 
 	/* make sure this block group isn't part of an allocation cluster */
 	cluster = &fs_info->data_alloc_cluster;
