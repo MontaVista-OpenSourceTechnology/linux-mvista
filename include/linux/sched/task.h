@@ -78,7 +78,7 @@ extern struct task_struct *copy_process(unsigned long, unsigned long,
 					struct pid *, int, unsigned long, int);
 struct task_struct *fork_idle(int);
 extern pid_t kernel_thread(int (*fn)(void *), void *arg, unsigned long flags);
-extern long kernel_wait4(pid_t, int *, int, struct rusage *);
+extern long kernel_wait4(pid_t, int __user *, int, struct rusage *);
 
 extern void free_task(struct task_struct *tsk);
 
