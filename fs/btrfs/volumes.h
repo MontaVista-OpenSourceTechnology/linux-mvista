@@ -362,6 +362,7 @@ struct map_lookup {
 	u64 stripe_len;
 	int num_stripes;
 	int sub_stripes;
+	int verified_stripes; /* For mount time dev extent verification */
 	struct btrfs_bio_stripe stripes[];
 };
 
@@ -589,5 +590,6 @@ void btrfs_report_missing_device(struct btrfs_fs_info *fs_info, u64 devid,
 				 u8 *uuid);
 
 int btrfs_bg_type_to_factor(u64 flags);
+int btrfs_verify_dev_extents(struct btrfs_fs_info *fs_info);
 
 #endif
