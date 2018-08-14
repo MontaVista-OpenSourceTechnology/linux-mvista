@@ -2346,6 +2346,8 @@ void __init boot_cpu_init(void)
  */
 void __init boot_cpu_state_init(void)
 {
+#ifdef CONFIG_SMP
 	this_cpu_write(cpuhp_state.booted_once, true);
+#endif
 	this_cpu_write(cpuhp_state.state, CPUHP_ONLINE);
 }
