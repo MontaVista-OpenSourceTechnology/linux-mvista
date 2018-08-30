@@ -109,7 +109,7 @@ void softirq_check_pending_idle(void)
 	u32 warnpending;
 	int i;
 
-	if (rate_limit >= 10)
+	if (rate_limit >= 10 || in_softirq())
 		return;
 
 	warnpending = local_softirq_pending() & SOFTIRQ_STOP_IDLE_MASK;
@@ -147,7 +147,7 @@ void softirq_check_pending_idle(void)
 {
 	static int rate_limit;
 
-	if (rate_limit < 10 &&
+	if (rate_limit < 10 && !in_softirq() &&
 			(local_softirq_pending() & SOFTIRQ_STOP_IDLE_MASK)) {
 		printk(KERN_ERR "NOHZ: local_softirq_pending %02x\n",
 		       local_softirq_pending());
