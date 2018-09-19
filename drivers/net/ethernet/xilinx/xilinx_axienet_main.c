@@ -1201,7 +1201,8 @@ out:
  * start the transmission. Additionally if checksum offloading is supported,
  * it populates AXI Stream Control fields with appropriate values.
  */
-static int axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
+static netdev_tx_t 
+axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 {
 	u16 map = skb_get_queue_mapping(skb); /* Single dma queue default*/
 
