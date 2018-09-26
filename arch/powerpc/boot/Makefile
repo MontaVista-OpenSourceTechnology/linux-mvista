@@ -423,6 +423,13 @@ $(obj)/treeImage.initrd.%: vmlinux $(obj)/dts/%.dtb $(wrapperbits) FORCE
 $(obj)/treeImage.%: vmlinux $(obj)/dts/%.dtb $(wrapperbits) FORCE
 	$(call if_changed,wrap,treeboot-$*,,$(obj)/dts/$*.dtb)
 
+OBJCOPYFLAGS_vmlinux.bin := -O binary
+$(obj)/vmlinux.bin: vmlinux FORCE
+	$(call if_changed,objcopy)
+
+$(obj)/zImage.rio: $(obj)/vmlinux.bin FORCE
+	$(call if_changed,gzip)
+
 # Needed for the above targets to work with dts/fsl/ files
 $(obj)/dts/%.dtb: $(obj)/dts/fsl/%.dtb
 	@cp $< $@
