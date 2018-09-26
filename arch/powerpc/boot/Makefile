@@ -416,6 +416,13 @@ $(obj)/treeImage.%: vmlinux $(obj)/%.dtb $(wrapperbits) FORCE
 $(obj)/%.dtb: $(src)/dts/%.dts FORCE
 	$(call if_changed_dep,dtc)
 
+OBJCOPYFLAGS_vmlinux.bin := -O binary
+$(obj)/vmlinux.bin: vmlinux
+	$(call if_changed,objcopy)
+
+$(obj)/zImage.rio: $(obj)/vmlinux.bin
+	$(call if_changed,gzip)
+
 $(obj)/%.dtb: $(src)/dts/fsl/%.dts FORCE
 	$(call if_changed_dep,dtc)
 
