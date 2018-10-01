@@ -288,6 +288,21 @@ config CORENET_GENERIC
 	  The following boards are supported for both 32bit and 64bit kernel:
 	    P5020 DS, P5040 DS, T102x QDS/RDB, T104x QDS/RDB
 
+config  MFCC_8558
+	bool "MFCC-8558 SBC"
+	depends on CORENET_GENERIC
+	select DEFAULT_UIMAGE
+	select E500
+	select PPC_E500MC
+	select PHYS_64BIT
+	select SWIOTLB
+	select GPIOLIB
+	select GPIO_MPC8XXX
+	select HAS_RAPIDIO
+	select PPC_EPAPR_HV_PIC
+	help
+	This option enables support for the MFCC-8558 SBC
+
 endif # FSL_SOC_BOOKE
 
 config TQM85xx
