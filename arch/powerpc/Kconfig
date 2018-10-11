@@ -1012,6 +1012,11 @@ config FSL_GTM
 	help
 	  Freescale General-purpose Timers support
 
+config HAS_FSL_QBMAN
+        bool "Datapath Acceleration Queue and Buffer management"
+        help
+          Datapath Acceleration Queue and Buffer management
+
 config PCI_8260
 	bool
 	depends on PCI && 8260
