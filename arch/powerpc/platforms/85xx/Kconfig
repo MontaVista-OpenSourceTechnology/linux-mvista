@@ -301,6 +301,9 @@ config  MFCC_8558
 	select HAS_RAPIDIO
 	select PPC_EPAPR_HV_PIC
 	select HAS_FSL_QBMAN
+	select MDIO_BUS_MUX if FSL_DPAA_ETH
+	select MDIO_BUS_MUX_MMIOREG if FSL_DPAA_ETH
+	select MDIO_BUS_MUX_GPIO if FSL_DPAA_ETH
 	help
 	This option enables support for the MFCC-8558 SBC
 
