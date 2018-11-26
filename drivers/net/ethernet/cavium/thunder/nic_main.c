@@ -1622,6 +1622,9 @@ static void nic_remove(struct pci_dev *pdev)
 
 	device_remove_file(dev, &dev_attr_sriov_sqs_assignment);
 
+	if (!nic)
+		return;
+
 	if (nic->flags & NIC_SRIOV_ENABLED) {
 		nic_put_vf_pdev(nic);
 		pci_disable_sriov(pdev);
