@@ -1,0 +1,43 @@
+/dts-v1/;
+
+/ {
+	description = "Linux kernel and FDT blob";
+	#address-cells = <1>;
+
+	images {
+		kernel_1 {
+			description = "Broadcom iProc Linux";
+			data = /incbin/("../../../Image.gz");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "gzip";
+			load = <0x61080000>;
+			entry = <0x61080000>;
+			hash_1 {
+				algo = "crc32";
+			};
+		};
+
+		fdt_1 {
+			description = "Flattened Device Tree blob - bcm956370.dtb";
+			data = /incbin/("./bcm956370.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			load = <0x61000000>;
+			hash_1 {
+				algo = "crc32";
+			};
+		};
+	};
+
+	configurations {
+		default = "conf_1";
+		conf_1 {
+			description = "Boot Linux kernel with FDT blob ";
+			kernel = "kernel_1";
+			fdt = "fdt_1";
+		};
+	};
+};

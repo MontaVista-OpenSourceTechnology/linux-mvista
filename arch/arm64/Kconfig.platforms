@@ -255,6 +255,14 @@ config ARCH_XGENE
 	help
 	  This enables support for AppliedMicro X-Gene SOC Family
 
+config ARCH_XGS_IPROC
+	bool "Broadcom iProc XGS SoC Family"
+	select ARCH_REQUIRE_GPIOLIB
+	select ARM_ARCH_TIMER
+	select ARM_GIC
+	help
+	  This enables support for Broadcom XGS iProcbased SoC chips
+
 config ARCH_ZX
 	bool "ZTE ZX SoC Family"
 	select PINCTRL
