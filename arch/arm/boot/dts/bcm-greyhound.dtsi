@@ -1,0 +1,408 @@
+/*
+ *  BSD LICENSE
+ *
+ *  Copyright(c) 2016 Broadcom Corporation.  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *    * Redistributions of source code must retain the above copyright
+ *      notice, this list of conditions and the following disclaimer.
+ *    * Redistributions in binary form must reproduce the above copyright
+ *      notice, this list of conditions and the following disclaimer in
+ *      the documentation and/or other materials provided with the
+ *      distribution.
+ *    * Neither the name of Broadcom Corporation nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+#include "skeleton.dtsi"
+
+
+/ {
+	model = "Broadcom GH iProc";
+	compatible = "brcm,greyhound";
+	interrupt-parent = <&gic>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a9";
+			next-level-cache = <&L2>;
+			reg = <0x0>;
+		};
+	};
+
+	core {
+		compatible = "simple-bus";
+		ranges = <0x00000000 0x19000000 0x00023000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		a9pll: arm_clk@00000 {
+			#clock-cells = <0>;
+			compatible = "brcm,xgs-iproc-armpll";
+			clocks = <&osc>;
+			/*clocks = <&osc_50M>;*/ /* 50MHZ crystal/oscillator */
+			reg = <0x0 0x1000>;
+		};
+
+		gic: interrupt-controller@21000 {
+			compatible = "arm,cortex-a9-gic";
+			#interrupt-cells = <3>;
+			interrupt-controller;
+			reg = <0x21000 0x1000>, <0x20100 0x100>;
+		};
+
+		twd-timer@20600 {
+			compatible = "arm,cortex-a9-twd-timer";
+			reg = <0x20600 0x100>;
+			interrupts = <GIC_PPI 13 IRQ_TYPE_EDGE_RISING>;
+			clocks = <&periph_clk>;
+		};
+
+		timer@20200 {
+			compatible = "arm,cortex-a9-global-timer";
+			reg = <0x20200 0x100>;
+			interrupts = <GIC_PPI 11 IRQ_TYPE_EDGE_RISING>;
+			clocks = <&periph_clk>;
+		};
+
+		L2: l2-cache {
+			compatible = "arm,pl310-cache";
+			reg = <0x22000 0x1000>;
+			cache-unified;
+			cache-level = <2>;
+			arm,filter-ranges = <0x60000000 0x80000000>;
+		};
+	};
+
+	clocks {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		osc: oscillator {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <25000000>;
+		};
+
+		/* 50MHZ crystal/oscillator clock source */
+		/*
+		osc_50M: oscillator_50M {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <50000000>;
+		};
+		*/
+
+		periph_clk: periph_clk {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&a9pll>;
+			clock-div = <2>;
+			clock-mult = <1>;
+		};
+
+		iproc_axi_clk: iproc_axi_clk@0x1800fc00 {
+			#clock-cells = <0>;
+			compatible = "brcm,xgs-iproc-axi-clk";
+			clocks = <&osc>;
+			reg = <0x1800fc00 0x1c>;
+		};
+
+		iproc_apb_clk: iproc_apb_clk {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&iproc_axi_clk>;
+			clock-div = <4>;
+			clock-mult = <1>;
+		};
+	};
+
+	axi {
+		compatible = "simple-bus";
+		ranges;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		uart0: serial@18020000 {
+			compatible = "snps,dw-apb-uart";
+			reg = <0x18020000 0x100>;
+			interrupts = <GIC_SPI 73 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&iproc_apb_clk>;
+			reg-io-width = <4>;
+			reg-shift = <2>;
+			status = "disabled";
+		};
+
+		uart1: serial@18021000 {
+			compatible = "snps,dw-apb-uart";
+			reg = <0x18021000 0x100>;
+			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&iproc_apb_clk>;
+			reg-io-width = <4>;
+			reg-shift = <2>;
+			status = "disabled";
+		};
+
+		gmac0: ethernet@18042000 {
+			compatible = "brcm,xgs-iproc-amac", "brcm,serdes-ctrl-amac";
+			reg = <0x18042000 0x1000>,
+			      <0x18110000 0x1000>;
+			reg-names = "amac_base", "idm_base";
+			interrupts = <GIC_SPI 110 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		gpio_ccg: gpio@1800a000 {
+			compatible = "brcm,iproc-gpio-ccg";
+			#gpio-cells = <2>;
+			reg = gpio: <0x1800a000 0x50>;
+			ngpios = <12>;
+			pin-reg-bit-shift = <4>;
+			pin-base = <4>;
+			gpio-controller;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		usbphy0: usbphy0 {
+			#phy-cells = <0>;
+			compatible = "brcm,usb-phy-gh";
+			reg = idm_usb2h: <0x18115000 0x1000>,
+				idm_usb2d: <0x18111000 0x1000>;
+			vbus-gpio = <&gpio_ccg 6 GPIO_ACTIVE_HIGH>;
+			status = "disabled";
+		};
+
+		ehci0: usb@18048000 {
+			compatible = "generic-ehci";
+			reg = <0x18048000 0x800>;
+			interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			usb-phy = <&usbphy0>;
+			status = "disabled";
+		};
+
+		ohci0: usb@18048800 {
+			compatible = "generic-ohci";
+			reg = <0x18048800 0x800>;
+			interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			usb-phy = <&usbphy0>;
+			/* Over Current Protect Mode fix */
+			iproc-ocpm-fix;
+			status = "disabled";
+		};
+
+		usbd: usbd@1804c000 {
+			compatible = "brcm,usbd-xgs-iproc";
+			reg = <0x1804c000 0x2000>;
+			interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
+			usb-phy = <&usbphy0>;
+			status = "disabled";
+		};
+
+		nand: nand@18046000 {
+			compatible = "brcm,nand-iproc", "brcm,brcmnand-v6.1";
+			reg = <0x18046000 0x600>,
+			      <0xf8105408 0x10>,
+			      <0x18046f00 0x20>;
+			reg-names = "nand", "iproc-idm", "iproc-ext";
+			interrupts = <GIC_SPI 69 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			brcm,nand-has-wp;
+			status = "disabled";
+		};
+
+		qspi: spi@18047000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "brcm,spi-bcm-qspi", "brcm,spi-xgs-iproc-qspi";
+			reg = <0x18047200 0x188>,
+			      <0x18047000 0x124>,
+			      <0xf8106408 0x004>,
+			      <0x180473a0 0x01c>,
+			      <0x1800e000 0x004>;
+			reg-names = "mspi", "bspi", "intr_regs", "intr_status_reg", "cru_ctrl";
+			interrupts = <GIC_SPI 70 IRQ_TYPE_LEVEL_HIGH>;
+			num-cs = <2>;
+			clocks = <&iproc_apb_clk>;
+			status = "disabled";
+		};
+
+		i2c0: i2c@18008000 {
+			compatible = "brcm,iproc-i2c";
+			reg = <0x18008000 0x100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
+			clock-frequency = <100000>;
+			status = "disabled";
+		};
+
+		mdio_int: mdio_int@18002000 {
+			compatible = "brcm,iproc-ccg-mdio";
+			reg = <0x18002000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			bus-type = "internal";
+			clocks = <&iproc_apb_clk>;
+			status = "disabled";
+		};
+
+		/* cmicd cmic_common mdio */
+		mdio_ext: mdio_ext@03210000 {
+			compatible = "brcm,iproc-cmicd-mdio";
+			reg = <0x03210000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#bus-id = <2>;
+			bus-type = "external";
+			clocks = <&iproc_apb_clk>;
+			status = "disabled";
+		};
+
+		pnor_flash: pnor_flash@18045000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "brcm,iproc-nor";
+			reg =	nor_regs: <0x18045000 0x1000>,
+				nor_mem: <0xE8000000 0x8000000>,
+				nor_strap: <0x18000a5c 0x4>;
+			status = "disabled";
+		};
+
+		hwrng: hwrng@18032000 {
+			compatible = "brcm,iproc-rng200";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x18032000 0x1000>;
+			status = "disabled";
+		};
+
+		iproc_wdt: iproc_wdt@18009000 {
+			compatible = "arm,sp805", "arm,primecell";
+			reg = iproc_wdt_base: <0x18009000 0x1000>,
+			iproc_reset_reg: <0x1800f014 0x4>;
+			wdt_boot_status_bit = <0x0>;
+			clocks = <&iproc_apb_clk>;
+			clock-names = "apb_pclk";
+			status = "disabled";
+		};
+
+		dmac0: dma@18040000 {
+			compatible = "arm,pl330", "arm,primecell";
+			reg = pl330_base: <0x18040000 0x1000>;
+			interrupts = <GIC_SPI 52 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 56 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 57 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 58 IRQ_TYPE_LEVEL_HIGH>,
+					<GIC_SPI 59 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&iproc_apb_clk>;
+			clock-names = "apb_pclk";
+			#dma-cells = <1>;
+			#dma-channels = <8>;
+			#dma-requests = <16>;
+			status = "disabled";
+		};
+
+		/* cmicd */
+		iproc_cmicd: iproc_cmicd@03200000 {
+			compatible = "brcm,iproc-cmicd";
+			reg = <0x03200000 0x100000>;
+			interrupts = <GIC_SPI 189 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+	};
+
+	pcie0: pcie@18012000 {
+		compatible = "brcm,iproc-pcie";
+		reg = <0x18012000 0x1000>;
+		linux,pci-domain = <0>;
+
+		#interrupt-cells = <1>;
+		interrupt-map-mask = <0 0 0 0>;
+		interrupt-map = <0 0 0 0 &gic GIC_SPI 100 IRQ_TYPE_LEVEL_HIGH>;
+
+		#address-cells = <3>;
+		#size-cells = <2>;
+		device_type = "pci";
+
+		/*
+		 * non-prefetchable mem space, pcie addr 0x0 0x20000000,
+		 * cpu addr 0x20000000, size 0x0 0x20000000
+		 */
+		ranges = <0x82000000 0 0x20000000 0x20000000 0 0x20000000>;
+		wa-list = "pcie_rc", "pcie_perst";
+		status = "disabled";
+
+		msi-parent = <&msi0>;
+		msi0: msi@18012000 {
+			compatible = "brcm,iproc-msi";
+			msi-controller;
+			interrupt-parent = <&gic>;
+			interrupts = <GIC_SPI 96 IRQ_TYPE_NONE>,
+				     <GIC_SPI 97 IRQ_TYPE_NONE>,
+				     <GIC_SPI 98 IRQ_TYPE_NONE>,
+				     <GIC_SPI 99 IRQ_TYPE_NONE>;
+		};
+	};
+
+	dmu_pcu: dmu_pcu@1800f000 {
+		compatible = "brcm,iproc-dmu-pcu";
+		reg = <0x1800f000 0xc00>;
+	};
+
+	iproc_wrap_ctrl: iproc_wrap_ctrl@1800fc00 {
+		compatible = "brcm,iproc-wrap-ctrl";
+		reg = <0x1800fc00 0x100>;
+	};
+
+	iproc_idm: iproc_idm@18100000 {
+		compatible = "brcm,iproc-idm";
+		reg = idm0: <0x18100000 0x100000>,
+			  idm1: <0xf8100000 0x100000>;
+		interrupts = <GIC_SPI 20 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 22 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 24 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 25 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 27 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 28 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 30 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 32 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 36 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 39 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 47 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>,
+				<GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
+	};
+};

@@ -1,0 +1,224 @@
+/*
+ *  BSD LICENSE
+ *
+ *  Copyright(c) 2016 Broadcom Corporation.  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *    * Redistributions of source code must retain the above copyright
+ *      notice, this list of conditions and the following disclaimer.
+ *    * Redistributions in binary form must reproduce the above copyright
+ *      notice, this list of conditions and the following disclaimer in
+ *      the documentation and/or other materials provided with the
+ *      distribution.
+ *    * Neither the name of Broadcom Corporation nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/dts-v1/;
+
+#include "bcm-hurricane3.dtsi"
+
+/ {
+	model = "Broadcom HR3 SVK (BCM956160K)";
+	compatible = "brcm,bcm956160k", "brcm,hurricane3";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		ethernet0 = &gmac0;
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,115200n8 maxcpus=1 mem=496M";
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&gmac0 {
+	status = "okay";
+	phy-handle = <&amac_phy0>;
+	phy-mode = "gmii"; /* "gmii-id", "gmii-rxid" */
+};
+
+&usbphy0 {
+	status = "okay";
+};
+
+&ehci0 {
+	status = "okay";
+};
+
+&ohci0 {
+	status = "okay";
+};
+
+&usbd {
+	status = "okay";
+};
+
+&sdio {
+	status = "okay";
+};
+
+&gpio_ccg {
+	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+	mdio-phy-handle = <&pcie_phy0>;
+};
+
+&i2c0 {
+	status = "okay";
+	eeprom@0x50 {
+		compatible = "atmel,24c01";
+		reg = <0x50>;
+		pagesize = <8>;
+	};
+};
+
+&nand {
+	status = "okay";
+	nandcs@1 {
+		compatible = "brcm,nandcs";
+		reg = <0>;
+		nand-on-flash-bbt;
+		/*nand-bus-width = <8>;*/
+		nand-ecc-strength = <24>;
+		nand-ecc-step-size = <1024>;
+		brcm,nand-oob-sector-size = <27>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "nboot";
+			reg = <0x0 0x200000>;
+			/*read-only;*/
+		};
+		partition@1 {
+			label = "nenv";
+			reg = <0x200000 0x400000>;
+		};
+		partition@2 {
+			label = "nsystem";
+			reg = <0x600000 0xa00000>;
+		};
+		partition@3 {
+			label = "nrootfs";
+			reg = <0x1000000 0xf000000>;
+		};
+		partition@4 {
+			label = "ncustfs";
+			reg = <0x10000000 0x30000000>;
+		};
+	};
+};
+
+&qspi {
+	status = "okay";
+	flash: m25p80@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "m25p80";
+		m25p,fast-read = <1>;
+		spi-max-frequency = <62500000>;
+		reg = <0x0>;
+		partition@0 {
+			label = "boot";
+			reg = <0x00000000 0x000c0000>;
+			/*read-only;*/
+		};
+		partition@1 {
+			label = "env";
+			reg = <0x000c0000 0x00040000>;
+		};
+		partition@2 {
+			label = "system";
+			reg = <0x00100000 0x00f00000>;
+		};
+		partition@3 {
+			label = "rootfs";
+			reg = <0x01000000 0x03000000>;
+		};
+	};
+};
+
+&pnor_flash {
+	status = "okay";
+
+	partition@0 {
+		label = "pboot";
+		reg = <0x0 0xc0000>;
+		/*read-only;*/
+	};
+	partition@1 {
+		label = "penv";
+		reg = <0xc0000 0x40000>;
+	};
+	partition@2 {
+		label = "psystem";
+		reg = <0x100000 0xf00000>;
+	};
+	partition@3 {
+		label = "prootfs";
+		reg = <0x1000000 0x1000000>;
+	};
+	partition@4 {
+		label = "pcustfs";
+		reg = <0x2000000 0x2000000>;
+	};
+};
+
+&mdio_int {
+	status = "okay";
+	pcie_phy0: pcie_phy@0 {
+		reg = <2>;
+	};
+};
+
+&mdio_ext {
+	status = "okay";
+	amac_phy0: amac_phy@0 {
+		reg = <24>;
+	};
+};
+
+&hwrng {
+	status = "okay";
+};
+
+&iproc_wdt {
+	status = "okay";
+};
+
+&dmac0 {
+	status = "okay";
+};
+
+&iproc_cmicd {
+	status = "okay";
+};

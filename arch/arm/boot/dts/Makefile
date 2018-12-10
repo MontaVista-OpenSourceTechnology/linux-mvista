@@ -1075,10 +1075,25 @@ dtb-$(CONFIG_ARCH_PUMA) += puma1.dtb
 dtb-$(CONFIG_ARCH_ASPEED) += aspeed-bmc-opp-palmetto.dtb \
 	aspeed-bmc-opp-romulus.dtb \
 	aspeed-ast2500-evb.dtb
+dtb-$(CONFIG_MACH_HX4) += bcm956340.dtb
 dtb-$(CONFIG_MACH_KT2) += bcm956450.dtb
+dtb-$(CONFIG_MACH_GH) += bcm95341x.dtb
+dtb-$(CONFIG_MACH_GH2) += bcm956170.dtb
+dtb-$(CONFIG_MACH_SB2) += bcm956260.dtb
+dtb-$(CONFIG_MACH_HR3) += \
+	bcm956160.dtb \
+	bcm953444.dtb
+dtb-$(CONFIG_MACH_WH2) += bcm953547.dtb
 dtb-$(CONFIG_MACH_NPU1003) += npu1003_iproc.dtb
 dtb-$(CONFIG_XGS_IPROC_ARM32_PLATFORM) += \
+	bcm956340.dtb \
 	bcm956450.dtb \
+	bcm95341x.dtb \
+	bcm956260.dtb \
+	bcm956160.dtb \
+	bcm953444.dtb \
+	bcm956170.dtb \
+	bcm953547.dtb \
 	npu1003_iproc.dtb
 endif
 
