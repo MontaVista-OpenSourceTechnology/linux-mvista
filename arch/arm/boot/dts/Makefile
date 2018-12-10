@@ -1069,6 +1069,11 @@ dtb-$(CONFIG_ARCH_ZX) += zx296702-ad1.dtb
 dtb-$(CONFIG_ARCH_ASPEED) += aspeed-bmc-opp-palmetto.dtb \
 	aspeed-bmc-opp-romulus.dtb \
 	aspeed-ast2500-evb.dtb
+dtb-$(CONFIG_MACH_KT2) += bcm956450.dtb
+dtb-$(CONFIG_MACH_NPU1003) += npu1003_iproc.dtb
+dtb-$(CONFIG_XGS_IPROC_ARM32_PLATFORM) += \
+	bcm956450.dtb \
+	npu1003_iproc.dtb
 endif
 
 dtstree		:= $(srctree)/$(src)
