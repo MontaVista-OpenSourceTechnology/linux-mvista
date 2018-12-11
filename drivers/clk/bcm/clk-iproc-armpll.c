@@ -197,9 +197,9 @@ static unsigned long iproc_arm_pll_recalc_rate(struct clk_hw *hw,
 {
 	struct iproc_arm_pll *pll = to_iproc_arm_pll(hw);
 	u32 val;
-	int mdiv;
+	u32 mdiv;
 	u64 ndiv;
-	unsigned int pdiv;
+	u32 pdiv;
 
 	/* in bypass mode, use parent rate */
 	val = readl(pll->base + IPROC_CLK_PLLARMC_OFFSET);
@@ -226,8 +226,10 @@ static unsigned long iproc_arm_pll_recalc_rate(struct clk_hw *hw,
 		pll->rate = 0;
 		return 0;
 	}
+
+	/* To avoid pll->rate overflow, do divide before multiply */
+	parent_rate = (parent_rate / pdiv) / mdiv;
 	pll->rate = (ndiv * parent_rate) >> 20;
-	pll->rate = (pll->rate / pdiv) / mdiv;
 
 	pr_debug("%s: ARM PLL rate: %lu. parent rate: %lu\n", __func__,
 		 pll->rate, parent_rate);
