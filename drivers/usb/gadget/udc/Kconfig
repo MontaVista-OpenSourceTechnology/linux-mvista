@@ -439,6 +439,17 @@ config USB_GADGET_XILINX
 	  dynamically linked module called "udc-xilinx" and force all
 	  gadget drivers to also be dynamically linked.
 
+config USB_XGS_IPROC_UDC
+	tristate "Broadcom XGS IPROC USB Device driver"
+	depends on ARCH_XGS_IPROC && USB_GADGET
+	default n
+	help
+	  USB peripheral controller driver for Broadcom XGS IPROC USB 2 device.
+
+	  Say "y" to link the driver statically, or "m" to build a dynamically
+	  linked module called "xgs_iproc_udc" and force all gadget drivers to
+	  also be dynamically linked.
+
 #
 # LAST -- dummy/emulated controller
 #
