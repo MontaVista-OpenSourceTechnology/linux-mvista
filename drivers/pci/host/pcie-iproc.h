@@ -94,6 +94,9 @@ struct iproc_pcie {
 	struct resource mem;
 	struct pci_bus *root_bus;
 	struct phy *phy;
+#ifdef CONFIG_PCIE_XGS_IPROC
+	struct phy_device *mdio_phy;
+#endif
 	int (*map_irq)(const struct pci_dev *, u8, u8);
 	bool ep_is_internal;
 	bool has_apb_err_disable;
@@ -110,9 +113,11 @@ struct iproc_pcie {
 	struct iproc_msi *msi;
 };
 
+#ifndef CONFIG_PCIE_XGS_IPROC
 int iproc_pcie_setup(struct iproc_pcie *pcie, struct list_head *res);
 int iproc_pcie_remove(struct iproc_pcie *pcie);
 int iproc_pcie_shutdown(struct iproc_pcie *pcie);
+#endif
 
 #ifdef CONFIG_PCIE_IPROC_MSI
 int iproc_msi_init(struct iproc_pcie *pcie, struct device_node *node);

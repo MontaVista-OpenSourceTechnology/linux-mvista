@@ -107,6 +107,15 @@ config PCI_VERSATILE
 	bool "ARM Versatile PB PCI controller"
 	depends on ARCH_VERSATILE
 
+config PCIE_XGS_IPROC
+	bool "Broadcom XGS iProc PCIe controller"
+	select PCI_DOMAINS
+	depends on ARCH_XGS_IPROC
+	default n
+	help
+	  This enables the XGS iProc PCIe core controller support for Broadcom's
+	  iProc family of SoCs.
+
 config PCIE_IPROC
 	tristate
 	select PCI_DOMAINS
@@ -137,7 +146,7 @@ config PCIE_IPROC_BCMA
 
 config PCIE_IPROC_MSI
 	bool "Broadcom iProc PCIe MSI support"
-	depends on PCIE_IPROC_PLATFORM || PCIE_IPROC_BCMA
+	depends on PCIE_IPROC_PLATFORM || PCIE_IPROC_BCMA || PCIE_XGS_IPROC
 	depends on PCI_MSI_IRQ_DOMAIN
 	default ARCH_BCM_IPROC
 	help
