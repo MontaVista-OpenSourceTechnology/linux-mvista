@@ -419,4 +419,13 @@ config MTD_LATCH_ADDR
 
           If compiled as a module, it will be called latch-addr-flash.
 
+config MTD_NOR_XGS_IPROC
+	bool "Broadcom XGS iProc CFI NOR support"
+	depends on (ARCH_XGS_IPROC || COMPILE_TEST) && MTD_CFI
+	default n
+	help
+	  This selects a driver for the iProc NOR support.
+
+	  If unsure, say N.
+
 endmenu
