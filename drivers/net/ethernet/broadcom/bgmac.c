@@ -17,6 +17,13 @@
 #include <linux/phy_fixed.h>
 #include "bgmac.h"
 
+#if IS_ENABLED(CONFIG_ARCH_XGS_IPROC)
+#include <linux/of_mdio.h>
+#include <linux/phy/xgs_iproc_serdes.h>
+extern bool xgs_mdio_bus_release(void);
+extern void amac_serdes_init(struct bgmac *, struct phy_device *);
+#endif
+
 static bool bgmac_wait_value(struct bgmac *bgmac, u16 reg, u32 mask,
 			     u32 value, int timeout)
 {
@@ -829,7 +836,8 @@ static void bgmac_clear_mib(struct bgmac *bgmac)
 static void bgmac_mac_speed(struct bgmac *bgmac)
 {
 	u32 mask = ~(BGMAC_CMDCFG_ES_MASK | BGMAC_CMDCFG_HD);
-	u32 set = 0;
+	u32 set = 0, ctrl;
+	struct device_node *np = bgmac->dev->of_node;
 
 	switch (bgmac->mac_speed) {
 	case SPEED_10:
@@ -851,6 +859,17 @@ static void bgmac_mac_speed(struct bgmac *bgmac)
 
 	if (bgmac->mac_duplex == DUPLEX_HALF)
 		set |= BGMAC_CMDCFG_HD;
+
+	/* For Greyhound and Hurricane3 only. FORCE_SPEED_STRAP (bit 17 ~ 18) of
+		 GMAC0_SERDESCONTROL (0x180421a8) have to be take care when speed changes */
+	if (of_device_is_compatible(np, "brcm,serdes-ctrl-amac")) {
+		ctrl = bgmac_read(bgmac, BGMAC_SERDESCTRL);
+		if (bgmac->mac_speed == SPEED_100)
+			ctrl |= (0x01 << 17);
+		else if (bgmac->mac_speed == SPEED_1000)
+			ctrl |= (0x02 << 17);
+		bgmac_write(bgmac, BGMAC_SERDESCTRL, ctrl);
+	}
 
 	bgmac_cmdcfg_maskset(bgmac, mask, set, true);
 }
@@ -1121,6 +1140,7 @@ static void bgmac_chip_init(struct bgmac *bgmac)
 
 	bgmac_write(bgmac, BGMAC_RXMAX_LENGTH, 32 + ETHER_MAX_LEN);
 
+	if (!IS_ENABLED(CONFIG_ARCH_XGS_IPROC))
 	bgmac_chip_intrs_on(bgmac);
 
 	bgmac_enable(bgmac);
@@ -1198,9 +1218,32 @@ static int bgmac_open(struct net_device *net_dev)
 	}
 	napi_enable(&bgmac->napi);
 
+	if (IS_ENABLED(CONFIG_ARCH_XGS_IPROC)) {
+		/* Reset emulated MIB statistics to zero */
+		memset(&bgmac->estats, 0, sizeof(struct bgmac_ethtool_stats));
+
+		/*
+		 * phy_state_machine reschedule could be stopped due to the code
+		 * change in phy.c to handle MDIO bus sharing between iProc and
+		 * CIMCd of HX4/KT2.
+		 */
+		if (xgs_mdio_bus_release())
+			phy_start_machine(net_dev->phydev);
+	}
+
 	phy_start(net_dev->phydev);
 
 	netif_start_queue(net_dev);
+
+	/*
+	 * This interrupt enable was originally set in "bgmac_chip_init" which
+	 * was run before "napi_enable". If interrupt events come before
+	 * napi_enable was run, the NAPI poll routine "bgmac_poll" will not yet
+	 * be available for either handling interrupt events or re-enabling the
+	 * AMAC interrupt disabled by "bgmac_interrupt".
+	 */
+	if (IS_ENABLED(CONFIG_ARCH_XGS_IPROC))
+		bgmac_chip_intrs_on(bgmac);
 
 	return 0;
 }
@@ -1380,6 +1423,9 @@ static void bgmac_get_ethtool_stats(struct net_device *dev,
 	const struct bgmac_stat *s;
 	unsigned int i;
 	u64 val;
+#if IS_ENABLED(CONFIG_ARCH_XGS_IPROC)
+	u64 *estats = (u64*)&bgmac->estats;
+#endif
 
 	if (!netif_running(dev))
 		return;
@@ -1390,8 +1436,57 @@ static void bgmac_get_ethtool_stats(struct net_device *dev,
 		if (s->size == 8)
 			val = (u64)bgmac_read(bgmac, s->offset + 4) << 32;
 		val |= bgmac_read(bgmac, s->offset);
+		if (IS_ENABLED(CONFIG_ARCH_XGS_IPROC)) {
+			estats[i] += val;
+			data[i] = estats[i];
+		}
+		else {
 		data[i] = val;
 	}
+}
+}
+
+static int bgmac_dump_phy_regs(struct bgmac *bgmac, int try_run, char *reg_buf)
+{
+	struct phy_device *phydev = bgmac->net_dev->phydev;
+	int idx, len = 0;
+	char *buf, tmp[32];
+	u16 data = 0;
+
+	if (phydev) {
+		for (idx = 0; idx < 16; idx++) {
+			if (try_run || !reg_buf) {
+				buf = tmp;
+			} else {
+				buf = reg_buf + len;
+				data = phy_read(phydev, idx);
+			}
+			len += sprintf(buf, "PHY REG %d: 0x%.4x\n", idx, data);
+		}
+	}
+	return len;
+}
+
+static int bgmac_get_regs_len(struct net_device *dev)
+{
+	struct bgmac *bgmac = netdev_priv(dev);
+	u32 len = 0;
+
+	len += bgmac_dump_phy_regs(bgmac, 1, NULL);
+
+	return len;
+}
+
+static void bgmac_get_regs(struct net_device *dev,
+		struct ethtool_regs *regs, void *_p)
+{
+	struct bgmac *bgmac = netdev_priv(dev);
+	u32 len = 0;
+
+	regs->version = 0;
+
+	/* Dump phy register */
+	len += bgmac_dump_phy_regs(bgmac, 0, (char *)_p + len);
 }
 
 static void bgmac_get_drvinfo(struct net_device *net_dev,
@@ -1399,9 +1494,12 @@ static void bgmac_get_drvinfo(struct net_device *net_dev,
 {
 	strlcpy(info->driver, KBUILD_MODNAME, sizeof(info->driver));
 	strlcpy(info->bus_info, "AXI", sizeof(info->bus_info));
+	info->regdump_len = bgmac_get_regs_len(net_dev);
 }
 
 static const struct ethtool_ops bgmac_ethtool_ops = {
+	.get_regs			= bgmac_get_regs,
+	.get_regs_len		= bgmac_get_regs_len,
 	.get_strings		= bgmac_get_strings,
 	.get_sset_count		= bgmac_get_sset_count,
 	.get_ethtool_stats	= bgmac_get_ethtool_stats,
@@ -1432,11 +1530,11 @@ void bgmac_adjust_link(struct net_device *net_dev)
 		}
 	}
 
-	if (update) {
+	if (update)
 		bgmac_mac_speed(bgmac);
+
 		phy_print_status(phy_dev);
 	}
-}
 EXPORT_SYMBOL_GPL(bgmac_adjust_link);
 
 int bgmac_phy_connect_direct(struct bgmac *bgmac)
@@ -1491,6 +1589,12 @@ int bgmac_enet_probe(struct bgmac *bgmac)
 {
 	struct net_device *net_dev = bgmac->net_dev;
 	int err;
+#if IS_ENABLED(CONFIG_ARCH_XGS_IPROC)
+	struct device_node *serdes_np;
+	struct device_node *amac_np;
+	struct phy_device *serdes_phy_dev = NULL;
+	static u32 serdes_lane2_init = 0;
+#endif
 
 	net_dev->irq = bgmac->irq;
 	SET_NETDEV_DEV(net_dev, bgmac->dev);
@@ -1534,6 +1638,37 @@ int bgmac_enet_probe(struct bgmac *bgmac)
 		dev_err(bgmac->dev, "Cannot connect to phy\n");
 		goto err_dma_free;
 	}
+
+#if IS_ENABLED(CONFIG_ARCH_XGS_IPROC)
+	/* SERDES init required for HX4/KT2/SB2/GH2/WH2 */
+	amac_np = bgmac->dev->of_node;
+	serdes_np = of_parse_phandle(amac_np, "serdes-handle", 0);
+	if (serdes_np)
+		serdes_phy_dev = of_phy_find_device(serdes_np);
+
+	if (serdes_phy_dev) {
+		u32 lane;
+		/* If lane available in DT, set lane num */
+		if (!of_property_read_u32(serdes_np, "lane-num", &lane))
+			xgs_serdes_set_lane(serdes_phy_dev, lane);
+
+		amac_serdes_init(bgmac, serdes_phy_dev);
+		phy_init_hw(serdes_phy_dev);
+	}
+
+	/* Init SERDES lane 2 required by SDK for HX4/KT2 */
+	if (!serdes_lane2_init) {
+		/* Use alias defined in DTS rather than full path */
+		serdes_np = of_find_node_by_path("sdk-serdes-lane2");
+		if (serdes_np) {
+			serdes_phy_dev = of_phy_find_device(serdes_np);
+			if (serdes_phy_dev) {
+				phy_init_hw(serdes_phy_dev);
+				serdes_lane2_init = 1;
+			}
+		}
+	}
+#endif
 
 	net_dev->features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM;
 	net_dev->hw_features = net_dev->features;

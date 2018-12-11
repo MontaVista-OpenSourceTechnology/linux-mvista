@@ -19,6 +19,12 @@
 #include <linux/of_address.h>
 #include <linux/of_mdio.h>
 #include <linux/of_net.h>
+
+#if IS_ENABLED(CONFIG_ARCH_XGS_IPROC)
+#include <linux/soc/bcm/xgs-iproc-misc-setup.h>
+#include <linux/phy/xgs_iproc_serdes.h>
+#endif
+
 #include "bgmac.h"
 
 #define NICPM_PADRING_CFG		0x00000004
@@ -84,9 +90,16 @@ static void platform_bgmac_clk_enable(struct bgmac *bgmac, u32 flags)
 	}
 
 	val = bgmac_idm_read(bgmac, BCMA_IOCTL);
+#if IS_ENABLED(CONFIG_ARCH_XGS_IPROC)
+	/* To make HX4/KT2 GMAC work */
+	val |= flags;
+	val &= ~(BGMAC_AWCACHE | BGMAC_ARCACHE | BGMAC_AWUSER |
+			 BGMAC_ARUSER);
+#else
 	/* Some bits of BCMA_IOCTL set by HW/ATF and should not change */
 	val |= flags & ~(BGMAC_AWCACHE | BGMAC_ARCACHE | BGMAC_AWUSER |
 			 BGMAC_ARUSER);
+#endif
 	val |= BGMAC_CLK_EN;
 	bgmac_idm_write(bgmac, BCMA_IOCTL, val);
 	bgmac_idm_read(bgmac, BCMA_IOCTL);
@@ -147,18 +160,123 @@ static void bgmac_nicpm_speed_set(struct net_device *net_dev)
 	bgmac_adjust_link(bgmac->net_dev);
 }
 
+#if IS_ENABLED(CONFIG_ARCH_XGS_IPROC)
+#define SERDES_CONTROL_OFFSET		0x1a8
+#define SC_TX1G_FIFO_RST_MASK		0x00f00000
+#define SC_TX1G_FIFO_RST_VAL		0x00f00000
+#define SC_FORCE_SPD_STRAP_MASK 	0x00060000
+#define SC_FORCE_SPD_STRAP_VAL		0x00040000
+#define SC_FORCE_SPD_100M_VAL		0x00020000
+#define SC_FORCE_SPD_1G_VAL		0x00040000
+#define SC_REF_TERM_SEL_MASK		0x00001000
+#define SC_REFSEL_MASK			0x00000c00
+#define SC_REFSEL_VAL			0x00000400
+#define SC_REFDIV_MASK			0x00000300
+#define SC_REFDIV_VAL			0x00000000
+#define SC_LCREF_EN_MASK		0x00000040
+#define SC_RSTB_PLL_MASK		0x00000010
+#define SC_RSTB_MDIOREGS_MASK		0x00000008
+#define SC_RSTB_HW_MASK 		0x00000004
+#define SC_IDDQ_MASK			0x00000002
+#define SC_PWR_DOWN_MASK		0x00000001
+
+void amac_serdes_init(struct bgmac *info, struct phy_device *phy_dev)
+{
+	u32 sdctl;
+	void *serdes_ctl_reg;
+	struct phy_device *phydev = phy_dev;
+
+	serdes_ctl_reg = info->plat.base + SERDES_CONTROL_OFFSET;
+
+	sdctl = (SC_TX1G_FIFO_RST_VAL | SC_FORCE_SPD_STRAP_VAL);
+	if (xgs_serdes_hx4_amac(phydev))
+		sdctl |= (SC_REFSEL_VAL | SC_REF_TERM_SEL_MASK);
+
+	else if (xgs_serdes_kt2_amac(phydev))
+		sdctl |= SC_REF_TERM_SEL_MASK;
+
+	writel(sdctl, serdes_ctl_reg);
+
+	udelay(1000);
+
+	sdctl = readl(serdes_ctl_reg);
+	sdctl |= (SC_IDDQ_MASK | SC_PWR_DOWN_MASK);
+	writel(sdctl, serdes_ctl_reg);
+
+	sdctl = readl(serdes_ctl_reg);
+	sdctl &= ~(SC_IDDQ_MASK | SC_PWR_DOWN_MASK);
+	writel(sdctl, serdes_ctl_reg);
+
+	/* Bring hardware out of reset */
+	sdctl = readl(serdes_ctl_reg);
+	sdctl |= SC_RSTB_HW_MASK;
+	writel(sdctl, serdes_ctl_reg);
+
+	/* Bring MDIOREGS out of reset */
+	sdctl = readl(serdes_ctl_reg);
+	sdctl |= SC_RSTB_MDIOREGS_MASK;
+	writel(sdctl, serdes_ctl_reg);
+
+	udelay(1000);
+
+	/* Bring PLL out of reset */
+	sdctl = readl(serdes_ctl_reg);
+	sdctl |= SC_RSTB_PLL_MASK;
+	writel(sdctl, serdes_ctl_reg);
+
+	udelay(1000);
+
+	return;
+}
+#endif /* IS_ENABLED(CONFIG_ARCH_XGS_IPROC) */
+
 static int platform_phy_connect(struct bgmac *bgmac)
 {
 	struct phy_device *phy_dev;
 
-	if (bgmac->plat.nicpm_base)
+	if (bgmac->plat.nicpm_base) {
 		phy_dev = of_phy_get_and_connect(bgmac->net_dev,
 						 bgmac->dev->of_node,
 						 bgmac_nicpm_speed_set);
-	else
+	}
+	else {
+		struct device_node *np = bgmac->dev->of_node;
+		u32 lane;
+
+		/* For WH2 SGMII case, treat SERDES as PHY */
+		if (of_device_is_compatible(np, "brcm,xgs-wh2-amac") &&
+			is_wh2_amac_sgmii()) {
+			struct device_node *phy_np;
+			phy_interface_t iface = PHY_INTERFACE_MODE_SGMII;
+
+			phy_np = of_parse_phandle(np, "serdes-phy-handle", 0);
+			if (!phy_np)
+				return -ENODEV;
+
+			phy_dev = of_phy_find_device(phy_np);
+			if (!phy_dev)
+				return -ENODEV;
+
+			/* Get lane from DT, otherwise set to default 3 */
+			if (of_property_read_u32(phy_np, "lane-num", &lane))
+				lane = 3;
+			xgs_serdes_set_lane(phy_dev, lane);
+
+			amac_serdes_init(bgmac, phy_dev);
+
+			phy_connect_direct(bgmac->net_dev, phy_dev,
+						bgmac_adjust_link, iface);
+
+			put_device(&phy_dev->mdio.dev);
+			of_node_put(phy_np);
+		}
+		else {
 		phy_dev = of_phy_get_and_connect(bgmac->net_dev,
 						 bgmac->dev->of_node,
 						 bgmac_adjust_link);
+		}
+	}
+
 	if (!phy_dev) {
 		dev_err(bgmac->dev, "PHY connection failed\n");
 		return -ENODEV;
@@ -285,7 +403,10 @@ static const struct dev_pm_ops bgmac_pm_ops = {
 static const struct of_device_id bgmac_of_enet_match[] = {
 	{.compatible = "brcm,amac",},
 	{.compatible = "brcm,nsp-amac",},
+	{.compatible = "brcm,xgs-iproc-amac",},
+	{.compatible = "brcm,xgs-wh2-amac",},
 	{.compatible = "brcm,ns2-amac",},
+	{.compatible = "brcm,serdes-ctrl-amac",},
 	{},
 };
 

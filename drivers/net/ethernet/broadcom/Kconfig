@@ -171,12 +171,12 @@ config BGMAC_BCMA
 config BGMAC_PLATFORM
 	tristate "Broadcom iProc GBit platform support"
 	depends on HAS_DMA
-	depends on ARCH_BCM_IPROC || COMPILE_TEST
+	depends on ARCH_BCM_IPROC || ARCH_XGS_IPROC || COMPILE_TEST
 	depends on OF
 	select BGMAC
 	select PHYLIB
 	select FIXED_PHY
-	default ARCH_BCM_IPROC
+	default ARCH_BCM_IPROC || ARCH_XGS_IPROC
 	---help---
 	  Say Y here if you want to use the Broadcom iProc Gigabit Ethernet
 	  controller through the generic platform interface

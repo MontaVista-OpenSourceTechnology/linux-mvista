@@ -85,6 +85,10 @@
 #define BGMAC_GPIO_SELECT			0x194
 #define BGMAC_GPIO_OUTPUT_EN			0x198
 
+/* For Greyhound and Hurricane3, FORCE_SPEED_STRAP (bit 17 ~ 18) of
+	 GMAC0_SERDESCONTROL (0x180421a8) have to be take care when speed changes */
+#define BGMAC_SERDESCTRL		0x01a8
+
 /* For 0x1e0 see BCMA_CLKCTLST. Below are BGMAC specific bits */
 #define  BGMAC_BCMA_CLKCTLST_MISC_PLL_REQ	0x00000100
 #define  BGMAC_BCMA_CLKCTLST_MISC_PLL_ST	0x01000000
@@ -476,6 +480,78 @@ struct bgmac_rx_header {
 	__le16 pad[12];
 };
 
+#if IS_ENABLED(CONFIG_ARCH_XGS_IPROC)
+struct bgmac_ethtool_stats  {
+	u64	tx_good_octets;
+	u64	tx_good;
+	u64	tx_octets;
+	u64	tx_pkts;
+	u64	tx_broadcast;
+	u64	tx_multicast;
+	u64	tx_64;
+	u64	tx_65_127;
+	u64	tx_128_255;
+	u64	tx_256_511;
+	u64	tx_512_1023;
+	u64	tx_1024_1522;
+	u64	tx_1523_2047;
+	u64	tx_2048_4095;
+	u64	tx_4096_8191;
+	u64	tx_8192_max;
+	u64	tx_jabber;
+	u64	tx_oversize;
+	u64	tx_fragment;
+	u64	tx_underruns;
+	u64	tx_total_cols;
+	u64	tx_single_cols;
+	u64	tx_multiple_cols;
+	u64	tx_excessive_cols;
+	u64	tx_late_cols;
+	u64	tx_defered;
+	u64	tx_carrier_lost;
+	u64	tx_pause;
+	u64	tx_unicast;
+	u64	tx_q0;
+	u64	tx_q0_octets;
+	u64	tx_q1;
+	u64	tx_q1_octets;
+	u64	tx_q2;
+	u64	tx_q2_octets;
+	u64	tx_q3;
+	u64	tx_q3_octets;
+
+	u64	rx_good_octets;
+	u64	rx_good;
+	u64	rx_octets;
+	u64	rx_pkts;
+	u64	rx_broadcast;
+	u64	rx_multicast;
+	u64	rx_64;
+	u64	rx_65_127;
+	u64	rx_128_255;
+	u64	rx_256_511;
+	u64	rx_512_1023;
+	u64	rx_1024_1522;
+	u64	rx_1523_2047;
+	u64	rx_2048_4095;
+	u64	rx_4096_8191;
+	u64	rx_8192_max;
+	u64	rx_jabber;
+	u64	rx_oversize;
+	u64	rx_fragment;
+	u64	rx_missed;
+	u64	rx_crc_align;
+	u64	rx_undersize;
+	u64	rx_crc;
+	u64	rx_align;
+	u64	rx_symbol;
+	u64	rx_pause;
+	u64	rx_nonpause;
+	u64	rx_sa_changes;
+	u64	rx_unicast;
+};
+#endif
+
 struct bgmac {
 	union {
 		struct {
@@ -520,6 +596,14 @@ struct bgmac {
 
 	bool loopback;
 
+#if IS_ENABLED(CONFIG_ARCH_XGS_IPROC)
+	/* For XGS iProc, SW emulated MIB registers are required as the HW
+	 * MIB registers will be cleared to zero after reading.
+	 * mib_tx_regs/mib_rx_regs defined above seem for the same purpose,
+	 * but not used so far.
+	 */
+	struct bgmac_ethtool_stats estats;
+#endif
 	u32 (*read)(struct bgmac *bgmac, u16 offset);
 	void (*write)(struct bgmac *bgmac, u16 offset, u32 value);
 	u32 (*idm_read)(struct bgmac *bgmac, u16 offset);
