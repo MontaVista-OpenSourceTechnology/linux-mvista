@@ -1220,6 +1220,8 @@ static void brcmnand_send_cmd(struct brcmnand_host *host, int cmd)
 	ctrl->cmd_pending = cmd;
 
 	ret = bcmnand_ctrl_poll_status(ctrl, NAND_CTRL_RDY, NAND_CTRL_RDY, 0);
+	/* mark out this warning for XGS iProc */
+	if (!IS_ENABLED(CONFIG_ARCH_XGS_IPROC))
 	WARN_ON(ret);
 
 	mb(); /* flush previous writes */
@@ -1698,6 +1700,8 @@ static int brcmstb_nand_verify_erased_page(struct mtd_info *mtd,
 		ret = nand_check_erased_ecc_chunk(buf, chip->ecc.size,
 						  oob, sas, NULL, 0,
 						  chip->ecc.strength);
+		buf += chip->ecc.size;
+
 		if (ret < 0)
 			return ret;
 
