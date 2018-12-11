@@ -42,6 +42,11 @@
 	case PHY_##_state:			\
 		return __stringify(_state);	\
 
+#if IS_ENABLED(CONFIG_MDIO_XGS_IPROC)
+#define MAX_IPROC_PHY_ADDR	4
+extern bool xgs_mdio_bus_release(void);
+#endif
+
 static const char *phy_state_to_str(enum phy_state st)
 {
 	switch (st) {
@@ -885,6 +890,9 @@ void phy_state_machine(struct work_struct *work)
 	enum phy_state old_state;
 	int err = 0;
 	int old_link;
+#if IS_ENABLED(CONFIG_MDIO_XGS_IPROC)
+	static u32 schedule_cnt[MAX_IPROC_PHY_ADDR]= {0};
+#endif
 
 	mutex_lock(&phydev->lock);
 
@@ -1074,9 +1082,32 @@ void phy_state_machine(struct work_struct *work)
 	 * PHY, if PHY_IGNORE_INTERRUPT is set, then we will be moving
 	 * between states from phy_mac_interrupt()
 	 */
+#if IS_ENABLED(CONFIG_MDIO_XGS_IPROC)
+	if (phydev->irq == PHY_POLL) {
+		/* Re-schedule PHY state machine change if mdio_bus_release=0 */
+		if (!xgs_mdio_bus_release()) {
+			queue_delayed_work(system_power_efficient_wq,
+				&phydev->state_queue, PHY_STATE_TIME * HZ);
+		}
+		/* If mdio_bus_release=1, stop re-schedule of PHY state machine
+		 * change after 5 * PHY_STATE_TIME seconds for HX4/KT2
+		 * which shares the mdio bus between iProc and CMICd.
+		 */
+		else {
+			schedule_cnt[phydev->mdio.addr] += 1;
+			if (schedule_cnt[phydev->mdio.addr] > 5) {
+				schedule_cnt[phydev->mdio.addr] = 0;
+				return;
+			}
+			queue_delayed_work(system_power_efficient_wq,
+				&phydev->state_queue, PHY_STATE_TIME * HZ);
+		}
+	}
+#else
 	if (phydev->irq == PHY_POLL)
 		queue_delayed_work(system_power_efficient_wq, &phydev->state_queue,
 				   PHY_STATE_TIME * HZ);
+#endif
 }
 
 /**

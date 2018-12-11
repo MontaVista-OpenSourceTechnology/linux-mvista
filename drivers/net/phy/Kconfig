@@ -198,6 +198,14 @@ config LED_TRIGGER_PHY
 		<Speed in megabits>Mbps or <Speed in gigabits>Gbps
 
 
+config MDIO_XGS_IPROC
+	tristate "Broadcom XGS iProc MDIO bus controller"
+	depends on ARCH_XGS_IPROC || COMPILE_TEST
+	depends on HAS_IOMEM && OF_MDIO
+	help
+	  This module provides a driver for the MDIO busses found in the
+	  Broadcom XGS iProc SoC's.
+
 comment "MII PHY device drivers"
 
 config SFP
