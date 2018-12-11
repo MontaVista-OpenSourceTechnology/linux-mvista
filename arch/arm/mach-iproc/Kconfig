@@ -1,0 +1,43 @@
+menuconfig ARCH_XGS_IPROC
+	bool "Broadcom XGS iProc Support" if ARCH_MULTI_V7
+	select HAVE_ARM_TWD if SMP
+	select HAVE_ARM_SCU if SMP
+	select ARM_GLOBAL_TIMER
+	select ARM_GIC
+	select ARCH_REQUIRE_GPIOLIB
+	select CACHE_L2X0
+	select ARM_AMBA
+	select ARCH_SUPPORTS_BIG_ENDIAN
+	select CPU_ENDIAN_BE8 if CPU_BIG_ENDIAN
+	select ARM_ERRATA_754322
+	select ARM_ERRATA_764369 if SMP
+	select ARM_ERRATA_775420
+	help
+	  This enables support for Broadcom XGS iProc based SoC chips
+
+if ARCH_XGS_IPROC
+
+comment	"XGS iProc SoC based Machine types"
+
+choice
+	prompt "XGS iProc SoC based Machine types"
+	default XGS_IPROC_ARM32_PLATFORM
+
+config XGS_IPROC_ARM32_PLATFORM
+	bool "Support all XGS iProc ARM32 platforms"
+	help
+	  Support for all XGS iProc ARM32 platforms.
+
+config MACH_KT2
+	bool "Support Broadcom Katana2 bring-up board"
+	help
+	  Support for the Broadcom Katana2 bring-up board.
+
+config MACH_NPU1003
+	bool "Support Ericsson ML66 NPU1003 bring-up board"
+	help
+	  Support for the Ericsson ML66 NPU1003 bring-up board.
+
+endchoice
+
+endif
