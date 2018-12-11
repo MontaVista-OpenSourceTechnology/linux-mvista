@@ -28,6 +28,16 @@ config XGS_IPROC_ARM32_PLATFORM
 	help
 	  Support for all XGS iProc ARM32 platforms.
 
+config MACH_HX4
+	bool "Support Broadcom Helix4 bring-up board"
+	help
+	  Support for the Broadcom Helix4 bring-up board.
+
+config MACH_HR2
+	bool "Support Broadcom Hurricane2 bring-up board"
+	help
+	  Support for the Broadcom Hurricane2 bring-up board.
+
 config MACH_KT2
 	bool "Support Broadcom Katana2 bring-up board"
 	help
@@ -37,6 +47,36 @@ config MACH_NPU1003
 	bool "Support Ericsson ML66 NPU1003 bring-up board"
 	help
 	  Support for the Ericsson ML66 NPU1003 bring-up board.
+
+config MACH_GH
+	bool "Support Broadcom Greyhound bring-up board"
+	help
+	  Support for the Broadcom Greyhound bring-up board.
+
+config MACH_SB2
+	bool "Support Broadcom Saber2 bring-up board"
+	help
+	  Support for the Broadcom Saber2 bring-up board.
+
+config MACH_HR3
+	bool "Support Broadcom Hurricane3 bring-up board"
+	help
+	  Support for the Broadcom Hurricane3 bring-up board.
+
+config MACH_GH2
+	bool "Support Broadcom Greyhound2 bring-up board"
+	help
+	  Support for the Broadcom Greyhound2 bring-up board.
+
+config MACH_WH2
+	bool "Support Broadcom wolfhound2 bring-up board"
+	help
+	  Support for the Broadcom Wolfhound2 bring-up board.
+
+config MACH_IPROC_EMULATION
+	bool "Support iProc emulation"
+	help
+	  Support for the iProc emulation.
 
 endchoice
 
