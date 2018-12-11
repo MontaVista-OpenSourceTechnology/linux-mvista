@@ -88,7 +88,7 @@
 #define BSPI_BPP_MODE_SELECT_MASK		BIT(8)
 #define BSPI_BPP_ADDR_SELECT_MASK		BIT(16)
 
-#define BSPI_READ_LENGTH			256
+//#define BSPI_READ_LENGTH			512
 
 /* MSPI register offsets */
 #define MSPI_SPCR0_LSB				0x000
@@ -117,6 +117,8 @@
 #define MSPI_SPCR2_CONT_AFTER_CMD		BIT(7)
 
 #define MSPI_MSPI_STATUS_SPIF			BIT(0)
+
+#define CRU_CTRL_REG				0x0
 
 #define INTR_BASE_BIT_SHIFT			0x02
 #define INTR_COUNT				0x07
@@ -171,6 +173,7 @@ enum base_type {
 	MSPI,
 	BSPI,
 	CHIP_SELECT,
+	CRU_CTRL,
 	BASEMAX,
 };
 
@@ -195,12 +198,14 @@ struct bcm_qspi_dev_id {
 struct qspi_trans {
 	struct spi_transfer *trans;
 	int byte;
+	int slots;
 	bool mspi_last_trans;
 };
 
 struct bcm_qspi {
 	struct platform_device *pdev;
 	struct spi_master *master;
+	struct spi_device *spi_dev;
 	struct clk *clk;
 	u32 base_clk;
 	u32 max_speed_hz;
@@ -453,11 +458,12 @@ static int bcm_qspi_bspi_set_mode(struct bcm_qspi *qspi,
 	qspi->xfer_mode.flex_mode = true;
 
 	if (!bcm_qspi_bspi_ver_three(qspi)) {
-		u32 val, mask;
+		u32 val, mask, endian;
 
-		val = bcm_qspi_read(qspi, BSPI, BSPI_STRAP_OVERRIDE_CTRL);
+		val = qspi->s3_strap_override_ctrl;
 		mask = BSPI_STRAP_OVERRIDE_CTRL_OVERRIDE;
-		if (val & mask || qspi->s3_strap_override_ctrl & mask) {
+		endian = BSPI_STRAP_OVERRIDE_CTRL_ENDAIN_MODE;
+		if ((val & mask) && (val & ~(mask | endian))) {
 			qspi->xfer_mode.flex_mode = false;
 			bcm_qspi_write(qspi, BSPI, BSPI_FLEX_MODE_ENABLE, 0);
 			error = bcm_qspi_bspi_set_override(qspi, msg, hp);
@@ -573,6 +579,8 @@ static void bcm_qspi_update_parms(struct bcm_qspi *qspi,
 static int bcm_qspi_setup(struct spi_device *spi)
 {
 	struct bcm_qspi_parms *xp;
+	struct bcm_qspi *qspi = spi_master_get_devdata(spi->master);
+	u32 tmp;
 
 	if (spi->bits_per_word > 16)
 		return -EINVAL;
@@ -584,8 +592,20 @@ static int bcm_qspi_setup(struct spi_device *spi)
 			return -ENOMEM;
 		spi_set_ctldata(spi, xp);
 	}
-	xp->speed_hz = spi->max_speed_hz;
+
 	xp->mode = spi->mode;
+	xp->speed_hz = spi->max_speed_hz;
+
+	/* Set BSPI clock rate */
+	tmp = bcm_qspi_read(qspi, CRU_CTRL, CRU_CTRL_REG);
+	tmp &= ~0x6;
+	if (spi->max_speed_hz >= 62500000)
+		tmp |= 0x6;
+	else if (spi->max_speed_hz >= 50000000)
+		tmp |= 0x2;
+	else if (spi->max_speed_hz >= 31250000)
+		tmp |= 0x4;
+	bcm_qspi_write(qspi, CRU_CTRL, CRU_CTRL_REG, tmp);
 
 	if (spi->bits_per_word)
 		xp->bits_per_word = spi->bits_per_word;
@@ -677,21 +697,24 @@ static void read_from_hw(struct bcm_qspi *qspi, int slots)
 	tp = qspi->trans_pos;
 
 	for (slot = 0; slot < slots; slot++) {
+		if (tp.trans->rx_buf) {
 		if (tp.trans->bits_per_word <= 8) {
 			u8 *buf = tp.trans->rx_buf;
 
 			if (buf)
-				buf[tp.byte] = read_rxram_slot_u8(qspi, slot);
+					buf[tp.byte] =
+						read_rxram_slot_u8(qspi, slot);
 			dev_dbg(&qspi->pdev->dev, "RD %02x\n",
 				buf ? buf[tp.byte] : 0xff);
 		} else {
 			u16 *buf = tp.trans->rx_buf;
 
 			if (buf)
-				buf[tp.byte / 2] = read_rxram_slot_u16(qspi,
-								      slot);
+					buf[tp.byte / 2] =
+						read_rxram_slot_u16(qspi, slot);
 			dev_dbg(&qspi->pdev->dev, "RD %04x\n",
 				buf ? buf[tp.byte] : 0xffff);
+		}
 		}
 
 		update_qspi_trans_byte_count(qspi, &tp,
@@ -775,6 +798,9 @@ static int write_to_hw(struct bcm_qspi *qspi, struct spi_device *spi)
 		slot++;
 	}
 
+	/* save slot number for read_from_hw() */
+	qspi->trans_pos.slots = slot;
+
 	if (!slot) {
 		dev_err(&qspi->pdev->dev, "%s: no data to send?", __func__);
 		goto done;
@@ -806,9 +832,9 @@ static int bcm_qspi_bspi_flash_read(struct spi_device *spi,
 				    struct spi_flash_read_message *msg)
 {
 	struct bcm_qspi *qspi = spi_master_get_devdata(spi->master);
-	u32 addr = 0, len, rdlen, len_words;
+	u32 addr = 0, len, len_words;
 	int ret = 0;
-	unsigned long timeo = msecs_to_jiffies(100);
+	unsigned long timeo = msecs_to_jiffies(1000);
 	struct bcm_qspi_soc_intc *soc_intc = qspi->soc_intc;
 
 	if (bcm_qspi_bspi_ver_three(qspi))
@@ -833,30 +859,20 @@ static int bcm_qspi_bspi_flash_read(struct spi_device *spi,
 	else
 		addr = msg->from & 0x00ffffff;
 
+	len = msg->len;
+
 	if (bcm_qspi_bspi_ver_three(qspi) == true)
 		addr = (addr + 0xc00000) & 0xffffff;
 
-	/*
-	 * read into the entire buffer by breaking the reads
-	 * into RAF buffer read lengths
-	 */
-	len = msg->len;
-	qspi->bspi_rf_msg_idx = 0;
-
-	do {
-		if (len > BSPI_READ_LENGTH)
-			rdlen = BSPI_READ_LENGTH;
-		else
-			rdlen = len;
-
 		reinit_completion(&qspi->bspi_done);
 		bcm_qspi_enable_bspi(qspi);
-		len_words = (rdlen + 3) >> 2;
+	len_words = (len + 3) >> 2;
 		qspi->bspi_rf_msg = msg;
 		qspi->bspi_rf_msg_status = 0;
-		qspi->bspi_rf_msg_len = rdlen;
-		dev_dbg(&qspi->pdev->dev,
-			"bspi xfr addr 0x%x len 0x%x", addr, rdlen);
+	qspi->bspi_rf_msg_idx = 0;
+	qspi->bspi_rf_msg_len = len;
+	dev_dbg(&qspi->pdev->dev, "bspi xfr addr 0x%x len 0x%x", addr, len);
+
 		bcm_qspi_write(qspi, BSPI, BSPI_RAF_START_ADDR, addr);
 		bcm_qspi_write(qspi, BSPI, BSPI_RAF_NUM_WORDS, len_words);
 		bcm_qspi_write(qspi, BSPI, BSPI_RAF_WATERMARK, 0);
@@ -875,14 +891,10 @@ static int bcm_qspi_bspi_flash_read(struct spi_device *spi,
 		if (!wait_for_completion_timeout(&qspi->bspi_done, timeo)) {
 			dev_err(&qspi->pdev->dev, "timeout waiting for BSPI\n");
 			ret = -ETIMEDOUT;
-			break;
+	} else {
+		/* set the return length for the caller */
+		msg->retlen = len;
 		}
-
-		/* set msg return length */
-		msg->retlen += rdlen;
-		addr += rdlen;
-		len -= rdlen;
-	} while (len);
 
 	return ret;
 }
@@ -892,24 +904,21 @@ static int bcm_qspi_transfer_one(struct spi_master *master,
 				 struct spi_transfer *trans)
 {
 	struct bcm_qspi *qspi = spi_master_get_devdata(master);
-	int slots;
-	unsigned long timeo = msecs_to_jiffies(100);
+	unsigned long timeo = msecs_to_jiffies(1000);
 
 	bcm_qspi_chip_select(qspi, spi->chip_select);
 	qspi->trans_pos.trans = trans;
 	qspi->trans_pos.byte = 0;
+	qspi->spi_dev = spi;
 
-	while (qspi->trans_pos.byte < trans->len) {
 		reinit_completion(&qspi->mspi_done);
 
-		slots = write_to_hw(qspi, spi);
+	write_to_hw(qspi, spi);
+
 		if (!wait_for_completion_timeout(&qspi->mspi_done, timeo)) {
 			dev_err(&qspi->pdev->dev, "timeout waiting for MSPI\n");
 			return -ETIMEDOUT;
 		}
-
-		read_from_hw(qspi, slots);
-	}
 
 	return 0;
 }
@@ -1020,7 +1029,24 @@ static irqreturn_t bcm_qspi_mspi_l2_isr(int irq, void *dev_id)
 		bcm_qspi_write(qspi, MSPI, MSPI_MSPI_STATUS, status);
 		if (qspi->soc_intc)
 			soc_intc->bcm_qspi_int_ack(soc_intc, MSPI_DONE);
+
+		if (qspi->trans_pos.trans->tx_buf &&
+			(qspi->trans_pos.trans->len <= MSPI_NUM_CDRAM)) {
 		complete(&qspi->mspi_done);
+			spi_finalize_current_transfer(qspi->master);
+			return IRQ_HANDLED;
+		}
+
+		read_from_hw(qspi, qspi->trans_pos.slots);
+
+		if (qspi->trans_pos.trans) {
+			write_to_hw(qspi, qspi->spi_dev);
+		}
+		else {
+			complete(&qspi->mspi_done);
+			spi_finalize_current_transfer(qspi->master);
+		}
+
 		return IRQ_HANDLED;
 	}
 
@@ -1039,6 +1065,8 @@ static irqreturn_t bcm_qspi_bspi_lr_l2_isr(int irq, void *dev_id)
 		if (qspi->bspi_rf_msg_len == 0) {
 			qspi->bspi_rf_msg = NULL;
 			if (qspi->soc_intc) {
+				/* Ack BSPI done interrupt */
+				soc_intc->bcm_qspi_int_ack(soc_intc, BSPI_DONE);
 				/* disable soc BSPI interrupt */
 				soc_intc->bcm_qspi_int_set(soc_intc, BSPI_DONE,
 							   false);
@@ -1050,11 +1078,12 @@ static irqreturn_t bcm_qspi_bspi_lr_l2_isr(int irq, void *dev_id)
 				bcm_qspi_bspi_lr_clear(qspi);
 			else
 				bcm_qspi_bspi_flush_prefetch_buffers(qspi);
-		}
-
+		} else {
 		if (qspi->soc_intc)
-			/* clear soc BSPI interrupt */
-			soc_intc->bcm_qspi_int_ack(soc_intc, BSPI_DONE);
+				/* Ack FIFO full interrupt */
+				soc_intc->bcm_qspi_int_ack(soc_intc,
+							BSPI_FIFO_FULL);
+		}
 	}
 
 	status &= INTR_BSPI_LR_SESSION_DONE_MASK;
@@ -1241,8 +1270,6 @@ int bcm_qspi_probe(struct platform_device *pdev,
 	master->dev.of_node = dev->of_node;
 	master->num_chipselect = NUM_CHIPSELECT;
 
-	qspi->big_endian = of_device_is_big_endian(dev->of_node);
-
 	if (!of_property_read_u32(dev->of_node, "num-cs", &val))
 		master->num_chipselect = val;
 
@@ -1283,6 +1310,26 @@ int bcm_qspi_probe(struct platform_device *pdev,
 			goto qspi_resource_err;
 		}
 	}
+
+	/* iProc BSPI clock is set through CRU control */
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "cru_ctrl");
+	if (res) {
+		qspi->base[CRU_CTRL] = devm_ioremap_resource(dev, res);
+		if (IS_ERR(qspi->base[CRU_CTRL])) {
+			ret = PTR_ERR(qspi->base[CRU_CTRL]);
+			goto qspi_probe_err;
+		}
+	}
+
+	qspi->big_endian = of_device_is_big_endian(dev->of_node);
+
+	val = bcm_qspi_read(qspi, BSPI, BSPI_STRAP_OVERRIDE_CTRL);
+	if (qspi->big_endian == 0 && IS_ENABLED(CONFIG_CPU_BIG_ENDIAN)) {
+		val |= BSPI_STRAP_OVERRIDE_CTRL_ENDAIN_MODE;
+		val |= BSPI_STRAP_OVERRIDE_CTRL_OVERRIDE;
+		bcm_qspi_write(qspi, BSPI, BSPI_STRAP_OVERRIDE_CTRL, val);
+	}
+	qspi->s3_strap_override_ctrl = val;
 
 	qspi->dev_ids = kcalloc(num_irqs, sizeof(struct bcm_qspi_dev_id),
 				GFP_KERNEL);

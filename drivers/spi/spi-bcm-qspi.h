@@ -59,7 +59,8 @@ enum {
 	MSPI_DONE = 0x1,
 	BSPI_DONE = 0x2,
 	BSPI_ERR = 0x4,
-	MSPI_BSPI_DONE = 0x7
+	MSPI_BSPI_DONE = 0x7,
+	BSPI_FIFO_FULL = 0x8
 };
 
 struct bcm_qspi_soc_intc {
@@ -95,6 +96,8 @@ static inline u32 get_qspi_mask(int type)
 		return INTR_MSPI_DONE_MASK;
 	case BSPI_DONE:
 		return BSPI_LR_INTERRUPTS_ALL;
+	case BSPI_FIFO_FULL:
+		return INTR_BSPI_LR_FULLNESS_REACHED_MASK;
 	case MSPI_BSPI_DONE:
 		return QSPI_INTERRUPTS_ALL;
 	case BSPI_ERR:
