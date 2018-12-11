@@ -270,6 +270,12 @@ config BROADCOM_PHY
 	  Currently supports the BCM5411, BCM5421, BCM5461, BCM54616S, BCM5464,
 	  BCM5481, BCM54810 and BCM5482 PHYs.
 
+config XGS_IPROC_SERDES
+	tristate "Broadcom XGS iProc SERDES"
+	depends on MDIO_XGS_IPROC
+	---help---
+	  Supports HX4/KT2/GH2 SERDES.
+
 config CICADA_PHY
 	tristate "Cicada PHYs"
 	---help---
