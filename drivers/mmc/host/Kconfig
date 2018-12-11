@@ -893,6 +893,16 @@ config MMC_SDHCI_BRCMSTB
 
 	  If unsure, say Y.
 
+config MMC_SDHCI_XGS_IPROC
+	tristate "Broadcom XGS iProc SD/MMC Card Interface support"
+	depends on ARCH_XGS_IPROC
+	depends on MMC_SDHCI_PLTFM
+	select MMC_SDHCI_IO_ACCESSORS
+	default n
+	help
+	  This selects the platform Secure Digital Host Controller Interface.
+	  If unsure, say N.
+
 config MMC_SDHCI_XENON
 	tristate "Marvell Xenon eMMC/SD/SDIO SDHCI driver"
 	depends on MMC_SDHCI_PLTFM
