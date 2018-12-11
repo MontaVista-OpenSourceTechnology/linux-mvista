@@ -1690,7 +1690,7 @@ static int scratchpad_alloc(struct xhci_hcd *xhci, gfp_t flags)
 		if (!buf)
 			goto fail_sp4;
 
-		xhci->scratchpad->sp_array[i] = dma;
+		xhci->scratchpad->sp_array[i] = cpu_to_le64(dma);
 		xhci->scratchpad->sp_buffers[i] = buf;
 	}
 
@@ -1700,7 +1700,7 @@ static int scratchpad_alloc(struct xhci_hcd *xhci, gfp_t flags)
 	for (i = i - 1; i >= 0; i--) {
 		dma_free_coherent(dev, xhci->page_size,
 				    xhci->scratchpad->sp_buffers[i],
-				    xhci->scratchpad->sp_array[i]);
+				    le64_to_cpu(xhci->scratchpad->sp_array[i]));
 	}
 
 	kfree(xhci->scratchpad->sp_buffers);
@@ -1732,7 +1732,7 @@ static void scratchpad_free(struct xhci_hcd *xhci)
 	for (i = 0; i < num_sp; i++) {
 		dma_free_coherent(dev, xhci->page_size,
 				    xhci->scratchpad->sp_buffers[i],
-				    xhci->scratchpad->sp_array[i]);
+				    le64_to_cpu(xhci->scratchpad->sp_array[i]));
 	}
 	kfree(xhci->scratchpad->sp_buffers);
 	dma_free_coherent(dev, num_sp * sizeof(u64),

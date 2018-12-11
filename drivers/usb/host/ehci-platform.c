@@ -43,6 +43,12 @@
 #define EHCI_MAX_RSTS 4
 #define hcd_to_ehci_priv(h) ((struct ehci_platform_priv *)hcd_to_ehci(h)->priv)
 
+#if IS_ENABLED(CONFIG_USB_EHCI_XGS_IPROC)
+#include <linux/usb/phy.h>
+#include <linux/usb/iproc_usb.h>
+#define BCM_USB_FIFO_THRESHOLD	0x00800040
+#endif
+
 struct ehci_platform_priv {
 	struct clk *clks[EHCI_MAX_CLKS];
 	struct reset_control *rsts[EHCI_MAX_RSTS];
@@ -152,9 +158,23 @@ static int ehci_platform_probe(struct platform_device *dev)
 	struct ehci_platform_priv *priv;
 	struct ehci_hcd *ehci;
 	int err, irq, phy_num, clk = 0, rst;
+	struct usb_phy __maybe_unused *phy;
 
 	if (usb_disabled())
 		return -ENODEV;
+
+	if (IS_ENABLED(CONFIG_USB_EHCI_XGS_IPROC)) {
+		phy = devm_usb_get_phy_by_phandle(&dev->dev, "usb-phy", 0);
+		if (IS_ERR(phy)) {
+			dev_err(&dev->dev, "unable to find transceiver\n");
+			return PTR_ERR(phy);
+		}
+
+		if (phy->flags != IPROC_USB_MODE_HOST)
+			return -ENODEV;
+
+		usb_phy_init(phy);
+	}
 
 	/*
 	 * Use reasonable defaults so platforms don't have to provide these
@@ -296,12 +316,20 @@ static int ehci_platform_probe(struct platform_device *dev)
 	hcd->rsrc_start = res_mem->start;
 	hcd->rsrc_len = resource_size(res_mem);
 
+	if (IS_ENABLED(CONFIG_USB_EHCI_XGS_IPROC))
+		hcd->usb_phy = phy;
+
 	err = usb_add_hcd(hcd, irq, IRQF_SHARED);
 	if (err)
 		goto err_power;
 
 	device_wakeup_enable(hcd->self.controller);
 	device_enable_async_suspend(hcd->self.controller);
+
+	if (IS_ENABLED(CONFIG_USB_EHCI_XGS_IPROC))
+		ehci_writel(ehci, BCM_USB_FIFO_THRESHOLD,
+				&ehci->regs->reserved4[6]);
+
 	platform_set_drvdata(dev, hcd);
 
 	return err;

@@ -214,6 +214,13 @@ config USB_EHCI_HCD_STI
 	  Enable support for the on-chip EHCI controller found on
 	  STMicroelectronics consumer electronics SoC's.
 
+config USB_EHCI_XGS_IPROC
+    bool "BRCM XGS iProc EHCI patch"
+    depends on (ARCH_XGS_IPROC && USB_EHCI_HCD_PLATFORM)
+    default n
+    ---help---
+      This option is for BRCM XGS iProc EHCI patch
+
 config USB_EHCI_HCD_AT91
         tristate  "Support for Atmel on-chip EHCI USB controller"
         depends on USB_EHCI_HCD && ARCH_AT91
@@ -590,6 +597,13 @@ config USB_OHCI_HCD_PLATFORM
 	  provides a memory space and an irq.
 
 	  If unsure, say N.
+
+config USB_OHCI_XGS_IPROC
+    bool "BRCM XGS iProc OHCI patch"
+    depends on (ARCH_XGS_IPROC && USB_OHCI_HCD_PLATFORM)
+    default n
+    ---help---
+      This option is for BRCM XGS iProc OHCI patch
 
 config USB_OCTEON_OHCI
 	bool "Octeon on-chip OHCI support (DEPRECATED)"
