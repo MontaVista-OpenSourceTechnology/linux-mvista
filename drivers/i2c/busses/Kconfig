@@ -418,6 +418,26 @@ config I2C_BCM_IPROC
 
 	  If you don't know what to do here, say N.
 
+config I2C_XGS_IPROC
+	tristate "Broadcom XGS iProc I2C controller"
+	depends on ARCH_XGS_IPROC
+	default ARCH_XGS_IPROC
+	help
+	  If you say yes to this option, support will be included for the
+	  Broadcom XGS iProc I2C controller.
+
+	  If you don't know what to do here, say N.
+
+config SMBUS_XGS_IPROC
+	tristate "Broadcom XGS iProc SMBUS controller"
+	depends on ARCH_XGS_IPROC && !I2C_XGS_IPROC
+	default n
+	help
+	  If you say yes to this option, support will be included for the
+	  Broadcom XGS iProc SMBUS controller.
+
+	  If you don't know what to do here, say N.
+
 config I2C_BCM_KONA
 	tristate "BCM Kona I2C adapter"
 	depends on ARCH_BCM_MOBILE
