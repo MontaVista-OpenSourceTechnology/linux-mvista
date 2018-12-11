@@ -203,4 +203,18 @@ config USB_ULPI_VIEWPORT
 	  Provides read/write operations to the ULPI phy register set for
 	  controllers with a viewport register (e.g. Chipidea/ARC controllers).
 
+config USBPHY_XGS_IPROC
+	tristate "BRCM iProc USB controller support"
+	depends on ARCH_XGS_IPROC
+	select USB_PHY
+	help
+	  BRCM iProc USB controller support
+
+config USB_XGS_IPROC_DRD
+	tristate "BRCM iProc USB DRD controller support"
+	depends on ARCH_XGS_IPROC
+	select USB_PHY
+	help
+	  BRCM iProc USB DRD controller support
+
 endmenu
