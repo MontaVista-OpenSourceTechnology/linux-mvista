@@ -187,8 +187,6 @@ static int scratchpad_setup(struct bdc *bdc)
 	bdc->scratchpad.size = sp_buff_size;
 	low32 = lower_32_bits(bdc->scratchpad.sp_dma);
 	upp32 = upper_32_bits(bdc->scratchpad.sp_dma);
-	cpu_to_le32s(&low32);
-	cpu_to_le32s(&upp32);
 	bdc_writel(bdc->regs, BDC_SPBBAL, low32);
 	bdc_writel(bdc->regs, BDC_SPBBAH, upp32);
 	return 0;
@@ -249,8 +247,6 @@ static void bdc_mem_init(struct bdc *bdc, bool reinit)
 
 	low32 = lower_32_bits(temp);
 	upp32 = upper_32_bits(bdc->srr.dma_addr);
-	cpu_to_le32s(&low32);
-	cpu_to_le32s(&upp32);
 
 	/* Write the dma addresses into regs*/
 	bdc_writel(bdc->regs, BDC_SRRBAL(0), low32);

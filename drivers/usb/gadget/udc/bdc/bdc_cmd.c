@@ -149,8 +149,6 @@ int bdc_config_ep(struct bdc *bdc, struct bdc_ep *ep)
 	cmd_sc = mul = mbs = param2 = 0;
 	param0 = lower_32_bits(ep->bd_list.bd_table_array[0]->dma);
 	param1 = upper_32_bits(ep->bd_list.bd_table_array[0]->dma);
-	cpu_to_le32s(&param0);
-	cpu_to_le32s(&param1);
 
 	dev_dbg(bdc->dev, "%s: param0=%08x param1=%08x",
 						__func__, param0, param1);
@@ -234,8 +232,6 @@ int bdc_ep_bla(struct bdc *bdc, struct bdc_ep *ep, dma_addr_t dma_addr)
 				(unsigned long long)(dma_addr));
 	param0 = lower_32_bits(dma_addr);
 	param1 = upper_32_bits(dma_addr);
-	cpu_to_le32s(&param0);
-	cpu_to_le32s(&param1);
 
 	cmd_sc |= BDC_CMD_EPN(ep->ep_num)|BDC_CMD_BLA;
 	dev_dbg(bdc->dev, "cmd_sc=%x\n", cmd_sc);
