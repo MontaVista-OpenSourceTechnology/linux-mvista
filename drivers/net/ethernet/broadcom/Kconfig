@@ -181,6 +181,16 @@ config BGMAC_PLATFORM
 	  Say Y here if you want to use the Broadcom iProc Gigabit Ethernet
 	  controller through the generic platform interface
 
+config APM
+	tristate "Broadcom iProc AXI Port Macro (APM) support"
+	depends on HAS_DMA
+	depends on ARCH_XGS_IPROC || COMPILE_TEST
+	depends on OF
+	---help---
+	  This driver supports AXI Port Macro (APM) module.
+	  The APM provides a bridge function between a standard Port Macro (PM 4X10)
+	  interface and the AXI interconnect (128 bits data bus) for data transfer.
+
 config SYSTEMPORT
 	tristate "Broadcom SYSTEMPORT internal MAC support"
 	depends on OF
