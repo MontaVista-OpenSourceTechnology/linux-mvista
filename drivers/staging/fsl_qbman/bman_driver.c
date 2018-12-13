@@ -318,7 +318,7 @@ static int __init parse_bportals(char *str)
 }
 __setup("bportals=", parse_bportals);
 
-static void bman_offline_cpu(unsigned int cpu)
+static int bman_offline_cpu(unsigned int cpu)
 {
 	struct bman_portal *p;
 	const struct bm_portal_config *pcfg;
@@ -328,10 +328,11 @@ static void bman_offline_cpu(unsigned int cpu)
 		if (pcfg)
 			irq_set_affinity(pcfg->public_cfg.irq, cpumask_of(0));
 	}
+	return 0;
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
-static void bman_online_cpu(unsigned int cpu)
+static int bman_online_cpu(unsigned int cpu)
 {
 	struct bman_portal *p;
 	const struct bm_portal_config *pcfg;
@@ -341,30 +342,8 @@ static void bman_online_cpu(unsigned int cpu)
 		if (pcfg)
 			irq_set_affinity(pcfg->public_cfg.irq, cpumask_of(cpu));
 	}
+	return 0;
 }
-
-static int __cpuinit bman_hotplug_cpu_callback(struct notifier_block *nfb,
-					unsigned long action, void *hcpu)
-{
-	unsigned int cpu = (unsigned long)hcpu;
-
-	switch (action) {
-	case CPU_ONLINE:
-	case CPU_ONLINE_FROZEN:
-		bman_online_cpu(cpu);
-		break;
-	case CPU_DOWN_PREPARE:
-	case CPU_DOWN_PREPARE_FROZEN:
-		bman_offline_cpu(cpu);
-	default:
-		break;
-	}
-	return NOTIFY_OK;
-}
-
-static struct notifier_block bman_hotplug_cpu_notifier = {
-	.notifier_call = bman_hotplug_cpu_callback,
-};
 #endif /* CONFIG_HOTPLUG_CPU */
 
 /* Initialise the Bman driver. The meat of this function deals with portals. The
@@ -512,7 +491,9 @@ __init int bman_init(void)
 	for_each_cpu(cpu, &offline_cpus)
 		bman_offline_cpu(cpu);
 #ifdef CONFIG_HOTPLUG_CPU
-	register_hotcpu_notifier(&bman_hotplug_cpu_notifier);
+			cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
+					"staging/bman_portal:online",
+					bman_online_cpu, bman_offline_cpu);
 #endif
 	return 0;
 }

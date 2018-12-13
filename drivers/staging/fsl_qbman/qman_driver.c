@@ -692,7 +692,7 @@ static void qman_portal_update_sdest(const struct qm_portal_config *pcfg,
 #endif
 }
 
-static void qman_offline_cpu(unsigned int cpu)
+static int qman_offline_cpu(unsigned int cpu)
 {
 	struct qman_portal *p;
 	const struct qm_portal_config *pcfg;
@@ -704,10 +704,11 @@ static void qman_offline_cpu(unsigned int cpu)
 			qman_portal_update_sdest(pcfg, 0);
 		}
 	}
+	return 0;
 }
 
 #ifdef CONFIG_HOTPLUG_CPU
-static void qman_online_cpu(unsigned int cpu)
+static int qman_online_cpu(unsigned int cpu)
 {
 	struct qman_portal *p;
 	const struct qm_portal_config *pcfg;
@@ -719,30 +720,9 @@ static void qman_online_cpu(unsigned int cpu)
 			qman_portal_update_sdest(pcfg, cpu);
 		}
 	}
+	return 0;
 }
 
-static int __cpuinit qman_hotplug_cpu_callback(struct notifier_block *nfb,
-				unsigned long action, void *hcpu)
-{
-	unsigned int cpu = (unsigned long)hcpu;
-
-	switch (action) {
-	case CPU_ONLINE:
-	case CPU_ONLINE_FROZEN:
-		qman_online_cpu(cpu);
-		break;
-	case CPU_DOWN_PREPARE:
-	case CPU_DOWN_PREPARE_FROZEN:
-		qman_offline_cpu(cpu);
-	default:
-		break;
-	}
-	return NOTIFY_OK;
-}
-
-static struct notifier_block qman_hotplug_cpu_notifier = {
-	.notifier_call = qman_hotplug_cpu_callback,
-};
 #endif /* CONFIG_HOTPLUG_CPU */
 
 __init int qman_init(void)
@@ -892,7 +872,9 @@ __init int qman_init(void)
 	for_each_cpu(cpu, &offline_cpus)
 		qman_offline_cpu(cpu);
 #ifdef CONFIG_HOTPLUG_CPU
-	register_hotcpu_notifier(&qman_hotplug_cpu_notifier);
+	cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN,
+					"staging/qman_portal:online",
+					qman_online_cpu, qman_offline_cpu);
 #endif
 	return 0;
 }
