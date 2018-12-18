@@ -492,9 +492,10 @@ size_t get_qman_fqd_size()
 static __init int parse_mem_property(struct device_node *node, const char *name,
 				dma_addr_t *addr, size_t *sz, int zero)
 {
-	const u32 *pint;
 	int ret;
+#ifdef CONFIG_MFCC_8558
 	unsigned long vaddr;
+	const u32 *pint;
 
 	printk("%s: addr = %lx size = %lx zero = %d\n", __func__, (long)*addr, (long)*sz, zero);
 
@@ -510,11 +511,13 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
 		return 0;
 	}
 	pr_info("Using %s property '%s'\n", node->full_name, name);
+#endif
 	/* If using a "zero-pma", don't try to zero it, even if you asked */
 	if (zero && of_find_property(node, "zero-pma", &ret)) {
 		pr_info("  it's a 'zero-pma', not zeroing from s/w\n");
 		zero = 0;
 	}
+#ifdef CONFIG_MFCC_8558
 	*addr = ((u64)pint[0] << 32) | (u64)pint[1];
 	*sz = ((u64)pint[2] << 32) | (u64)pint[3];
 	/* Keep things simple, it's either all in the DRAM range or it's all
@@ -539,8 +542,25 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
 		flush_dcache_range(vaddr, vaddr + *sz);
 		iounmap(tmpp);
 	}
+#else
+	if (zero) {
+		/* map as cacheable, non-guarded */
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+		void __iomem *tmpp = ioremap_cache(*addr, *sz);
+#else
+		void __iomem *tmpp = ioremap(*addr, *sz);
+#endif
 
+		if (!tmpp)
+			return -ENOMEM;
+		memset_io(tmpp, 0, *sz);
+		flush_dcache_range((unsigned long)tmpp,
+				    (unsigned long)tmpp + *sz);
+		iounmap(tmpp);
+	}
+#endif
 	return 0;
+
 }
 
 /* TODO:

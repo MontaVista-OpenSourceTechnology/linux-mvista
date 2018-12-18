@@ -265,11 +265,22 @@ static struct device_node *bm_node;
 static dma_addr_t fbpr_a;
 static size_t fbpr_sz = DEFAULT_FBPR_SZ;
 
+static int bman_fbpr(struct reserved_mem *rmem)
+{
+	fbpr_a = rmem->base;
+	fbpr_sz = rmem->size;
+
+	WARN_ON(!(fbpr_a && fbpr_sz));
+	return 0;
+}
+
+RESERVEDMEM_OF_DECLARE(bman_fbpr, "fsl,bman-fbpr", bman_fbpr);
 /* Parse the <name> property to extract the memory location and size and
  * memblock_reserve() it. If it isn't supplied, memblock_alloc() the default
  * size. Also flush this memory range from data cache so that BMAN originated
  * transactions for this memory region could be marked non-coherent.
  */
+#ifdef CONFIG_MFCC_8558
 static __init int parse_mem_property(struct device_node *node, const char *name,
 				dma_addr_t *addr, size_t *sz, int zero)
 {
@@ -320,6 +331,7 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
 	}
 	return 0;
 }
+#endif
 
 static int __init fsl_bman_init(struct device_node *node)
 {
@@ -339,11 +351,13 @@ static int __init fsl_bman_init(struct device_node *node)
 	s = of_get_property(node, "fsl,hv-claimable", &ret);
 	if (s && !strcmp(s, "standby"))
 		standby = 1;
+#ifdef CONFIG_MFCC_8558
 	if (!standby) {
 		ret = parse_mem_property(node, "fsl,bman-fbpr",
 					&fbpr_a, &fbpr_sz, 0);
 		BUG_ON(ret);
 	}
+#endif
 	/* Global configuration */
 	regs = ioremap(res.start, res.end - res.start + 1);
 	bm = bm_create(regs);
