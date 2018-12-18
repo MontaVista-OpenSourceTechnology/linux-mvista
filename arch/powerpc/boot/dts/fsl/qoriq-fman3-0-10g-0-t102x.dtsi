@@ -1,5 +1,6 @@
 /*
- * QorIQ FMan v3 1g port #1 device tree stub [ controller @ offset 0x400000 ]
+ * QorIQ FMan v3 10g port #0 device tree stub for T102x platforms
+ * [ controller @ offset 0x400000 ]
  *
  * Copyright 2012 Freescale Semiconductor Inc.
  *
@@ -33,30 +34,30 @@
  */
 
 fman@400000 {
-	fman0_rx1: port@89000 {
-		cell-index = <1>;
-		compatible = "fsl,fman-port-1g-rx";
-		reg = <0x89000 0x1000>;
+	fman0_rx0: port@88000 {
+		cell-index = <0>;
+		compatible = "fsl,fman-port-10g-rx";
+		reg = <0x88000 0x1000>;
 	};
 
-	fman0_tx1: port@a9000 {
-		cell-index = <1>;
-		compatible = "fsl,fman-port-1g-tx";
-		reg = <0xa9000 0x1000>;
+	fman0_tx0: port@a8000 {
+		cell-index = <0>;
+		compatible = "fsl,fman-port-10g-tx";
+		reg = <0xa8000 0x1000>;
 	};
 
-	ethernet@e2000 {
-		cell-index = <1>;
+	ethernet@e0000 {
+		cell-index = <0>;
 		compatible = "fsl,fman-memac";
-		reg = <0xe2000 0x1000>;
-		fsl,port-handles = <&fman0_rx1 &fman0_tx1>;
+		reg = <0xe0000 0x1000>;
+		fsl,port-handles = <&fman0_rx0 &fman0_tx0>;
 		ptimer-handle = <&ptp_timer0>;
 	};
 
-	mdio@e3000 {
+	mdio@e1000 {
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "fsl,fman-memac-mdio";
-		reg = <0xe3000 0x1000>;
+		reg = <0xe1000 0x1000>;
 	};
 };
