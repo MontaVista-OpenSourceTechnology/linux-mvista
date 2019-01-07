@@ -1,0 +1,109 @@
+/*
+ * Copyright (C) 2014 - 2019 MontaVista Software, LLC.
+ * Created by Niyas Ahamed Mydeen <nmydeen@mvista.com>
+ * for MontaVista Software, LLC.
+ *
+ * This program is free software; you can redistribute  it and/or modify it
+ * under  the terms of  the GNU General  Public License as published by the
+ * Free Software Foundation;  either version 2 of the  License, or (at your
+ * option) any later version.
+ */
+/dts-v1/;
+/include/ "skeleton.dtsi"
+/ {
+	model = "Ericsson PUMA-1 platform with Device Tree";
+	compatible = "ericsson,puma1";
+
+	memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x40000000 0x20000000>;
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,115200n8";
+		linux,stdout-path = "/soc/serial@0x69000000";
+        };
+	soc {
+		compatible =  "ericsson,puma1","simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		interrupt-parent = <&intc>;
+		ranges;
+
+		arm {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+		intc: interrupt-controller {
+			compatible = "ti,cp-intc";
+			interrupt-controller;
+			#interrupt-cells = <1>;
+			ti,intc-size = <56>;
+			reg = <0x68000000 0x2000>;
+		};
+		};
+
+		timer@0x65000000 {
+			compatible = "ericsson,puma1-timer";
+			reg = <0x65000000 0x1000>,
+				<0x66000000 0x1000>;
+			interrupt-parent = <&intc>;
+			interrupts = <14>, <15>, <16>, <17>;
+		};
+
+		uart0: serial@0x69000000 {
+			compatible = "ns16550a";
+			reg = <0x69000000 0x2000>;
+			clock-frequency = <100000000>;
+			reg-shift = <2>;
+			interrupt-parent = <&intc>;
+			interrupts = <18>;
+		};
+
+		flash@00000000 {
+			compatible = "cfi-flash";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			linux,mtd-name = "physmap-flash.0";
+			reg = <0x00000000 0x01000000>;
+			bank-width = <2>;
+			partition@0 {
+				/* This location must not be altered  */
+				/* 768KB for boot-loader  */
+				label = "U-Boot Bootloader";
+				reg = <0x0 0x000c0000>;
+			};
+			partition@c0000 {
+				/* 128KB for Env-1 */
+				label = "Env-1";
+				reg = <0x000c0000 0x00020000>;
+			};
+			partition@e0000 {
+				/* 128KB for Env-2 */
+				label = "Env-2";
+				reg = <0x000e0000 0x00020000>;
+			};
+			partition@100000 {
+				/* 5MB for Kernel-1 */
+				label = "Kernel-1";
+				reg = <0x00100000 0x00500000>;
+			};
+			partition@600000 {
+				/* 5MB for Kernel-2 */
+				label = "Kernel-2";
+				reg = <0x00600000 0x00500000>;
+			};
+			partition@b00000 {
+				/* 128KB for start info */
+				label = "Start Info";
+				reg = <0x00b00000 0x00020000>;
+			};
+			partition@b20000 {
+				/* 2MB for halog */
+				label = "halog";
+				reg = <0x00b20000 0x00200000>;
+			};
+		};
+	};
+};

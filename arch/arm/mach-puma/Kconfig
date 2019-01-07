@@ -1,0 +1,57 @@
+config ARCH_PUMA
+	select CPU_V6
+	select DEBUG_UNCOMPRESS
+	select COMMON_CLK
+	select GENERIC_CLOCKEVENTS
+	select IRQ_DOMAIN
+if ARCH_PUMA
+
+choice
+    prompt "PUMA platform type"
+    depends on ARCH_PUMA
+    default MACH_SCMB
+
+config MACH_SCMB
+    depends on ARCH_PUMA
+    select PT_1_5
+    select MTD_NAND_PUMA
+    bool "PT1.5 SCMB"
+    help
+      Support for PT1.5 Single Carrier Modem Board, mounting PUMA1 platform
+
+config MACH_SCMB_DT
+        bool "Generic PUMA support using device tree"
+        depends on MACH_SCMB
+	select CLKSRC_OF
+        select USE_OF
+	select SERIAL_OF_PLATFORM
+	select PROC_DEVICETREE
+	select MTD_PHYSMAP_OF
+endchoice
+
+choice
+    prompt "PUMA Clock Speed"
+    depends on ARCH_PUMA
+    default PUMA_CLOCK_HIGH
+
+config PUMA_CLOCK_HIGH
+    depends on ARCH_PUMA
+    bool "High Speed Clock: 400MHz"
+
+config PUMA_CLOCK_LOW
+    depends on ARCH_PUMA
+    bool "Low Speed Clock: 300MHz"
+
+endchoice
+
+config PT_1_5
+    bool
+    depends on ARCH_PUMA
+
+config PUMA1_DEBUG_UART
+        int "PUMA1 UART to use for low-level debug"
+        default 0
+        help
+          Choose the UART on which kernel low-level debug messages should be
+          output.
+endif
