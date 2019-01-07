@@ -1,0 +1,267 @@
+/*
+ * Device Tree file for Marvell Armada 385 PT6040 board
+ * (DB-88F6820)
+ *
+ *  Copyright (C) 2014 Marvell
+ *
+ * Nadav Haklai <nadavh@marvell.com>
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ *
+ *  a) This file is licensed under the terms of the GNU General Public
+ *     License version 2.  This program is licensed "as is" without
+ *     any warranty of any kind, whether express or implied.
+ *
+ * Or, alternatively,
+ *
+ *  b) Permission is hereby granted, free of charge, to any person
+ *     obtaining a copy of this software and associated documentation
+ *     files (the "Software"), to deal in the Software without
+ *     restriction, including without limitation the rights to use,
+ *     copy, modify, merge, publish, distribute, sublicense, and/or
+ *     sell copies of the Software, and to permit persons to whom the
+ *     Software is furnished to do so, subject to the following
+ *     conditions:
+ *
+ *     The above copyright notice and this permission notice shall be
+ *     included in all copies or substantial portions of the Software.
+ *
+ *     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ *     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ *     OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ *     NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ *     HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ *     WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ *     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ *     OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+/dts-v1/;
+#include "armada-385.dtsi"
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "Marvell Armada 385 Access Point Development Board";
+	compatible = "marvell,a385-db-ap", "marvell,armada385", "marvell,armada380";
+	chosen {
+		stdout-path = "serial1:115200n8";
+	};
+	memory {
+		device_type = "memory";
+		reg = <0x00000000 0x80000000>; /* 2GB */
+	};
+	soc {
+		pcie-mem-aperture = <0xe0000000 0x8000000>;
+		pcie-io-aperture = <0xe0000000 0x8000000>;
+		ranges = <
+			MBUS_ID(0x01, 0x2f) 0 0xfd000000 0x800000     /* NOR flash */
+			MBUS_ID(0xf0, 0x01) 0 0xf1000000 0x100000
+			MBUS_ID(0x01, 0x1d) 0 0xfff00000 0x100000
+			MBUS_ID(0x0c, 0x04) 0 0xf1200000 0x100000     /* BM: PHYS=0xf1200000 size 1M */
+			MBUS_ID(0x0b, 0x04) 0 0xf1300000 0x100000>;   /* PNC: PHYS=0xf1300000 size 1M */
+
+		devbus-bootcs {
+			status = "okay";
+			/* Device Bus parameters are required */
+			/* Read parameters */
+			devbus,bus-width    = <8>;
+			devbus,turn-off-ps  = <60000>;
+			devbus,badr-skew-ps = <0>;
+			devbus,acc-first-ps = <124000>;
+			devbus,acc-next-ps  = <248000>;
+			devbus,rd-setup-ps  = <0>;
+			devbus,rd-hold-ps   = <0>;
+			/* Write parameters */
+			devbus,sync-enable = <0>;
+			devbus,wr-high-ps  = <60000>;
+			devbus,wr-low-ps   = <60000>;
+			devbus,ale-wr-ps   = <60000>;
+			nor@0 {
+				compatible = "spansion,s29gl064n90bfi03", "cfi-flash";
+				/* 8 MiB */
+				reg = <0 0x800000>;
+				bank-width = <1>;
+				/* Persistent Protection Bit (PPB) support */
+				use-advanced-sector-protection;
+				#address-cells = <1>;
+				#size-cells = <1>;
+			};
+		};
+		internal-regs {
+
+			usb3@f8000 {
+				status = "disabled";
+			};
+
+			i2c0: i2c@11000 {
+				status = "okay";
+				clock-frequency = <100000>;
+				gpio3: gpio@22 {
+					compatible = "nxp,pca9535";
+					reg = <0x22>;
+					#gpio-cells = <2>;
+					gpio-controller;
+				};
+				gpio4: gpio@21 {
+					compatible = "nxp,pca9535";
+					reg = <0x21>;
+					#gpio-cells = <2>;
+					gpio-controller;
+				};
+				adt75@49 {
+					compatible = "ad,adt75";
+					reg = <0x49>;
+				};
+			};
+			i2c1: i2c@11100 {
+				status = "disabled";
+				clock-frequency = <100000>;
+			};
+
+			mdio@72004 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&mdio_pins>;
+
+				phy1: ethernet-phy@1 {
+					reg = <999>;
+				};
+
+				phy2: ethernet-phy@2 {
+					reg = <1>;
+				};
+			};
+
+			/* UART0 is exposed through the JP8 connector */
+			uart0: serial@12000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&uart0_pins>;
+				status = "okay";
+			};
+
+			/*
+			 * UART1 is exposed through a FTDI chip
+			 * wired to the mini-USB connector
+			 */
+			uart1: serial@12100 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&uart1_pins>;
+				status = "disabled";
+			};
+
+			pinctrl@18000 {
+				xhci0_vbus_pins: xhci0-vbus-pins {
+					marvell,pins = "mpp44";
+					marvell,function = "gpio";
+				};
+			};
+
+			/* CON3 */
+			ethernet@30000 {
+				status = "okay";
+				phy = <&phy2>;
+				phy-mode = "sgmii";
+				buffer-manager = <&bm>;
+				bm,pool-long = <1>;
+				bm,pool-short = <3>;
+			};
+
+			/* CON2 */
+			ethernet@34000 {
+				status = "okay";
+				phy = <&phy1>;
+				phy-mode = "sgmii";
+				buffer-manager = <&bm>;
+				bm,pool-long = <2>;
+				bm,pool-short = <3>;
+			};
+
+			bm@c8000 {
+				status = "okay";
+			};
+
+			nfc: flash@d0000 {
+				status = "okay";
+				num-cs = <1>;
+				nand-ecc-strength = <4>;
+				nand-ecc-step-size = <512>;
+				marvell,nand-keep-config;
+				marvell,nand-enable-arbiter;
+				nand-on-flash-bbt;
+
+				partitions {
+					compatible = "fixed-partitions";
+					#address-cells = <1>;
+					#size-cells = <1>;
+
+					partition@0 {
+						label = "U-Boot";
+						reg = <0x00000000 0x00800000>;
+						read-only;
+					};
+
+					partition@800000 {
+						label = "uImage";
+						reg = <0x00800000 0x00400000>;
+						read-only;
+					};
+
+					partition@c00000 {
+						label = "Root";
+						reg = <0x00c00000 0x3f400000>;
+					};
+				};
+			};
+
+		};
+
+		bm-bppi {
+			status = "okay";
+		};
+
+		pcie {
+			status = "okay";
+
+			/*
+			 * The three PCIe units are accessible through
+			 * standard mini-PCIe slots on the board.
+			 */
+			pcie@1,0 {
+				/* Port 0, Lane 0 */
+				status = "okay";
+			};
+
+			pcie@2,0 {
+				/* Port 1, Lane 0 */
+				status = "okay";
+			};
+
+			pcie@3,0 {
+				/* Port 2, Lane 0 */
+				status = "okay";
+			};
+		};
+
+		watchdog_gpio: watchdog {
+			compatible = "linux,wdt-gpio";
+			gpios = <&gpio0 19 0>;
+			hw_algo = "level";
+			hw_margin_ms = <10000>;
+			always-running;
+		};
+	};
+	reg_xhci0_vbus: xhci0-vbus {
+		compatible = "regulator-fixed";
+		pinctrl-names = "default";
+		pinctrl-0 = <&xhci0_vbus_pins>;
+		regulator-name = "xhci0-vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+		gpio = <&gpio1 12 GPIO_ACTIVE_HIGH>;
+	};
+};
+
