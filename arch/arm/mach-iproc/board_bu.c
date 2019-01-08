@@ -21,6 +21,10 @@
 
 #define DMU_CRU_RESET_BASE 0x200
 
+#define FSR_EXTERNAL           (1 << 12)
+#define FSR_READ               (0 << 10)
+#define FSR_IMPRECISE          0x0406
+
 enum xgs_iproc_dev_id {
 	XGS_IPROC_HX4=0,
 	XGS_IPROC_KT2,
@@ -46,6 +50,21 @@ const char *const xgs_iproc_dt_compat[] = {
 	NULL,
 };
 
+static int xgs_iproc_abort_handler(unsigned long addr, unsigned int fsr,
+		struct pt_regs *regs)
+{
+	/*
+	 * We want to ignore aborts forwarded from the PCIe bus that are
+	 * expected and shouldn't really be passed by the PCIe controller.
+	 * The biggest disadvantage is the same FSR code may be reported when
+	 * reading non-existing APB register and we shouldn't ignore that.
+	 */
+	if (fsr == (FSR_EXTERNAL | FSR_READ | FSR_IMPRECISE))
+		return 0;
+
+	return 1;
+}
+
 void __init xgs_iproc_init_early(void)
 {
 	/*
@@ -56,6 +75,8 @@ void __init xgs_iproc_init_early(void)
 	/* can be overrided by "coherent_pool" in kernel boot argument */
 	if (IS_ENABLED(CONFIG_DMA_CMA))
 		init_dma_coherent_pool_size(SZ_1M * 16);
+	hook_fault_code(16 + 6, xgs_iproc_abort_handler, SIGBUS, BUS_OBJERR,
+			"imprecise external abort");
 }
 
 static void __init xgs_iproc_init(void)
