@@ -1,0 +1,196 @@
+/*
+ *  BSD LICENSE
+ *
+ *  Copyright(c) 2016 Broadcom Corporation.  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *    * Redistributions of source code must retain the above copyright
+ *      notice, this list of conditions and the following disclaimer.
+ *    * Redistributions in binary form must reproduce the above copyright
+ *      notice, this list of conditions and the following disclaimer in
+ *      the documentation and/or other materials provided with the
+ *      distribution.
+ *    * Neither the name of Broadcom Corporation nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/dts-v1/;
+
+#include "bcm-saber2.dtsi"
+
+/ {
+	model = "ML66 NPU1003";
+	compatible = "ericsson,npu1003", "brcm,saber2";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		ethernet0 = &gmac0;
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,115200n8 maxcpus=1 ubi.mtd=1 root=ubi0:rootfs rootflags=bulk_read rootfstype=ubifs user_debug=31";
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&gmac0 {
+	status = "okay";
+	phy-handle = <&amac_phy0>;
+	phy-mode = "sgmii";
+	serdes-handle = <&amac_serdes0>;
+};
+
+&usbphy0 {
+	status = "okay";
+	mdio-phy-handle = <&usb_phy>;
+};
+
+&ehci0 {
+	status = "okay";
+};
+
+&ohci0 {
+	status = "okay";
+};
+
+&usbd {
+	status = "okay";
+};
+
+&gpio_ccg {
+	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+	mdio-phy-handle = <&pcie_phy0>;
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&nand {
+	status = "okay";
+	nandcs@1 {
+		compatible = "brcm,nandcs";
+		reg = <0>;
+		nand-on-flash-bbt;
+		/*nand-bus-width = <8>;*/
+		nand-ecc-strength = <4>;
+		nand-ecc-step-size = <512>;
+		brcm,nand-oob-sector-size = <16>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "boot";
+			reg = <0x0 0x100000>;
+		};
+		partition@1 {
+			label = "memtest";
+			reg = <0x100000 0x100000>;
+		};
+		partition@2 {
+			label = "bootenv";
+			reg = <0x200000 0x100000>;
+		};
+		partition@3 {
+			label = "unused";
+			reg = <0x300000 0x100000>;
+		};
+		partition@4 {
+			label = "iproc_ram_tuning";
+			reg = <0x400000 0x100000>;
+		};
+		partition@5 {
+			label = "nandtest";
+			reg = <0x500000 0x100000>;
+		};
+		partition@6 {
+			label = "pbist";
+			reg = <0x600000 0x3A00000>;
+		};
+		partition@7 {
+			label = "lm0";
+			reg = <0x04000000 0x10000000>;
+		};
+		partition@8 {
+			label = "lm1";
+			reg = <0x14000000 0x10000000>;
+		};
+		partition@9 {
+			label = "util";
+			reg = <0x24000000 0x58000000>;
+		};
+		partition@10 {
+			label = "crash";
+			reg = <0x7c000000 0x4000000>;
+		};
+	};
+};
+
+&qspi {
+	status = "okay";
+};
+
+
+&mdio_int {
+	status = "okay";
+	amac_serdes0: amac_serdes@0 {
+		reg = <1>;
+	};
+	pcie_phy0: pcie_phy@0 {
+		reg = <2>;
+	};
+	usb_phy: usb_phy@0 {
+		reg = <3>;
+	};
+};
+
+&mdio_ext {
+	status = "okay";
+	amac_phy0: amac_phy@0 {
+		reg = <1>;
+	};
+};
+
+&hwrng {
+	status = "okay";
+};
+
+&iproc_wdt {
+	status = "okay";
+};
+
+&dmac0 {
+	status = "okay";
+};
+
+&iproc_cmicd {
+	status = "okay";
+};
