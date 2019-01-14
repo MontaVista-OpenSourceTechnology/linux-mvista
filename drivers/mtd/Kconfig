@@ -155,6 +155,12 @@ config MTD_BCM47XX_PARTS
 	  This provides partitions parser for devices based on BCM47xx
 	  boards.
 
+config MTD_NPU_PARTS
+	tristate "ML66 NPU dynamic partition support"
+	depends on ARCH_XGS_IPROC
+	help
+	  Dynamic MTD partition setup for NPUs.
+
 menu "Partition parsers"
 source "drivers/mtd/parsers/Kconfig"
 endmenu
