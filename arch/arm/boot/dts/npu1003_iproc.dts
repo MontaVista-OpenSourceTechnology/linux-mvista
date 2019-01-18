@@ -78,14 +78,6 @@
 	mdio-phy-handle = <&usb_phy>;
 };
 
-&ehci0 {
-	status = "okay";
-};
-
-&ohci0 {
-	status = "okay";
-};
-
 &usbd {
 	status = "okay";
 };
