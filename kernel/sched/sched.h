@@ -2205,6 +2205,13 @@ static inline void cpufreq_update_util(struct rq *rq, unsigned int flags) {}
 # define arch_scale_freq_invariant()	false
 #endif
 
+#ifdef CONFIG_SMP
+static inline unsigned long capacity_orig_of(int cpu)
+{
+	return cpu_rq(cpu)->cpu_capacity_orig;
+}
+#endif
+
 #ifdef CONFIG_CPU_FREQ_GOV_SCHEDUTIL
 static inline unsigned long cpu_bw_dl(struct rq *rq)
 {
