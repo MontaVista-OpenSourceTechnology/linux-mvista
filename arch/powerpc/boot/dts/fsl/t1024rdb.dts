@@ -77,6 +77,23 @@
 			reg = <0x0 0x0 0x8000000>;
 			bank-width = <2>;
 			device-width = <1>;
+
+			partition@0 {
+				/* 128KB for the RCW Image */
+				reg = <0x0 0x00020000>;
+				label = "NOR RCW Image";
+				read-only;
+			};
+			partition@20000 {
+				/* 6.8MB for Linux Kernel Image */
+				reg = <0x00020000 0x006E0000>;
+				label = "NOR Linux Kernel Image";
+			};
+			partition@800000 {
+				/* 1MB for hardware device tree */
+				reg = <0x00800000 0x0100000>;
+				label = "NOR dtb Image";
+			};
 		};
 
 		nand@1,0 {
