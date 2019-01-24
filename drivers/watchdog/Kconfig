@@ -391,6 +391,16 @@ config SA1100_WATCHDOG
 	  To compile this driver as a module, choose M here: the
 	  module will be called sa1100_wdt.
 
+config PUMA_WATCHDOG
+       tristate "PUMA watchdog"
+       depends on ARCH_PUMA
+       help
+         Say Y here if to include support for the watchdog timer
+
+
+         NOTE: once enabled, this timer cannot be disabled.
+         Say N if you are unsure.
+
 config DW_WATCHDOG
 	tristate "Synopsys DesignWare watchdog"
 	depends on HAS_IOMEM

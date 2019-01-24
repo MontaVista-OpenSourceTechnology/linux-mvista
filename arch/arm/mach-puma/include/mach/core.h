@@ -19,5 +19,6 @@
 void __init PUMA_init(void);
 void __init PUMA_map_io(void);
 void __init PUMA_init_irq(void);
+void PUMA_restart(enum reboot_mode mode, const char *cmd);
 
 #endif

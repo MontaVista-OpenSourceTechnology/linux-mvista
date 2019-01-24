@@ -35,6 +35,7 @@
 #include <mach/i2c.h>
 #include <mach/edma.h>
 #include <mach/board.h>
+#include <mach/system.h>
 #include <mach/timex.h>
 #include <asm/mach/arch.h>
 #include <asm/mach-types.h>
@@ -326,6 +327,11 @@ extern u32 get_clock_tick_rate(void);
 extern void PUMA_init_clock_tick_rate(void);
 extern void __init cp_intc_init(void __iomem *base,
 		unsigned short num_irq, struct device_node *node);
+
+void PUMA_restart(enum reboot_mode mode, const char *cmd)
+{
+	PUMA_watchdog_reset();
+}
 
 void __init PUMA_init_irq(void)
 {

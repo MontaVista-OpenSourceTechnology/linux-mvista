@@ -52,6 +52,10 @@
 			interrupts = <14>, <15>, <16>, <17>;
 		};
 
+		wdt@67000000 {
+			compatible = "puma1,wdt";
+			reg = <0x67000000 0x400>;
+		};
 		uart0: serial@0x69000000 {
 			compatible = "ns16550a";
 			reg = <0x69000000 0x2000>;

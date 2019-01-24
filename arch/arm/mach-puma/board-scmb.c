@@ -38,7 +38,6 @@
 #include <linux/clocksource.h>
 
 extern void __init PUMA_timer_init(void);
-extern void PUMA_watchdog_reset(void);
 extern int __init cp_intc_of_init(struct device_node *node,
 					struct device_node *parent);
 /*-------------------------------------------------------------------------*/
@@ -231,7 +230,7 @@ DT_MACHINE_START(SCMB_DT, "iPT1.5 SCMB with PUMA1 SoC (Flattened Device Tree)")
 		.init_machine   = puma1_init_machine,
 		.init_late      = NULL,
 		.dt_compat      = puma1_boards_compat_dt,
-//		.restart        = PUMA_restart,
+		.restart        = PUMA_restart,
 MACHINE_END
 #endif
 MACHINE_START(SCMB, "PT1.5 SCMB with PUMA1 SoC")
@@ -240,5 +239,5 @@ MACHINE_START(SCMB, "PT1.5 SCMB with PUMA1 SoC")
 		.init_irq       = PUMA_init_irq,
 		.init_time      = PUMA_timer_init,
 		.init_machine   = board_init,
-//		.restart        = PUMA_restart,
+		.restart        = PUMA_restart,
 MACHINE_END
