@@ -803,6 +803,12 @@ config I2C_PNX
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-pnx.
 
+config I2C_PUMA
+       tristate "PUMA I2C driver"
+       depends on ARCH_PUMA
+       help
+         Support for TI PUMA I2C controller driver.
+
 config I2C_PUV3
 	tristate "PKUnity v3 I2C bus support"
 	depends on UNICORE32 && ARCH_PUV3

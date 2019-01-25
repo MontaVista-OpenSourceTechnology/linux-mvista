@@ -65,6 +65,26 @@
 			interrupts = <18>;
 		};
 
+		i2c0: i2c_puma@6a000000 {
+			compatible = "puma,i2c_PUMA";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0x6a000000 0x40>;
+			bus-frequency = <150000>;
+			bus-delay = <20>;
+			interrupt-parent = <&intc>;
+			interrupts = <19>;
+
+			lm75: lm75@49 {
+				compatible = "national,lm75";
+				reg = <0x49>;
+			};
+			ds1341: ds1341@68 {
+				compatible = "dallas,ds1341";
+				reg = <0x68>;
+			};
+		};
+
 		flash@00000000 {
 			compatible = "cfi-flash";
 			#address-cells = <1>;
