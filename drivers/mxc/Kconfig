@@ -1,1 +1,12 @@
+# drivers/mxc/Kconfig
+
+if ARCH_MXC
+
+menu "MXC support drivers"
+
+source "drivers/mxc/gpu-viv/Kconfig"
 source "drivers/mxc/mipi/Kconfig"
+
+endmenu
+
+endif
