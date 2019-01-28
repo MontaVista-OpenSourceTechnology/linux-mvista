@@ -3,6 +3,7 @@ obj-$(CONFIG_MXC_SIM) += sim/
 obj-$(CONFIG_MXC_MLB) += mlb/
 obj-$(CONFIG_MXC_IPU_V3) += ipu3/
 obj-$(CONFIG_MXC_HDMI_CEC) += hdmi-cec/
+obj-$(CONFIG_MXC_HANTRO) += hantro/
 obj-$(CONFIG_MXC_VPU_MALONE) += vpu_malone/
 obj-$(CONFIG_MXC_VPU_WINDSOR) += vpu_windsor/
 obj-$(CONFIG_MXC_MIPI_CSI2) += mipi/
