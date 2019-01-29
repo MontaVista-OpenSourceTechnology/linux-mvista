@@ -47,6 +47,10 @@
 	chosen {
 		bootargs = "console=ttyS0,115200n8 maxcpus=1 ubi.mtd=1 root=ubi0:rootfs rootflags=bulk_read rootfstype=ubifs user_debug=31";
 	};
+
+	rmm {
+		compatible = "ericsson,rmm";
+	};
 };
 
 &uart0 {
