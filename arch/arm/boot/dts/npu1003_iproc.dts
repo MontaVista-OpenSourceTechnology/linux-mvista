@@ -165,6 +165,17 @@
 
 &qspi {
 	status = "okay";
+	spi_cpld@0 {
+		reg = <0>;
+		compatible = "ericsson,spi-cpld";
+		spi-cpol;
+		spi-max-frequency = <500000>;
+		interrupts-extended = <&gpio_ccg 0x4 0x2>, /* SPI_IRQ_N */
+				      <&gpio_ccg 0x5 0x2>, /* LVD_EVENT_N */
+				      <&gpio_ccg 0x8 0x2>; /* LIV_DISTURB_N */
+		liv_n-gpios = <&gpio_ccg 0x8 0x1>;
+		cs = <&gpio_ccg 0xa 0x1>;
+	};
 };
 
 
