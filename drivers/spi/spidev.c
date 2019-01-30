@@ -665,6 +665,7 @@ static struct class *spidev_class;
 
 #ifdef CONFIG_OF
 static const struct of_device_id spidev_dt_ids[] = {
+	{ .compatible = "microchip,ksz8794cnx" }, /* ethernet switch on Concord3 and AX boards */
 	{ .compatible = "rohm,dh2228fv" },
 	{ .compatible = "lineartechnology,ltc2488" },
 	{ .compatible = "ge,achc" },
