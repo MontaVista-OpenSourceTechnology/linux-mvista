@@ -129,5 +129,21 @@
 				reg = <0x00b20000 0x00200000>;
 			};
 		};
+
+		ethernet@63000000 {
+			compatible = "puma1,ti-gpmac-ethernet","ericsson,puma1","simple-bus";
+			device_type = "network";
+			reg = <0x63000000 0x302000>;
+			interrupt-parent = <&intc>;
+			interrupts = <54>, <55>, <2>, <1> ;
+			puma1,ctrl_reg_offset = <0x0100000>;
+			puma1,ctrl_mod_reg_offset = <0x0000000>;
+			puma1,mdio_reg_offset = <0x0200000>;
+			puma1,ctrl_ram_size =  <0x00002000>;
+			puma1,ctrl_ram_offset = <0x0300000>;
+			puma1,rmii_en = <1>;
+			puma1,version = <1>;
+			puma1,phy_mask = <0>;
+		};
 	};
 };

@@ -1,0 +1,9 @@
+#
+# PUMA NET device configuration
+#
+
+config PUMA_NET_TI_CPGMAC
+	tristate "PUMA 10/100/1000 EMAC support"
+	select PHYLIB
+	---help---
+	  This driver supports the 10/100/1000 TI CPGMAC For PUMA board.
