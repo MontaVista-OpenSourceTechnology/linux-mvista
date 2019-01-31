@@ -140,6 +140,26 @@
 				compatible = "micron,n25q512ax3", "jedec,spi-nor";
 				reg = <0>;
 				spi-max-frequency = <10000000>; /* input clock */
+				partition@0 {
+					label = "SPI Flash u-boot Image";
+					reg = <0x0 0x100000>;
+				};
+
+				partition@100000 {
+					label = "SPI Flash Kernel Image";
+					reg = <0x100000 0x500000>;
+				};
+
+				partition@600000 {
+					label = "SPI Flash DTB Image";
+					reg = <0x600000 0x100000>;
+				};
+
+				partition@700000 {
+					label = "SPI Flash Rootfs Image";
+					reg = <0x700000 0x3900000>;
+				};
+
 			};
 
 			slic@1 {
