@@ -52,6 +52,10 @@
 	rmm {
 		compatible = "ericsson,rmm";
 	};
+
+	pex {
+		compatible = "ericsson,pcie";
+	};
 };
 
 &uart0 {
