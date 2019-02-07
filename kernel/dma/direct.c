@@ -10,6 +10,7 @@
 #include <linux/dma-contiguous.h>
 #include <linux/pfn.h>
 #include <linux/set_memory.h>
+#include <linux/swiotlb.h>
 
 #define DIRECT_MAPPING_ERROR		0
 
@@ -203,6 +204,17 @@ int dma_direct_mapping_error(struct device *dev, dma_addr_t dma_addr)
 	return dma_addr == DIRECT_MAPPING_ERROR;
 }
 
+size_t dma_direct_max_mapping_size(struct device *dev)
+{
+	size_t size = SIZE_MAX;
+
+	/* If SWIOTLB is active, use its maximum mapping size */
+	if (is_swiotlb_active())
+		size = swiotlb_max_mapping_size(dev);
+
+	return size;
+}
+
 const struct dma_map_ops dma_direct_ops = {
 	.alloc			= dma_direct_alloc,
 	.free			= dma_direct_free,
@@ -210,5 +222,6 @@ const struct dma_map_ops dma_direct_ops = {
 	.map_sg			= dma_direct_map_sg,
 	.dma_supported		= dma_direct_supported,
 	.mapping_error		= dma_direct_mapping_error,
+	.max_mapping_size	= dma_direct_max_mapping_size,
 };
 EXPORT_SYMBOL(dma_direct_ops);

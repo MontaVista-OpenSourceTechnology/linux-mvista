@@ -133,6 +133,7 @@ struct dma_map_ops {
 #ifdef ARCH_HAS_DMA_GET_REQUIRED_MASK
 	u64 (*get_required_mask)(struct device *dev);
 #endif
+	size_t (*max_mapping_size)(struct device *dev);
 };
 
 extern const struct dma_map_ops dma_direct_ops;
@@ -196,6 +197,8 @@ static inline int dma_mmap_from_global_coherent(struct vm_area_struct *vma,
 }
 #endif /* CONFIG_HAVE_GENERIC_DMA_COHERENT */
 
+size_t dma_direct_max_mapping_size(struct device *dev);
+
 #ifdef CONFIG_HAS_DMA
 #include <asm/dma-mapping.h>
 static inline const struct dma_map_ops *get_dma_ops(struct device *dev)
@@ -210,6 +213,8 @@ static inline void set_dma_ops(struct device *dev,
 {
 	dev->dma_ops = dma_ops;
 }
+
+size_t dma_max_mapping_size(struct device *dev);
 #else
 /*
  * Define the dma api to allow compilation of dma dependent code.
@@ -220,6 +225,10 @@ static inline void set_dma_ops(struct device *dev,
 static inline const struct dma_map_ops *get_dma_ops(struct device *dev)
 {
 	return NULL;
+}
+static inline size_t dma_max_mapping_size(struct device *dev)
+{
+	return 0;
 }
 #endif
 
