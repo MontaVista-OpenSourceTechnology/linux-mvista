@@ -161,6 +161,10 @@ config MTD_NPU_PARTS
 	help
 	  Dynamic MTD partition setup for NPUs.
 
+config NPU_PARTS_UBOOT_OK
+	bool
+	default y if MTD_NPU_PARTS && ARCH_XGS_IPROC
+
 menu "Partition parsers"
 source "drivers/mtd/parsers/Kconfig"
 endmenu

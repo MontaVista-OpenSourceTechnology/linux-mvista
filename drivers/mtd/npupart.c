@@ -19,7 +19,6 @@
 #define SKIP_MAGIC	0x00000004
 #define SCRIPT_MAGIC	0x00000005
 #define UBI_MAGIC	0x5542
-#define UBOOT_IFACE_OK
 
 struct lm_header {
 	u32 magic;
@@ -31,7 +30,7 @@ static int disable;
 module_param(disable, int, 0444);
 MODULE_PARM_DESC(disable, "Disable use of NPUPART - any non-zero value\n");
 
-#ifdef UBOOT_IFACE_OK
+#ifdef CONFIG_NPU_PARTS_UBOOT_OK
 static u8 get_bootinfo(void)
 {
 	u32 boot_info_prop;
@@ -153,7 +152,7 @@ static int create_mtd_partitions(struct mtd_info *master,
 	if (!npu_parts)
 		return -ENOMEM;
 
-#ifdef UBOOT_IFACE_OK
+#ifdef CONFIG_NPU_PARTS_UBOOT_OK
 	boot_info = get_bootinfo();
 #else
 	pr_emerg("FIXME: Trying to boot from bank0, hardcoded in %s!",
