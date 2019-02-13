@@ -163,7 +163,7 @@ config MTD_NPU_PARTS
 
 config NPU_PARTS_UBOOT_OK
 	bool
-	default y if MTD_NPU_PARTS && ARCH_XGS_IPROC
+	default y if MTD_NPU_PARTS && ML66_NPU_IPROC_PLATFORM
 
 menu "Partition parsers"
 source "drivers/mtd/parsers/Kconfig"
