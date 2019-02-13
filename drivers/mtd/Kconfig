@@ -157,7 +157,7 @@ config MTD_BCM47XX_PARTS
 
 config MTD_NPU_PARTS
 	tristate "ML66 NPU dynamic partition support"
-	depends on ARCH_XGS_IPROC
+	depends on ML66_NPU_IPROC_PLATFORM
 	help
 	  Dynamic MTD partition setup for NPUs.
 
