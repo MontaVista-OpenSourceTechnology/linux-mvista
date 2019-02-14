@@ -157,13 +157,13 @@ config MTD_BCM47XX_PARTS
 
 config MTD_NPU_PARTS
 	tristate "ML66 NPU dynamic partition support"
-	depends on ML66_NPU_IPROC_PLATFORM
+	depends on ML66_NPU_IPROC_PLATFORM || PPC_85xx
 	help
 	  Dynamic MTD partition setup for NPUs.
 
 config NPU_PARTS_UBOOT_OK
 	bool
-	default y if MTD_NPU_PARTS && ML66_NPU_IPROC_PLATFORM
+	default y if MTD_NPU_PARTS
 
 menu "Partition parsers"
 source "drivers/mtd/parsers/Kconfig"

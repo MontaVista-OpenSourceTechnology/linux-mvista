@@ -10,7 +10,12 @@
 
 #include <linux/of.h>
 
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
 #define NUM_PARTS 12
+#else
+#define NUM_PARTS 4
+#endif
+
 #define TO_MiB(x) ((x) << 20)
 #define BOOT_INFO_IMG_ACT (0x01 << 3)
 #define KERN_MAGIC	0x00000001
@@ -138,6 +143,7 @@ static int get_rootfs_offset(struct mtd_info *master, u32 active_offset)
 	}
 }
 
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
 static int create_mtd_partitions(struct mtd_info *master,
 				 const struct mtd_partition **pparts,
 				 struct mtd_part_parser_data *data)
@@ -240,6 +246,70 @@ static int create_mtd_partitions(struct mtd_info *master,
 	*pparts = npu_parts;
 	return NUM_PARTS;
 }
+#elif CONFIG_PPC_85xx
+static int create_mtd_partitions(struct mtd_info *master,
+				 const struct mtd_partition **pparts,
+				 struct mtd_part_parser_data *data)
+{
+	struct mtd_partition *npu_parts;
+	u32 active_offset;
+	u32 passive_offset;
+	int rootfs_offset;
+	u8 boot_info;
+
+	npu_parts = kzalloc(sizeof(*npu_parts) * NUM_PARTS, GFP_KERNEL);
+	if (!npu_parts)
+		return -ENOMEM;
+
+	boot_info = get_bootinfo();
+	if (boot_info & BOOT_INFO_IMG_ACT) {
+		active_offset = TO_MiB(128);
+		passive_offset = 0;
+	} else {
+		active_offset = 0;
+		passive_offset = TO_MiB(128);
+	}
+
+	/*TODO use rootfs offset passed from uboot as fallback*/
+	rootfs_offset = get_rootfs_offset(master, active_offset);
+	if (rootfs_offset < 0) {
+		pr_emerg(
+			"Giving up on npupart, falling back to hardcoded mapping in device tree!\n");
+		kfree(npu_parts);
+		return rootfs_offset;
+	}
+
+	npu_parts[0].name = "Header/Kernel (R/O)";
+	npu_parts[0].offset = active_offset;
+	npu_parts[0].size = rootfs_offset;
+	npu_parts[0].mask_flags = MTD_WRITEABLE;
+
+	npu_parts[1].name = "Root Disk (R/O)";
+	npu_parts[1].offset = active_offset + npu_parts[0].size;
+	npu_parts[1].size = TO_MiB(128) - rootfs_offset;
+	npu_parts[1].mask_flags = MTD_WRITEABLE;
+
+	npu_parts[2].name = "Passive Bank (R/W)";
+	npu_parts[2].offset = passive_offset;
+	npu_parts[2].size = TO_MiB(128);
+	npu_parts[2].mask_flags = 0;
+
+	npu_parts[3].name = "Util (R/W)";
+	npu_parts[3].offset = npu_parts[0].size + npu_parts[1].size + npu_parts[2].size;
+	npu_parts[3].size = TO_MiB(256);
+	npu_parts[3].mask_flags = 0;
+
+	*pparts = npu_parts;
+	return NUM_PARTS;
+}
+#else
+static int create_mtd_partitions(struct mtd_info *master,
+				 const struct mtd_partition **pparts,
+				 struct mtd_part_parser_data *data)
+{
+	return -ENOTSUPP;
+}
+#endif	/* ifdef CONFIG_ML66_NPU_IPROC_PLATFORM */
 
 static const struct of_device_id npupart_of_match_table[] = {
 	{ .compatible = "ml66,npu-partitions" },
