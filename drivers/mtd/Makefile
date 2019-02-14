@@ -15,6 +15,7 @@ obj-$(CONFIG_MTD_AR7_PARTS)	+= ar7part.o
 obj-$(CONFIG_MTD_BCM63XX_PARTS)	+= bcm63xxpart.o
 obj-$(CONFIG_MTD_BCM47XX_PARTS)	+= bcm47xxpart.o
 obj-$(CONFIG_MTD_NPU_PARTS)	+= npupart.o
+obj-$(CONFIG_NPU_PARTS_MTD3_FLAGS)	+= npupart_mtd3.o
 obj-y				+= parsers/
 
 # 'Users' - code which presents functionality to userspace.

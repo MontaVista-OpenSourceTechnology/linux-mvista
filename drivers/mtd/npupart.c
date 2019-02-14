@@ -25,6 +25,13 @@
 #define SCRIPT_MAGIC	0x00000005
 #define UBI_MAGIC	0x5542
 
+#ifdef CONFIG_NPU_PARTS_MTD3_FLAGS
+extern struct mtd_info* master_mtd;
+uint64_t npupart_get_mtd3_size(struct mtd_info *);
+void npu_parser_proc_init(void);
+void npu_parser_proc_remove(void);
+#endif
+
 struct lm_header {
 	u32 magic;
 	u32 size;
@@ -257,6 +264,10 @@ static int create_mtd_partitions(struct mtd_info *master,
 	int rootfs_offset;
 	u8 boot_info;
 
+#ifdef CONFIG_NPU_PARTS_MTD3_FLAGS
+	master_mtd = master;
+#endif
+
 	npu_parts = kzalloc(sizeof(*npu_parts) * NUM_PARTS, GFP_KERNEL);
 	if (!npu_parts)
 		return -ENOMEM;
@@ -296,7 +307,11 @@ static int create_mtd_partitions(struct mtd_info *master,
 
 	npu_parts[3].name = "Util (R/W)";
 	npu_parts[3].offset = npu_parts[0].size + npu_parts[1].size + npu_parts[2].size;
+#ifdef CONFIG_NPU_PARTS_MTD3_FLAGS
+	npu_parts[3].size = npupart_get_mtd3_size(master);
+#else
 	npu_parts[3].size = TO_MiB(256);
+#endif
 	npu_parts[3].mask_flags = 0;
 
 	*pparts = npu_parts;
@@ -330,11 +345,18 @@ static int __init npu_parser_init(void)
 		return 0;
 	}
 
+#ifdef CONFIG_NPU_PARTS_MTD3_FLAGS
+	npu_parser_proc_init();
+#endif
+
 	return register_mtd_parser(&npu_parser);
 }
 
 static void __exit npu_parser_exit(void)
 {
+#ifdef CONFIG_NPU_PARTS_MTD3_FLAGS
+	npu_parser_proc_remove();
+#endif
 	deregister_mtd_parser(&npu_parser);
 }
 

@@ -161,6 +161,10 @@ config MTD_NPU_PARTS
 	help
 	  Dynamic MTD partition setup for NPUs.
 
+config NPU_PARTS_MTD3_FLAGS
+	bool
+	default y if MTD_NPU_PARTS && PPC_85xx
+
 config NPU_PARTS_UBOOT_OK
 	bool
 	default y if MTD_NPU_PARTS
