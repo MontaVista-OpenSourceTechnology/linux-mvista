@@ -186,6 +186,15 @@
 			status = "disabled";
 		};
 
+		gmac1: ethernet@1804a000 {
+			compatible = "brcm,xgs-iproc-amac";
+			reg = <0x1804a000 0x1000>,
+			      <0x1811f000 0x1000>;
+			reg-names = "amac_base", "idm_base";
+			interrupts = <GIC_SPI 111 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
 		usbphy0: usbphy0 {
 			#phy-cells = <0>;
 			compatible = "brcm,usb-phy-sb2";

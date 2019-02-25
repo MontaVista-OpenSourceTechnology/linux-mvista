@@ -42,6 +42,7 @@
 		serial0 = &uart0;
 		serial1 = &uart1;
 		ethernet0 = &gmac0;
+		ethernet1 = &gmac1;
 	};
 
 	chosen {
@@ -63,9 +64,13 @@
 
 &gmac0 {
 	status = "okay";
-	phy-handle = <&amac_phy0>;
-	phy-mode = "sgmii";
 	serdes-handle = <&amac_serdes0>;
+};
+
+&gmac1 {
+	status = "okay";
+	phy-handle = <&amac_phy0>;
+	phy-mode = "mii";
 };
 
 &usbphy0 {
