@@ -446,6 +446,12 @@ config MTD_NAND_FSL_UPM
 	  Enables support for NAND Flash chips wired onto Freescale PowerPC
 	  processor localbus with User-Programmable Machine support.
 
+config MTD_NAND_PUMA
+       bool
+       depends on MTD_NAND && ARCH_PUMA
+       help
+         Enable the driver for NAND flash chips on PUMA Soc.
+
 config MTD_NAND_MPC5121_NFC
 	tristate "MPC5121 built-in NAND Flash Controller support"
 	depends on PPC_MPC512x

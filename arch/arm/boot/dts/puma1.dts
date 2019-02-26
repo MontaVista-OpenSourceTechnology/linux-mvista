@@ -65,6 +65,44 @@
 			interrupts = <18>;
 		};
 
+		nand0: nand@81000000 {
+			compatible = "ericsson,puma-nand";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			linux,mtd-name = "puma_nand.0";
+			reg = <0x81000000 0x80000
+			0x10000000 0x20000000>;
+			puma1,nand-chipselect = <0>;
+			puma1,nand-mask-ale = <0x80>;
+			puma1,nand-mask-cle = <0x40>;
+			puma1,nand-options = <0x0000020A>;
+			puma1,nand-mask-chipsel = <0>;
+			puma1,nand-ecc-mode = "hw_oob_first";
+			puma1,nand-ecc-bits = <4>;
+			puma1,nand-use-bbt;
+
+			nand_fs-1@0 {
+				label = "nand_fs-1";
+				reg = <0x0 0x06400000>;
+			};
+			nand_pdb@06400000 {
+				label = "nand_pdb";
+				reg = <0x06400000 0x00500000>;
+			};
+			nand_fs-2@06900000 {
+				label = "nand_fs-2";
+				reg = <0x06900000 0x06400000>;
+			};
+			nand_cfg@0cd00000 {
+				label = "nand_cfg";
+				reg = <0x0cd00000 0x04000000>;
+			};
+			nand_unused@10d00000 {
+				label = "nand_unused";
+				reg = <0x10d00000 0x0F300000>;
+			};
+		};
+
 		i2c0: i2c_puma@6a000000 {
 			compatible = "puma,i2c_PUMA";
 			#address-cells = <1>;
