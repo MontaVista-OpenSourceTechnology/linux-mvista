@@ -1094,8 +1094,10 @@ dtb-$(CONFIG_XGS_IPROC_ARM32_PLATFORM) += \
 	bcm953444.dtb \
 	bcm956170.dtb \
 	bcm953547.dtb
+dtb-$(CONFIG_MACH_NPU1002) += npu1002_iproc.dtb
 dtb-$(CONFIG_MACH_NPU1003) += npu1003_iproc.dtb
 dtb-$(CONFIG_ML66_NPU_IPROC_PLATFORM) += \
+	npu1002_iproc.dtb \
 	npu1003_iproc.dtb
 endif
 

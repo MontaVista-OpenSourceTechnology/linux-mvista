@@ -78,6 +78,11 @@ config ML66_NPU_IPROC_PLATFORM
 	help
 	  Support for all ML66 NPU iProc ARM32 platforms.
 
+config MACH_NPU1002
+	bool "Support Ericsson ML66 NPU1002 bring-up board"
+	help
+	  Support for the Ericsson ML66 NPU1002 bring-up board.
+
 config MACH_NPU1003
 	bool "Support Ericsson ML66 NPU1003 bring-up board"
 	help
