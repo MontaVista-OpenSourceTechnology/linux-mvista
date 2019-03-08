@@ -88,6 +88,11 @@ config MACH_NPU1003
 	help
 	  Support for the Ericsson ML66 NPU1003 bring-up board.
 
+config MACH_NPU1005
+	bool "Support for ML66 NPU1005 board"
+	help
+	  Support for the following board: NPU1005.
+
 config MACH_IPROC_EMULATION
 	bool "Support iProc emulation"
 	help
