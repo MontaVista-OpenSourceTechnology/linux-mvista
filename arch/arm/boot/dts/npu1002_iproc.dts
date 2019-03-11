@@ -57,6 +57,7 @@
 
 &uart1 {
 	status = "okay";
+	clock-frequency = <123750000>;
 };
 
 &gmac0 {
