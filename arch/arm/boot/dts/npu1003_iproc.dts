@@ -56,6 +56,31 @@
 	pex {
 		compatible = "ericsson,pcie";
 	};
+
+	spi_eeprom {
+		compatible = "ericsson,spi-eeprom,cs_gpio";
+		spi-cpol;
+		cs = <&gpio_ccg 0xd GPIO_ACTIVE_LOW>;
+	};
+
+	spi_bpm {
+		compatible = "ericsson,spi-bpm,cs_gpio";
+		spi-cpol;
+		cs = <&gpio_ccg 0xc GPIO_ACTIVE_LOW>;
+	};
+
+	spi_liu {
+		compatible = "ericsson,spi-liu,idt82v2084,cs_gpio";
+		spi-cpol;
+		cs = <&gpio_ccg 0xb GPIO_ACTIVE_LOW>;
+	};
+
+	spi_tempsensor {
+		compatible = "ericsson,spi-tempsensor,cs_gpio";
+		spi-cpol;
+		spi-cpha;
+		cs = <&gpio_ccg 0xe GPIO_ACTIVE_HIGH>;
+	};
 };
 
 &uart0 {
