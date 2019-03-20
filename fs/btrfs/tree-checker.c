@@ -645,8 +645,7 @@ int btrfs_check_leaf_full(struct btrfs_fs_info *fs_info,
 	return check_leaf(fs_info, leaf, true);
 }
 
-int btrfs_check_leaf_relaxed(struct btrfs_fs_info *fs_info,
-			     struct extent_buffer *leaf)
+int btrfs_check_leaf_relaxed(struct extent_buffer *leaf)
 {
 	return check_leaf(fs_info, leaf, false);
 }
