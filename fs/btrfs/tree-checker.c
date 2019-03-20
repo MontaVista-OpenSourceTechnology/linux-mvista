@@ -606,6 +606,7 @@ static int check_leaf_item(struct extent_buffer *leaf,
 			   struct btrfs_key *key, int slot)
 {
 	int ret = 0;
+	struct btrfs_chunk *chunk;
 
 	switch (key->type) {
 	case BTRFS_EXTENT_DATA_KEY:
@@ -621,6 +622,11 @@ static int check_leaf_item(struct extent_buffer *leaf,
 		break;
 	case BTRFS_BLOCK_GROUP_ITEM_KEY:
 		ret = check_block_group_item(leaf, key, slot);
+		break;
+	case BTRFS_CHUNK_ITEM_KEY:
+		chunk = btrfs_item_ptr(leaf, slot, struct btrfs_chunk);
+		ret = btrfs_check_chunk_valid(fs_info, leaf, chunk,
+					      key->offset);
 		break;
 	}
 	return ret;
