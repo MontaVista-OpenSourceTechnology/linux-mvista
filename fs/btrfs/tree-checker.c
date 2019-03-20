@@ -450,8 +450,7 @@ static int check_block_group_item(struct extent_buffer *leaf,
 /*
  * Common point to switch the item-specific validation.
  */
-static int check_leaf_item(struct btrfs_fs_info *fs_info,
-			   struct extent_buffer *leaf,
+static int check_leaf_item(struct extent_buffer *leaf,
 			   struct btrfs_key *key, int slot)
 {
 	int ret = 0;
@@ -625,7 +624,7 @@ static int check_leaf(struct btrfs_fs_info *fs_info, struct extent_buffer *leaf,
 			 * Check if the item size and content meet other
 			 * criteria
 			 */
-			ret = check_leaf_item(fs_info, leaf, &key, slot);
+			ret = check_leaf_item(leaf, &key, slot);
 			if (ret < 0)
 				return ret;
 		}
