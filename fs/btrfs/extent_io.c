@@ -4034,11 +4034,6 @@ retry:
 			}
 
 			ret = __extent_writepage(page, wbc, epd);
-
-			if (unlikely(ret == AOP_WRITEPAGE_ACTIVATE)) {
-				unlock_page(page);
-				ret = 0;
-			}
 			if (ret < 0) {
 				done = 1;
 				break;
