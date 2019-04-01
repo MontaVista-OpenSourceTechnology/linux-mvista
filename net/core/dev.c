@@ -3550,11 +3550,6 @@ static void skb_update_prio(struct sk_buff *skb)
 #define skb_update_prio(skb)
 #endif
 
-#ifndef CONFIG_PREEMPT_RT_FULL
-DEFINE_PER_CPU(int, xmit_recursion);
-EXPORT_SYMBOL(xmit_recursion);
-#endif
-
 /**
  *	dev_loopback_xmit - loop back @skb
  *	@net: network namespace this loopback is happening in
@@ -3849,7 +3844,7 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 #else
 		if (txq->xmit_lock_owner != cpu) {
 #endif
-			if (unlikely(xmit_rec_read() > XMIT_RECURSION_LIMIT))
+			if (dev_xmit_recursion())
 				goto recursion_alert;
 
 			skb = validate_xmit_skb(skb, dev, &again);
@@ -3859,9 +3854,9 @@ static int __dev_queue_xmit(struct sk_buff *skb, struct net_device *sb_dev)
 			HARD_TX_LOCK(dev, txq, cpu);
 
 			if (!netif_xmit_stopped(txq)) {
-				xmit_rec_inc();
+				dev_xmit_recursion_inc();
 				skb = dev_hard_start_xmit(skb, dev, txq, &rc);
-				xmit_rec_dec();
+				dev_xmit_recursion_dec();
 				if (dev_xmit_complete(rc)) {
 					HARD_TX_UNLOCK(dev, txq);
 					goto out;
