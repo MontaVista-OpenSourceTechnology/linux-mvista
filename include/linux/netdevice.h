@@ -3043,7 +3043,7 @@ static inline void dev_xmit_recursion_dec(void)
 
 static inline int dev_recursion_level(void)
 {
-	return __this_cpu_read(softnet_data.xmit.recursion);
+	return this_cpu_read(softnet_data.xmit.recursion);
 }
 
 static inline bool dev_xmit_recursion(void)
