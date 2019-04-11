@@ -47,7 +47,7 @@
 	};
 
 	chosen {
-		bootargs = "console=ttyS1,115200n8 maxcpus=2 ubi.mtd=1 root=ubi0:rootfs rootflags=bulk_read rootfstype=ubifs earlyprintk";
+		bootargs = "console=ttyS1,115200n8 maxcpus=2 ubi.mtd=1 root=ubi0:rootfs rootflags=bulk_read rootfstype=ubifs user_debug=31 earlyprintk";
 	};
 };
 
