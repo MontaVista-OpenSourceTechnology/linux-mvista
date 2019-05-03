@@ -16,6 +16,9 @@
 
 extern void inline __iomem *get_iproc_idm_base(int idx);
 extern int xgs_iproc_idm_dmac_reset(void);
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+extern int xgs_iproc_idm_pcie_reset(void);
+#endif
 extern int xgs_iproc_idm_init(void);
 
 #endif /* XGS_IPROC_IDM_H */

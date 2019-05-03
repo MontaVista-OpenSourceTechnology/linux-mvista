@@ -26,6 +26,7 @@
 #define IDM_ERROR_LOG_ENABLE			0x33A
 #define IDM_ERROR_LOG_CLEAR			0x3
 
+#define IDM_RESET_CONTROL_REG(base)		(base + 0x800)
 #define IDM_ERROR_LOG_CONTROL_REG(base) 	(base + 0x900)
 #define IDM_ERROR_LOG_COMPLETE_REG(base)	(base + 0x904)
 #define IDM_ERROR_LOG_STATUS_REG(base)		(base + 0x908)
@@ -72,7 +73,7 @@ static struct xgs_iproc_dev_infos_s {
 static struct xgs_iproc_idm_err_offset_s {
 	u32 ihost_s1[XGS_IPROC_MAX_DEVS];
 	u32 ihost_s0[XGS_IPROC_MAX_DEVS];
-	u32 axi_pcie_s0[XGS_IPROC_MAX_DEVS];
+	u32 axi_pcie_sx[XGS_IPROC_MAX_DEVS];
 	u32 ddr_s1[XGS_IPROC_MAX_DEVS];
 	u32 ddr_s2[XGS_IPROC_MAX_DEVS];
 	u32 cmic_s0[XGS_IPROC_MAX_DEVS];
@@ -96,8 +97,8 @@ static struct xgs_iproc_idm_err_offset_s {
 	  0x00006000, 0x00006000,        0x0 },	/* IHOST_S1_IDM */
 	{ 0x00008000, 0x00008000, 0x00008000, 0x00007000, 0x00007000, 0x00007000,
 	  0x00007000, 0x00007000, 0x00014000 },	/* IHOST_S0_IDM */
-	{ 0x0000b000, 0x0000b000, 0x0000b000, 0x00008000, 0x00008000, 0x00008000,
-	  0x00008000, 0x00008000, 0x0000a000 },	/* AXI_PCIE_S0_IDM */
+	{ 0x0000b000, 0x0000c000, 0x0000b000, 0x00008000, 0x00008000, 0x00008000,
+	  0x00008000, 0x00008000, 0x0000a000 },	/* AXI_PCIE_S0_IDM */ /* For KT2 AXI_PCIE_S1_IDM is used! */
 	{ 0x00009000, 0x00009000, 0x00009000, 0x10002000, 0x10002000, 0x00004000,
 	  0x10002000, 0x00004000, 0x0001a000 },	/* DDR_S1_IDM */
 	{ 0x0000a000, 0x0000a000, 0x0000a000, 0x10003000, 0x10003000, 0x00005000,
@@ -252,6 +253,27 @@ static int init_request_idm_timeout(void)
 
 	return 0;
 }
+
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+int xgs_iproc_idm_pcie_reset(void)
+{
+	void __iomem *idm_addr = xgs_iproc_idm.idm_base[0]
+				+ (xgs_iproc_idm_err_offset.axi_pcie_sx[xgs_iproc_idm.curr_dev] & IDM_OFFSET_MASK);
+
+	/* clear errors, resume timeout counter */
+	idm_error_log_dump(idm_addr);
+
+	writel(1, IDM_RESET_CONTROL_REG(idm_addr));
+	/* Note that if there are any active transactions being handled by the
+	 * reset at the time that a 0 is written to exit reset, the write will
+	 * not succeed and the core will remain in soft reset.
+	 * Consider using: udelay(500) in such case.
+	 */
+	writel(0, IDM_RESET_CONTROL_REG(idm_addr));
+
+	return 0;
+}
+#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
 
 int xgs_iproc_idm_init(void)
 {
