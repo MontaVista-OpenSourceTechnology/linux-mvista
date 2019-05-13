@@ -29,6 +29,10 @@
 #include <linux/of_mdio.h>
 #include <linux/phy/phy.h>
 
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+#include <linux/soc/bcm/xgs-iproc-idm.h>
+#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
+
 #include "pcie-iproc.h"
 
 #define CLK_CONTROL_OFFSET		0x000
@@ -178,6 +182,52 @@ static inline int iproc_pci_raw_config_write32(struct iproc_pcie *pcie,
 }
 
 #ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+
+#define IPROC_PCIE_RESET_TIMEOUT_COUNT 200
+
+static int iproc_pcie_axi_reset(struct pci_bus *bus)
+{
+	struct iproc_pcie *pcie = iproc_pcie_data(bus);
+	int i = 0;
+	u32 saved_config_space[3];
+	u32 link_status;
+
+	/* Save config space entries we know are lost during RC reset.
+	 * Use raw config accessors because we already hold the "pci_lock" spinlock.
+	 */
+	_iproc_pci_raw_config_read32(pcie, 0, 0, PCI_COMMAND, 4, &saved_config_space[0]);
+	_iproc_pci_raw_config_read32(pcie, 0, 0, PCI_INTERRUPT_LINE, 4, &saved_config_space[1]);
+	_iproc_pci_raw_config_read32(pcie, 0, 0, PCI_CACHE_LINE_SIZE, 4, &saved_config_space[2]);
+
+	/* At least log if we know that the PCIe bus is in an unrecoverable state - we try the reset anyway. */
+	if (unlikely(saved_config_space[0] == saved_config_space[1]))
+		dev_err(pcie->dev, "!!! PCI_BUS error, the system is completely dead power cycle is required !!!\n");
+
+	dev_err(pcie->dev, "Initiate PCIe RC AXI reset ...\n");
+	xgs_iproc_idm_pcie_reset();
+
+	/* Wait either till we have Negotiated Link Width
+	 * or the HW keeps the Link Training bit on after the AXI wrapper reset.
+	 * We wait only an arbitrary number of times which should be safe in case the RC is really dead.
+	 */
+	do {
+		udelay(500);
+		_iproc_pci_raw_config_read32(pcie, 0, 0, IPROC_PCI_EXP_CAP + PCI_EXP_LNKSTA, 2, &link_status);
+	} while ((!(link_status & PCI_EXP_LNKSTA_NLW) || (link_status & PCI_EXP_LNKSTA_LT))
+		 && (++i < IPROC_PCIE_RESET_TIMEOUT_COUNT));
+
+	if (i == IPROC_PCIE_RESET_TIMEOUT_COUNT)
+		dev_err(pcie->dev, "PCIe RC AXI reset timeout! RC link is DOWN!\n");
+	else
+		dev_err(pcie->dev, "PCIe RC AXI reset completed (LNKSTA: 0x%x)\n", link_status);
+
+	_iproc_pci_raw_config_write32(pcie, 0, 0, PCI_COMMAND, 4, saved_config_space[0]);
+	_iproc_pci_raw_config_write32(pcie, 0, 0, PCI_INTERRUPT_LINE, 4, saved_config_space[1]);
+	_iproc_pci_raw_config_write32(pcie, 0, 0, PCI_CACHE_LINE_SIZE, 4, saved_config_space[2]);
+
+	return PCIBIOS_SUCCESSFUL;
+}
+
 int iproc_pcie_config_read32(struct pci_bus *bus, unsigned int devfn,
 			      int where, int size, u32 *val)
 {
@@ -198,16 +248,31 @@ int iproc_pcie_config_read32(struct pci_bus *bus, unsigned int devfn,
 
 	return PCIBIOS_SUCCESSFUL;
 }
-#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
+
+static int iproc_pcie_config_write32(struct pci_bus *bus, unsigned int devfn,
+				     int where, int size, u32 val)
+{
+	int ret;
+
+	/* Check if reset is requested on config address 0 of the RC */
+	if (unlikely(val == 0x55AA55AA) && (bus->number == 0) && (where == 0))
+		return iproc_pcie_axi_reset(bus);
+
+	ret = pci_generic_config_write32(bus, devfn, where, size, val);
+
+	return ret;
+}
+#endif /*CONFIG_ML66_NPU_IPROC_PLATFORM */
 
 static struct pci_ops iproc_pcie_ops = {
 	.map_bus = iproc_pcie_bus_map_cfg_bus,
 #ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
 	.read = iproc_pcie_config_read32,
+	.write = iproc_pcie_config_write32,
 #else
 	.read = pci_generic_config_read32,
-#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
 	.write = pci_generic_config_write32,
+#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
 };
 
 static inline void pcie_wrong_gen2_wa(struct iproc_pcie * pcie)
