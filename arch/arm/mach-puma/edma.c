@@ -376,9 +376,6 @@ static int irq2ctlr(int irq)
 {
 	if (irq >= edma_cc[0]->irq_res_start && irq <= edma_cc[0]->irq_res_end)
 		return 0;
-	else if (irq >= edma_cc[1]->irq_res_start &&
-		irq <= edma_cc[1]->irq_res_end)
-		return 1;
 
 	return -1;
 }
@@ -405,14 +402,14 @@ static irqreturn_t dma_irq_handler(int irq, void *data)
 		(edma_shadow0_read_array(ctlr, SH_IPR, 1) == 0))
 		return IRQ_NONE;
 
-		if (edma_shadow0_read_array(ctlr, SH_IPR, 0)
-				& edma_shadow0_read_array(ctlr, SH_IER, 0))
-			j = 0;
-		else if (edma_shadow0_read_array(ctlr, SH_IPR, 1) &
-				edma_shadow0_read_array(ctlr, SH_IER, 1))
-			j = 1;
-		else
-			goto fin;
+	if (edma_shadow0_read_array(ctlr, SH_IPR, 0)
+			& edma_shadow0_read_array(ctlr, SH_IER, 0))
+		j = 0;
+	else if (edma_shadow0_read_array(ctlr, SH_IPR, 1) &
+			edma_shadow0_read_array(ctlr, SH_IER, 1))
+		j = 1;
+	else
+		goto fin;
 
 	tmp_reg = edma_shadow0_read_array(ctlr, SH_IPR, j);
 
