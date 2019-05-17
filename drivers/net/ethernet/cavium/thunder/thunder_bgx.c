@@ -59,6 +59,8 @@ struct bgx {
 
 static struct bgx *bgx_vnic[MAX_BGX_THUNDER];
 static int lmac_count; /* Total no of LMACs in system */
+static unsigned bgxmap;
+static bool bgxmap_initialized;
 
 static int bgx_xaui_check_link(struct lmac *lmac);
 
@@ -154,6 +156,21 @@ static struct bgx *get_bgx(int node, int bgx_idx)
 	return bgx_vnic[idx];
 }
 
+static __init int setup_bgxmap(char *opt)
+{
+	int ret = get_option(&opt, &bgxmap);
+
+	if(ret != 1) {
+		pr_warn("%s: fallback to default behavior due to invalid bgx mapping set by bootargs\n", DRV_NAME);
+		return 0;
+	}
+
+	bgxmap_initialized = true;
+
+	return 0;
+}
+__setup("bgxmap=", setup_bgxmap);
+
 /* Return number of BGX present in HW */
 unsigned bgx_get_map(int node)
 {
@@ -163,6 +180,14 @@ unsigned bgx_get_map(int node)
 	for (i = 0; i < max_bgx_per_node; i++) {
 		if (bgx_vnic[(node * max_bgx_per_node) + i])
 			map |= (1 << i);
+	}
+
+	if(bgxmap_initialized) {
+		if(!(bgxmap & ~map)) {
+			pr_info("%s: bgx mapping set by bootargs (bgxmap=0x%x)\n", DRV_NAME, bgxmap);
+			return bgxmap;
+		}
+		pr_warn("%s: fallback to default behavior due to invalid bgx mapping set by bootargs (bgxmap=0x%x)\n", DRV_NAME, bgxmap);
 	}
 
 	return map;
