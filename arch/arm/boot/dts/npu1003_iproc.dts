@@ -49,6 +49,12 @@
 		bootargs = "console=ttyS0,115200n8 maxcpus=1 ubi.mtd=1 root=ubi0:rootfs rootflags=bulk_read rootfstype=ubifs user_debug=31";
 	};
 
+	ttic {
+		compatible = "ericsson,ttic";
+		interrupts = <0x03 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-parent =<&gpio_ccg>;
+	};
+
 	rmm {
 		compatible = "ericsson,rmm";
 	};
