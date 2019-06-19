@@ -160,6 +160,10 @@
 			label = "crash";
 			reg = <0x7c000000 0x4000000>;
 		};
+
+		partitions {
+			compatible = "ml66,npu-partitions";
+		};
 	};
 };
 
