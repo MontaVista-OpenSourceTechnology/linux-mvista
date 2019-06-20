@@ -68,6 +68,30 @@ int bcm54xx_auxctl_write(struct phy_device *phydev, u16 regnum, u16 val)
 }
 EXPORT_SYMBOL(bcm54xx_auxctl_write);
 
+int bcm542xx_rdb_reg_read(struct phy_device *phydev, int reg_addr)
+{
+	int data;
+
+	/* MDIO write the RDB reg. address to reg.0x1E = <reg_addr> */
+	phy_write(phydev, MIIM_BCM542XX_RDB_ADDR, (0xffff & reg_addr));
+
+	/* MDIO read from reg.0x1F to get the RDB register's value as <data> */
+	data = phy_read(phydev, MIIM_BCM542XX_RDB_DATA);
+
+	return data;
+}
+EXPORT_SYMBOL_GPL(bcm542xx_rdb_reg_read);
+
+void bcm542xx_rdb_reg_write(struct phy_device *phydev, int reg_addr, u16 data)
+{
+	/* MDIO write the RDB reg. address to reg.0x1E = <reg_addr> */
+	phy_write(phydev, MIIM_BCM542XX_RDB_ADDR, (0xffff & reg_addr));
+
+	/* MDIO write to reg.0x1F to set the RDB resister's value as <data> */
+	phy_write(phydev, MIIM_BCM542XX_RDB_DATA, data);
+}
+EXPORT_SYMBOL_GPL(bcm542xx_rdb_reg_write);
+
 int bcm_phy_write_misc(struct phy_device *phydev,
 		       u16 reg, u16 chl, u16 val)
 {

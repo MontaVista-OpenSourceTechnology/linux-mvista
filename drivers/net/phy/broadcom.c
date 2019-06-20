@@ -312,6 +312,91 @@ static int bcm54xx_config_init(struct phy_device *phydev)
 	return 0;
 }
 
+static int bcm54210s_config_init(struct phy_device *phydev)
+{
+	int val;
+
+	/*
+	 * Enable direct RDB addressing mode, write to Expansion register
+	 * 0x7E = 0x0000
+	 *  - MDIO write to reg 0x17 = 0x0F7E
+	 *  - MDIO write to reg 0x15 = 0x0000
+	 */
+	phy_write(phydev, MII_BCM54XX_EXP_SEL, MII_BCM54XX_EXP_SELECT_7E);
+	phy_write(phydev, MII_BCM54XX_EXP_DATA, MII_BCM54XX_EXP_RDB_EN);
+
+	/* Setup BCM54210S PHY to RGMII-SGMII master converter mode */
+
+	/* 1. Enable RGMII mode and enable RXC internal delay */
+	val = bcm542xx_rdb_reg_read(phydev, MIIM_BCM542XX_RDB_MII_MISC_CTRL);
+	val |= MIIM_BCM542XX_MISC_CTRL_RXC_DELAY | MIIM_BCM542XX_MISC_CTRL_RGMII_MODE;
+	bcm542xx_rdb_reg_write(phydev, MIIM_BCM542XX_RDB_MII_MISC_CTRL, val);
+
+	/* 2. Disable GTXCLK internal delay -> CLOCK_ALIGNMENT_CONTROL reg */
+	val = bcm542xx_rdb_reg_read(phydev, MIIM_BCM542XX_RDB_CLK_ALIGN_CTRL);
+	val &= ~MIIM_BCM542XX_CLK_ALIGN_CTRL_GTXCLK_EN;
+	bcm542xx_rdb_reg_write(phydev, MIIM_BCM542XX_RDB_CLK_ALIGN_CTRL, val);
+
+	/* 3. Configure 2.5V RGMII mode -> TOP_LEVEL_CONFIGURATION reg -> 0x00b1 */
+	val = bcm542xx_rdb_reg_read(phydev, MIIM_BCM542XX_RDB_TOP_LEVEL_CONF);
+	val &= ~MIIM_BCM542XX_TOP_LEVEL_CONF_MASK;
+	val |= MIIM_BCM542XX_TOP_LEVEL_RGMII_2V5;
+	bcm542xx_rdb_reg_write(phydev, MIIM_BCM542XX_RDB_TOP_LEVEL_CONF, val);
+
+	/* 4. Configure RGMII-to-Fiber (1000Base-X) -> MODE_CONTROL reg */
+	val = bcm542xx_rdb_reg_read(phydev, MIIM_BCM542XX_RDB_MODE_CTRL);
+	val &= ~(MIIM_BCM542XX_MODE_CNTL_MODE_SEL_1 | MIIM_BCM542XX_MODE_CNTL_MODE_SEL_2);
+	val |= MIIM_BCM542XX_MODE_CNTL_MODE_SEL_1;
+	bcm542xx_rdb_reg_write(phydev, MIIM_BCM542XX_RDB_MODE_CTRL, val);
+
+	/* 5. COPPER INTERFACE: power down -> COPPER_MII_CONTROL reg, bit 11 */
+	/* Select copper overlay */
+	val = bcm542xx_rdb_reg_read(phydev, MIIM_BCM542XX_RDB_MODE_CTRL);
+	val &= ~MIIM_BCM542XX_MODE_CTRL_1000X_EN;
+	bcm542xx_rdb_reg_write(phydev, MIIM_BCM542XX_RDB_MODE_CTRL, val);
+	/* Power down copper interface */
+	val = phy_read(phydev, MII_BMCR);
+	val |= BMCR_PDOWN;
+	phy_write(phydev, MII_BMCR, val);
+
+	/*
+	 * 6. Select SGMII overlay - MODE_CONTROL reg, bit 0
+	 * As we don't use the copper overlay, select SGMII overlay permanently here,
+	 * and then don't use PHY_BCM542XX_REG_PRI_SERDES like approach later
+	 */
+	val = bcm542xx_rdb_reg_read(phydev, MIIM_BCM542XX_RDB_MODE_CTRL);
+	val |= MIIM_BCM542XX_MODE_CTRL_1000X_EN;
+	bcm542xx_rdb_reg_write(phydev, MIIM_BCM542XX_RDB_MODE_CTRL, val);
+
+	/* 7. Turn off auto-medium detect -> AUTO_DETECT_MEDIUM reg, bit 0 */
+	val = bcm542xx_rdb_reg_read(phydev, MIIM_BCM542xx_RDB_AUTO_DETECT_MEDIUM);
+	val &= ~MIIM_BCM542XX_MII_AUTO_DET_MED_EN;
+	bcm542xx_rdb_reg_write(phydev, MIIM_BCM542xx_RDB_AUTO_DETECT_MEDIUM, val);
+
+	/*
+	 * 8. Enable SGMII slave mode -> SGMII_SLAVE reg, bit 1
+	 * --> We don't want SGMII slave mode
+	 */
+
+	/* 9. PRIMARY SerDes: power up -> SGMII_CONTROL reg, bit 11 */
+	val = phy_read(phydev, MII_BMCR);
+	val &= ~BMCR_PDOWN;
+	phy_write(phydev, MII_BMCR, val);
+
+	/*
+	 * Auto-negotiation doesn't seem to work quite right
+	 * in this mode, so we disable it and force it to the
+	 * right speed/duplex setting.  Only 'link status'
+	 * is important.
+	 */
+	pr_info("net: phy: %s: disabling autoneg and forcing the right speed and duplex settings\n", phydev->drv->name);
+	phydev->autoneg = AUTONEG_DISABLE;
+	phydev->speed = SPEED_1000;
+	phydev->duplex = DUPLEX_FULL;
+
+	return 0;
+}
+
 static int bcm5482_config_init(struct phy_device *phydev)
 {
 	int err, reg;
@@ -569,6 +654,17 @@ static struct phy_driver broadcom_drivers[] = {
 	.ack_interrupt	= bcm_phy_ack_intr,
 	.config_intr	= bcm_phy_config_intr,
 }, {
+	.phy_id		= PHY_ID_BCM54210S,
+	.phy_id_mask	= 0xfffffff0,
+	.name		= "Broadcom BCM54210S",
+	.features	= PHY_GBIT_FEATURES,
+	.flags		= PHY_HAS_INTERRUPT,
+	.config_init	= bcm54210s_config_init,
+	.config_aneg	= genphy_config_aneg,
+	.read_status	= genphy_read_status,
+	.ack_interrupt	= bcm_phy_ack_intr,
+	.config_intr	= bcm_phy_config_intr,
+}, {
 	.phy_id		= PHY_ID_BCM5461,
 	.phy_id_mask	= 0xfffffff0,
 	.name		= "Broadcom BCM5461",
@@ -708,6 +804,7 @@ static struct mdio_device_id __maybe_unused broadcom_tbl[] = {
 	{ PHY_ID_BCM5411, 0xfffffff0 },
 	{ PHY_ID_BCM5421, 0xfffffff0 },
 	{ PHY_ID_BCM54210E, 0xfffffff0 },
+	{ PHY_ID_BCM54210S, 0xfffffff0 },
 	{ PHY_ID_BCM5461, 0xfffffff0 },
 	{ PHY_ID_BCM54612E, 0xfffffff0 },
 	{ PHY_ID_BCM54616S, 0xfffffff0 },
