@@ -49,6 +49,32 @@
 	chosen {
 		bootargs = "console=ttyS1,115200n8 maxcpus=2 ubi.mtd=1 root=ubi0:rootfs rootflags=bulk_read rootfstype=ubifs user_debug=31 earlyprintk";
 	};
+
+	ttic {
+		compatible = "ericsson,ttic";
+		interrupts = <2 IRQ_TYPE_EDGE_FALLING>; /* TTICK_IN_K2 */
+		interrupt-parent =<&gpio_cca>;
+	};
+
+	rmm {
+		compatible = "ericsson,rmm";
+	};
+
+	pex {
+		compatible = "ericsson,pcie";
+	};
+
+	spi_eeprom {
+		compatible = "ericsson,spi-eeprom,cs_gpio";
+		spi-cpol;
+		cs = <&gpio_cca 7 GPIO_ACTIVE_LOW>; /* PROM_CS_K2_N */
+	};
+
+	spi_bpm {
+		compatible = "ericsson,spi-bpm,cs_gpio";
+		spi-cpol;
+		cs = <&gpio_cca 0 GPIO_ACTIVE_LOW>; /* DCDC_SPI_CS_K2_N */
+	};
 };
 
 &uart0 {
