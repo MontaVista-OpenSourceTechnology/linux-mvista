@@ -237,7 +237,12 @@ static void iproc_msi_irq_compose_msi_msg(struct irq_data *data,
 	addr = msi->msi_addr + iproc_msi_addr_offset(msi, data->hwirq);
 	msg->address_lo = lower_32_bits(addr);
 	msg->address_hi = upper_32_bits(addr);
-	msg->data = data->hwirq << 5;
+	/*
+	 * Since we have multiple hwirq mapped to a single MSI vector,
+	 * now we need to derive the hwirq at CPU0.  It can then be used to
+	 * mapped back to virq.
+	 */
+	msg->data = hwirq_to_canonical_hwirq(msi, data->hwirq) << 5;
 }
 
 static struct irq_chip iproc_msi_bottom_irq_chip = {
@@ -307,14 +312,8 @@ static inline u32 decode_msi_hwirq(struct iproc_msi *msi, u32 eq, u32 head)
 	offs = iproc_msi_eq_offset(msi, eq) + head * sizeof(u32);
 	msg = (u32 *)(msi->eq_cpu + offs);
 	hwirq = readl(msg);
-	hwirq = (hwirq >> 5) + (hwirq & 0x1f);
 
-	/*
-	 * Since we have multiple hwirq mapped to a single MSI vector,
-	 * now we need to derive the hwirq at CPU0.  It can then be used to
-	 * mapped back to virq.
-	 */
-	return hwirq_to_canonical_hwirq(msi, hwirq);
+	return hwirq;
 }
 
 static void iproc_msi_handler(struct irq_desc *desc)
@@ -360,7 +359,7 @@ static void iproc_msi_handler(struct irq_desc *desc)
 		/* process all outstanding events */
 		while (nr_events--) {
 			hwirq = decode_msi_hwirq(msi, eq, head);
-			virq = irq_find_mapping(msi->inner_domain, hwirq);
+			virq = irq_find_mapping(msi->inner_domain, hwirq >> 5) + (hwirq & 0x1f);
 			generic_handle_irq(virq);
 
 			head++;
