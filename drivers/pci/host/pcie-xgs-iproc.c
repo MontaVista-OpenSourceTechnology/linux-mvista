@@ -177,10 +177,30 @@ static inline int iproc_pci_raw_config_write32(struct iproc_pcie *pcie,
 	return _iproc_pci_raw_config_write32(pcie, 0, devfn, where, size, val);
 }
 
+int iproc_pcie_config_read32(struct pci_bus *bus, unsigned int devfn,
+			      int where, int size, u32 *val)
+{
+	struct iproc_pcie *pcie = iproc_pcie_data(bus);
+	u32 preread = ~0;
+
+	/* Read a dummy register for bus timeout handling.
+	 * BAR1 will never contain any valid device/vendor IDs
+	 */
+	if ((where == PCI_VENDOR_ID) && (bus->number > 1))
+		_iproc_pci_raw_config_read32(pcie, 1, 0, PCI_BASE_ADDRESS_1, 4, &preread);
+
+	_iproc_pci_raw_config_read32(pcie, bus->number, devfn, where, size, val);
+	if ((where == PCI_VENDOR_ID) && (*val == preread)) {
+		*val = ~0;
+		return PCIBIOS_FUNC_NOT_SUPPORTED;
+	}
+
+	return PCIBIOS_SUCCESSFUL;
+}
 
 static struct pci_ops iproc_pcie_ops = {
 	.map_bus = iproc_pcie_bus_map_cfg_bus,
-	.read = pci_generic_config_read32,
+	.read = iproc_pcie_config_read32,
 	.write = pci_generic_config_write32,
 };
 
