@@ -75,6 +75,14 @@
 		spi-cpol;
 		cs = <&gpio_cca 0 GPIO_ACTIVE_LOW>; /* DCDC_SPI_CS_K2_N */
 	};
+
+	gpio_pcie: gpio_pcie {
+		compatible = "ericsson,gpio_pcie";
+		#gpio-cells = <2>;
+		gpio-controller;
+		#interrupt-cells = <2>;
+		interrupt-controller;
+	};
 };
 
 &uart0 {
