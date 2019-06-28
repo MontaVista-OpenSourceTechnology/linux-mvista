@@ -205,6 +205,25 @@
 
 &qspi {
 	status = "okay";
+	spi_cpld@0 {
+		reg = <0>;
+		compatible = "ericsson,spi-cpld";
+		spi-cpol;
+		spi-max-frequency = <500000>;
+		interrupts-extended = <&gpio_cca 4 IRQ_TYPE_EDGE_FALLING>,	/* SPI_UP_IRQ_N */
+		                      <&gpio_cca 3 IRQ_TYPE_EDGE_FALLING>,	/* LVD_EVENT_N */
+		                      <&gpio_pcie 10 IRQ_TYPE_EDGE_FALLING>,	/* LIV_DISTURBANCE, goes to PCIe switch GPIO */
+		                      <&gpio_pcie 18 IRQ_TYPE_EDGE_RISING>,	/* MASTER  0x1 = low-to-high edge triggered */
+		                      <&gpio_pcie 0  IRQ_TYPE_EDGE_FALLING>;	/* WARM_RESET_N */
+		liv_n-gpios         = <&gpio_pcie 10 GPIO_ACTIVE_LOW>;
+		master-gpios        = <&gpio_pcie 18 GPIO_ACTIVE_HIGH>;
+		back_off-gpios      = <&gpio_pcie 17 GPIO_ACTIVE_HIGH>;
+		heart_beat_n-gpios  = <&gpio_pcie 19 GPIO_ACTIVE_LOW>;
+		reset_type-gpios    = <&gpio_pcie 25 GPIO_ACTIVE_HIGH>;
+		ga0-gpios           = <&gpio_pcie  2 GPIO_ACTIVE_HIGH>;
+		cs                  = <&gpio_cca 6 GPIO_ACTIVE_LOW>;
+		warm_reset_n-gpios  = <&gpio_pcie 0 GPIO_ACTIVE_LOW>;
+	};
 };
 
 &mdio_int {
