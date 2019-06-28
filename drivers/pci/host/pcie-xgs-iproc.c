@@ -119,13 +119,13 @@ static void __iomem *iproc_pcie_bus_map_cfg_bus(struct pci_bus *bus,
 				      where);
 }
 
-static int iproc_pci_raw_config_read32(struct iproc_pcie *pcie,
-				       unsigned int devfn, int where,
+static int _iproc_pci_raw_config_read32(struct iproc_pcie *pcie,
+				       int busno, unsigned int devfn, int where,
 				       int size, u32 *val)
 {
 	void __iomem *addr;
 
-	addr = iproc_pcie_map_cfg_bus(pcie, 0, devfn, where & ~0x3);
+	addr = iproc_pcie_map_cfg_bus(pcie, busno, devfn, where & ~0x3);
 	if (!addr) {
 		*val = ~0;
 		return PCIBIOS_DEVICE_NOT_FOUND;
@@ -139,14 +139,21 @@ static int iproc_pci_raw_config_read32(struct iproc_pcie *pcie,
 	return PCIBIOS_SUCCESSFUL;
 }
 
-static int iproc_pci_raw_config_write32(struct iproc_pcie *pcie,
-					unsigned int devfn, int where,
+static inline int iproc_pci_raw_config_read32(struct iproc_pcie *pcie,
+					     unsigned int devfn, int where,
+					     int size, u32 *val)
+{
+	return _iproc_pci_raw_config_read32(pcie, 0, devfn, where, size, val);
+}
+
+static int _iproc_pci_raw_config_write32(struct iproc_pcie *pcie,
+					int busno, unsigned int devfn, int where,
 					int size, u32 val)
 {
 	void __iomem *addr;
 	u32 mask, tmp;
 
-	addr = iproc_pcie_map_cfg_bus(pcie, 0, devfn, where & ~0x3);
+	addr = iproc_pcie_map_cfg_bus(pcie, busno, devfn, where & ~0x3);
 	if (!addr)
 		return PCIBIOS_DEVICE_NOT_FOUND;
 
@@ -161,6 +168,13 @@ static int iproc_pci_raw_config_write32(struct iproc_pcie *pcie,
 	writel(tmp, addr);
 
 	return PCIBIOS_SUCCESSFUL;
+}
+
+static inline int iproc_pci_raw_config_write32(struct iproc_pcie *pcie,
+					unsigned int devfn, int where,
+					int size, u32 val)
+{
+	return _iproc_pci_raw_config_write32(pcie, 0, devfn, where, size, val);
 }
 
 
