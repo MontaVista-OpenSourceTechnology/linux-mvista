@@ -37,6 +37,15 @@
 #include <linux/userfaultfd_k.h>
 #include "internal.h"
 
+#ifdef CONFIG_ML66_OCTEONTX_PLATFORM
+#include <linux/memblock.h>
+#include <linux/of.h>
+#include <linux/of_fdt.h>
+#include <linux/of_reserved_mem.h>
+
+static struct reserved_mem *hugetlb_rmem __initdata;
+#endif /* CONFIG_ML66_OCTEONTX_PLATFORM */
+
 int hugepages_treat_as_movable;
 
 int hugetlb_max_hstate __read_mostly;
@@ -2176,6 +2185,13 @@ static void __init gather_bootmem_prealloc(void)
 static void __init hugetlb_hstate_alloc_pages(struct hstate *h)
 {
 	unsigned long i;
+
+#ifdef CONFIG_ML66_OCTEONTX_PLATFORM
+	if (hugetlb_rmem != NULL) {
+		memblock_free_late(hugetlb_rmem->base, hugetlb_rmem->size);
+		hugetlb_rmem = NULL;
+	}
+#endif
 
 	for (i = 0; i < h->max_huge_pages; ++i) {
 		if (hstate_is_gigantic(h)) {
@@ -4875,3 +4891,14 @@ void putback_active_hugepage(struct page *page)
 	spin_unlock(&hugetlb_lock);
 	put_page(page);
 }
+
+#ifdef CONFIG_ML66_OCTEONTX_PLATFORM
+static int __init rmem_hugetlb_setup(struct reserved_mem *rmem)
+{
+	pr_info("HugeTLB: reserved memory at %p size %llx\n", (void *)rmem->base, rmem->size);
+	hugetlb_rmem = rmem;
+	return 0;
+}
+
+RESERVEDMEM_OF_DECLARE(hugetlb, "hugetlb-mem", rmem_hugetlb_setup);
+#endif
