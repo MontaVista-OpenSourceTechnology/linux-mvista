@@ -1,0 +1,285 @@
+/*
+ *  BSD LICENSE
+ *
+ *  Copyright(c) 2016 Broadcom Corporation.  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *    * Redistributions of source code must retain the above copyright
+ *      notice, this list of conditions and the following disclaimer.
+ *    * Redistributions in binary form must reproduce the above copyright
+ *      notice, this list of conditions and the following disclaimer in
+ *      the documentation and/or other materials provided with the
+ *      distribution.
+ *    * Neither the name of Broadcom Corporation nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+/dts-v1/;
+
+#include "bcm-saber2.dtsi"
+
+/ {
+	model = "ML6651/3";
+	compatible = "ericsson,npu1003", "brcm,saber2";
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		ethernet0 = &gmac0;
+		ethernet1 = &gmac1;
+	};
+
+	chosen {
+		bootargs = "console=ttyS0,115200n8 maxcpus=1 ubi.mtd=1 root=ubi0:rootfs rootflags=bulk_read rootfstype=ubifs user_debug=31";
+	};
+
+	ttic {
+		compatible = "ericsson,ttic";
+		interrupts = <0x03 IRQ_TYPE_EDGE_FALLING>;
+		interrupt-parent =<&gpio_ccg>;
+	};
+
+	rmm {
+		compatible = "ericsson,rmm";
+	};
+
+	pex {
+		compatible = "ericsson,pcie_ml6651_3";
+	};
+
+	spi_eeprom {
+		compatible = "ericsson,spi-eeprom,cs_gpio";
+		spi-cpol;
+		cs = <&gpio_ccg 0xd GPIO_ACTIVE_LOW>;
+	};
+
+	spi_bpm {
+		compatible = "ericsson,spi-bpm,cs_gpio";
+		spi-cpol;
+		cs = <&gpio_ccg 0xc GPIO_ACTIVE_LOW>;
+	};
+
+	spi_tempsensor {
+		compatible = "ericsson,spi-tempsensor,cs_gpio";
+		spi-cpol;
+		spi-cpha;
+		cs = <&gpio_ccg 0xe GPIO_ACTIVE_HIGH>;
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&gmac0 {
+	status = "okay";
+	serdes-handle = <&amac_serdes0>;
+};
+
+&gmac1 {
+	status = "okay";
+	phy-handle = <&amac_phy0>;
+	phy-mode = "mii";
+};
+
+&usbphy0 {
+	status = "okay";
+	mdio-phy-handle = <&usb_phy>;
+};
+
+&usbd {
+	status = "okay";
+};
+
+&gpio_ccg {
+	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+	mdio-phy-handle = <&pcie_phy0>;
+};
+
+&i2c0 {
+	status = "okay";
+	rtc@0x68 {
+		compatible = "dallas,ds1307";
+		reg = <0x68>;
+	};
+
+	io_exp1: io_exp@0x20 {
+		compatible = "ti,tca6416";
+		reg = <0x20>;
+		interrupt-parent = <&gpio_ccg>;
+		interrupts = <0x0 IRQ_TYPE_EDGE_FALLING>;
+		gpio-controller;
+		#gpio-cells = <0x2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+	};
+};
+
+&i2c1 {
+	status = "okay";
+
+	io_exp2: io_exp@0x21 {
+		compatible = "ti,tca6416";
+		reg = <0x21>;
+		gpio-controller;
+		#gpio-cells = <0x2>;
+		ngpios = <16>;
+	};
+
+	io_exp3: io_exp@0x20 {
+		compatible = "ti,tca6416";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <0x2>;
+		ngpios = <16>;
+	};
+};
+
+&nand {
+	status = "okay";
+	nandcs@1 {
+		compatible = "brcm,nandcs";
+		reg = <0>;
+		nand-on-flash-bbt;
+		/*nand-bus-width = <8>;*/
+		nand-ecc-strength = <4>;
+		nand-ecc-step-size = <512>;
+		brcm,nand-oob-sector-size = <16>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "boot";
+			reg = <0x0 0x100000>;
+		};
+		partition@1 {
+			label = "memtest";
+			reg = <0x100000 0x100000>;
+		};
+		partition@2 {
+			label = "bootenv";
+			reg = <0x200000 0x100000>;
+		};
+		partition@3 {
+			label = "unused";
+			reg = <0x300000 0x100000>;
+		};
+		partition@4 {
+			label = "iproc_ram_tuning";
+			reg = <0x400000 0x100000>;
+		};
+		partition@5 {
+			label = "nandtest";
+			reg = <0x500000 0x100000>;
+		};
+		partition@6 {
+			label = "pbist";
+			reg = <0x600000 0x3A00000>;
+		};
+		partition@7 {
+			label = "lm0";
+			reg = <0x04000000 0x10000000>;
+		};
+		partition@8 {
+			label = "lm1";
+			reg = <0x14000000 0x10000000>;
+		};
+		partition@9 {
+			label = "util";
+			reg = <0x24000000 0x58000000>;
+		};
+		partition@10 {
+			label = "crash";
+			reg = <0x7c000000 0x4000000>;
+		};
+
+		partitions {
+			compatible = "ml66,npu-partitions";
+		};
+	};
+};
+
+&qspi {
+	status = "okay";
+	spi_cpld_fake@0 {
+		reg = <0>;
+		compatible = "ericsson,spi-cpld_ml6651";
+		spi-max-frequency = <500000>;
+		interrupts-extended =
+			<&gpio_ccg 0x8 IRQ_TYPE_EDGE_FALLING>,  // PLD_IRQ_N
+			<&gpio_ccg 0x6 IRQ_TYPE_EDGE_FALLING>,  // DCDC_SPI_IRQ_N
+			<&gpio_ccg 0x5 IRQ_TYPE_EDGE_FALLING>,  // LIV_IRQ_N
+			<&gpio_ccg 0xa IRQ_TYPE_EDGE_FALLING>;  // HOTSWAP_SWITCH_N
+		// GPIO on MCU
+		alarm_led      = <&gpio_ccg 0x4 GPIO_ACTIVE_LOW>;  // LED_CTRL[2]
+		liv            = <&gpio_ccg 0x5 GPIO_ACTIVE_LOW>;  // LIV_IRQ_N
+		power_led      = <&gpio_ccg 0x9 GPIO_ACTIVE_HIGH>; // LED_CTRL[0]
+		hotswap_switch = <&gpio_ccg 0xa GPIO_ACTIVE_LOW>;  // HOTSWAP_SWITCH_N
+		hotswap_led    = <&gpio_ccg 0xb GPIO_ACTIVE_LOW>;  // LED_CTRL[1]
+		// GPIO on IO Expander
+		reset_type     = <&io_exp1  0x2 GPIO_ACTIVE_HIGH>; // RESET_TYPE
+		fpga_ready     = <&io_exp1  0x6 GPIO_ACTIVE_HIGH>; // FPGA_READY
+		fpga_loaded    = <&io_exp1  0x7 GPIO_ACTIVE_HIGH>; // FPGA_DONE
+	};
+};
+
+
+&mdio_int {
+	status = "okay";
+	amac_serdes0: amac_serdes@0 {
+		reg = <1>;
+	};
+	pcie_phy0: pcie_phy@0 {
+		reg = <2>;
+	};
+	usb_phy: usb_phy@0 {
+		reg = <3>;
+	};
+};
+
+&mdio_ext {
+	status = "okay";
+	amac_phy0: amac_phy@0 {
+		reg = <1>;
+	};
+};
+
+&hwrng {
+	status = "okay";
+};
+
+&iproc_wdt {
+	status = "okay";
+};
+
+&dmac0 {
+	status = "okay";
+};
+
+&iproc_cmicd {
+	status = "okay";
+};
