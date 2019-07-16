@@ -666,6 +666,20 @@ static inline int dma_coerce_mask_and_coherent(struct device *dev, u64 mask)
 
 extern u64 dma_get_required_mask(struct device *dev);
 
+/**
+ * dma_addressing_limited - return if the device is addressing limited
+ * @dev:       device to check
+ *
+ * Return %true if the devices DMA mask is too small to address all memory in
+ * the system, else %false.  Lack of addressing bits is the prime reason for
+ * bounce buffering, but might not be the only one.
+ */
+static inline bool dma_addressing_limited(struct device *dev)
+{
+	return min_not_zero(*dev->dma_mask, dev->bus_dma_mask) <
+		dma_get_required_mask(dev);
+}
+
 #ifndef arch_setup_dma_ops
 static inline void arch_setup_dma_ops(struct device *dev, u64 dma_base,
 				      u64 size, const struct iommu_ops *iommu,
