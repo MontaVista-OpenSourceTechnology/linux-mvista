@@ -221,6 +221,13 @@ config ARCH_THUNDER
 	help
 	  This enables support for Cavium's Thunder Family of SoCs.
 
+config ML66_OCTEONTX_PLATFORM
+	bool "Ericsson ML66 OcteonTX based platform"
+	select ARCH_THUNDER
+	help
+	  This enables support for Ericsson ML66, which uses
+	  Marvell OcteonTX CN81xx SoC.
+
 config ARCH_THUNDER2
 	bool "Cavium ThunderX2 Server Processors"
 	select GPIOLIB
