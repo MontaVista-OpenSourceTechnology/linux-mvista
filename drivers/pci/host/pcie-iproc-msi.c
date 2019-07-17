@@ -260,11 +260,11 @@ static int iproc_msi_irq_domain_alloc(struct irq_domain *domain,
 
 	mutex_lock(&msi->bitmap_lock);
 
-	/* Allocate 'nr_cpus' number of MSI vectors each time */
+	/* Allocate 'nr_irqs' multiplied by 'nr_cpus' number of MSI vectors each time */
 	hwirq = bitmap_find_next_zero_area(msi->bitmap, msi->nr_msi_vecs, 0,
-					   msi->nr_cpus, 0);
+					   msi->nr_cpus * nr_irqs, 0);
 	if (hwirq < msi->nr_msi_vecs) {
-		bitmap_set(msi->bitmap, hwirq, msi->nr_cpus);
+		bitmap_set(msi->bitmap, hwirq, msi->nr_cpus * nr_irqs);
 	} else {
 		mutex_unlock(&msi->bitmap_lock);
 		return -ENOSPC;
@@ -292,7 +292,7 @@ static void iproc_msi_irq_domain_free(struct irq_domain *domain,
 	mutex_lock(&msi->bitmap_lock);
 
 	hwirq = hwirq_to_canonical_hwirq(msi, data->hwirq);
-	bitmap_clear(msi->bitmap, hwirq, msi->nr_cpus);
+	bitmap_clear(msi->bitmap, hwirq, msi->nr_cpus * nr_irqs);
 
 	mutex_unlock(&msi->bitmap_lock);
 
