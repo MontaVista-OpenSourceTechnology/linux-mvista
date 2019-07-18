@@ -177,6 +177,7 @@ static inline int iproc_pci_raw_config_write32(struct iproc_pcie *pcie,
 	return _iproc_pci_raw_config_write32(pcie, 0, devfn, where, size, val);
 }
 
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
 int iproc_pcie_config_read32(struct pci_bus *bus, unsigned int devfn,
 			      int where, int size, u32 *val)
 {
@@ -197,10 +198,15 @@ int iproc_pcie_config_read32(struct pci_bus *bus, unsigned int devfn,
 
 	return PCIBIOS_SUCCESSFUL;
 }
+#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
 
 static struct pci_ops iproc_pcie_ops = {
 	.map_bus = iproc_pcie_bus_map_cfg_bus,
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
 	.read = iproc_pcie_config_read32,
+#else
+	.read = pci_generic_config_read32,
+#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
 	.write = pci_generic_config_write32,
 };
 
