@@ -36,6 +36,14 @@
 /* Number of entries in each event queue */
 #define EQ_LEN                         64
 
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+/*
+ * Number of supported vectors, only 11 bits left
+ * in MSI data field after 5 bit shifting
+ */
+#define VEC_NUM                        (1 << 11)
+#endif
+
 /* Size of each event queue memory region */
 #define EQ_MEM_REGION_SIZE             SZ_4K
 
@@ -584,7 +592,11 @@ int iproc_msi_init(struct iproc_pcie *pcie, struct device_node *node)
 	if (of_find_property(node, "brcm,pcie-msi-inten", NULL))
 		msi->has_inten_reg = true;
 
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+	msi->nr_msi_vecs = VEC_NUM;
+#else
 	msi->nr_msi_vecs = msi->nr_irqs * EQ_LEN;
+#endif
 	msi->bitmap = devm_kcalloc(pcie->dev, BITS_TO_LONGS(msi->nr_msi_vecs),
 				   sizeof(*msi->bitmap), GFP_KERNEL);
 	if (!msi->bitmap)
