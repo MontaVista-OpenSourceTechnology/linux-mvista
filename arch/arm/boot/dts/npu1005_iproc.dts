@@ -137,6 +137,10 @@
 
 &i2c0 {
 	status = "okay";
+	rtc@068 {
+		compatible = "dallas,ds1307";
+		reg = <0x68>;
+	};
 };
 
 &i2c1 {
