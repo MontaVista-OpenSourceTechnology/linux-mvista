@@ -154,9 +154,9 @@
 		reg = <0>;
 		nand-on-flash-bbt;
 		/*nand-bus-width = <8>;*/
-		nand-ecc-strength = <4>;
+		nand-ecc-strength = <12>;
 		nand-ecc-step-size = <512>;
-		brcm,nand-oob-sector-size = <16>;
+		brcm,nand-oob-sector-size = <27>;
 		#address-cells = <1>;
 		#size-cells = <1>;
 
