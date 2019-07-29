@@ -76,6 +76,7 @@
 			reg = <0x20600 0x100>;
 			interrupts = <GIC_PPI 13 IRQ_TYPE_EDGE_RISING>;
 			clocks = <&periph_clk>;
+			always-on;
 		};
 
 		timer@20200 {
