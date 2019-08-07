@@ -223,7 +223,6 @@
 		master-gpios        = <&gpio_pcie 18 GPIO_ACTIVE_HIGH>;
 		back_off-gpios      = <&gpio_pcie 17 GPIO_ACTIVE_HIGH>;
 		heart_beat_n-gpios  = <&gpio_pcie 19 GPIO_ACTIVE_LOW>;
-		reset_type-gpios    = <&gpio_pcie 25 GPIO_ACTIVE_HIGH>;
 		ga0-gpios           = <&gpio_pcie  2 GPIO_ACTIVE_HIGH>;
 		cs                  = <&gpio_cca 6 GPIO_ACTIVE_LOW>;
 		warm_reset_n-gpios  = <&gpio_pcie 0 GPIO_ACTIVE_LOW>;
