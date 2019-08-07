@@ -96,8 +96,6 @@
 
 &gmac0 {
 	status = "okay";
-	phy-handle = <&amac_phy0>;
-	phy-mode = "sgmii"; /* "gmii-id", "gmii-rxid", "sgmii" */
 	serdes-handle = <&amac_serdes0>;
 };
 
@@ -254,9 +252,6 @@
 
 &mdio_ext {
 	status = "okay";
-	amac_phy0: amac_phy@0 {
-		reg = <7>;
-	};
 };
 
 &hwrng {
