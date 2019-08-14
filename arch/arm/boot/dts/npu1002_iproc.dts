@@ -94,46 +94,50 @@
 		nand-ecc-strength = <4>;
 		nand-ecc-step-size = <512>;
 		brcm,nand-oob-sector-size = <16>;
-		#address-cells = <1>;
-		#size-cells = <1>;
 
-		partition@0 {
-			label = "nboot";
-			reg = <0x0 0x100000>;
-			/*read-only;*/
-		};
-		partition@1 {
-			label = "memtest";
-			reg = <0x100000 0x100000>;
-			/*read-only;*/
-		};
-		partition@2 {
-			label = "nenv";
-			reg = <0x200000 0x100000>;
-		};
-		partition@3 {
-			label = "nerd_env";
-			reg = <0x300000 0x100000>;
-		};
-		partition@4 {
-			label = "iproc_ram_tuning";
-			reg = <0x400000 0x100000>;
-		};
-		partition@5 {
-			label = "nandtest";
-			reg = <0x500000 0x100000>;
-		};
-		partition@6 {
-			label = "pbist_linux";
-			reg = <0x600000 0x600000>;
-		};
-		partition@7 {
-			label = "pbist_fs";
-			reg = <0xc00000 0x4a00000>;
-		};
-		partition@8 {
-			label = "scratch";
-			reg = <0x5600000 0x1AA00000>;
+		partitions {
+			compatible = "fixed-partitions";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				label = "nboot";
+				reg = <0x0 0x100000>;
+				/*read-only;*/
+			};
+			partition@1 {
+				label = "memtest";
+				reg = <0x100000 0x100000>;
+				/*read-only;*/
+			};
+			partition@2 {
+				label = "nenv";
+				reg = <0x200000 0x100000>;
+			};
+			partition@3 {
+				label = "nerd_env";
+				reg = <0x300000 0x100000>;
+			};
+			partition@4 {
+				label = "iproc_ram_tuning";
+				reg = <0x400000 0x100000>;
+			};
+			partition@5 {
+				label = "nandtest";
+				reg = <0x500000 0x100000>;
+			};
+			partition@6 {
+				label = "pbist_linux";
+				reg = <0x600000 0x600000>;
+			};
+			partition@7 {
+				label = "pbist_fs";
+				reg = <0xc00000 0x4a00000>;
+			};
+			partition@8 {
+				label = "scratch";
+				reg = <0x5600000 0x1AA00000>;
+			};
 		};
 	};
 };
