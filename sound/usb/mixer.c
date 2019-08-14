@@ -1726,6 +1726,9 @@ static int parse_audio_mixer_unit(struct mixer_build *state, int unitid,
 		return -EINVAL;
 	}
 
+	if (desc->bLength < sizeof(*desc) + desc->bNrInPins)
+		return -EINVAL;
+
 	num_ins = 0;
 	ich = 0;
 	for (pin = 0; pin < input_pins; pin++) {
