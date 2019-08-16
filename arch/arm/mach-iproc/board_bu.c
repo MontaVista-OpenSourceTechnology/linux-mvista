@@ -50,6 +50,8 @@ const char *const xgs_iproc_dt_compat[] = {
 	NULL,
 };
 
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+
 static int xgs_iproc_abort_handler(unsigned long addr, unsigned int fsr,
 		struct pt_regs *regs)
 {
@@ -65,6 +67,24 @@ static int xgs_iproc_abort_handler(unsigned long addr, unsigned int fsr,
 	return 1;
 }
 
+static int (*fn_pci_fault)(unsigned long, unsigned int, struct pt_regs *);
+
+static int xgs_iproc_pci_abort_handler(unsigned long addr, unsigned int fsr,
+		struct pt_regs *regs)
+{
+	if (fn_pci_fault)
+		return fn_pci_fault(addr, fsr, regs);
+	return 1;
+}
+
+void hook_pci_fault_code(int (*fn)(unsigned long, unsigned int, struct pt_regs *))
+{
+	fn_pci_fault = fn;
+}
+EXPORT_SYMBOL(hook_pci_fault_code);
+
+#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
+
 void __init xgs_iproc_init_early(void)
 {
 	/*
@@ -77,6 +97,8 @@ void __init xgs_iproc_init_early(void)
 		init_dma_coherent_pool_size(SZ_1M * 16);
 	hook_fault_code(16 + 6, xgs_iproc_abort_handler, SIGBUS, BUS_OBJERR,
 			"imprecise external abort");
+	hook_fault_code(8, xgs_iproc_pci_abort_handler, SIGBUS, 0,
+			"external abort on non-linefetch");
 }
 
 static void __init xgs_iproc_init(void)

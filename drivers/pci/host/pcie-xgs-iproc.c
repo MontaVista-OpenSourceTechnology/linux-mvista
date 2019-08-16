@@ -249,6 +249,44 @@ int iproc_pcie_config_read32(struct pci_bus *bus, unsigned int devfn,
 	return PCIBIOS_SUCCESSFUL;
 }
 
+#define PEX_8614_PCIE_CAP_INDEX		0x68
+#define IDT_8068_PCIE_CAP_INDEX		0x40
+#define INVALID_PCIE_CAP_INDEX		0x20
+
+static int is_link_up(struct iproc_pcie *pcie, unsigned int devfn)
+{
+	u32 temp32;
+
+	if (!pcie->pcie_cap) {
+		_iproc_pci_raw_config_read32(pcie, 2, devfn, PCI_VENDOR_ID, 4, &temp32);
+
+		/* Use known PCIE capability offsets instead of looking them-up
+		 * for our supported PCIe switches.
+		 */
+		switch (temp32) {
+		case 0x861410b5:
+		case 0x860910b5:
+			pcie->pcie_cap = PEX_8614_PCIE_CAP_INDEX;
+			break;
+		case 0x8068111d:
+			pcie->pcie_cap = IDT_8068_PCIE_CAP_INDEX;
+			break;
+		default:
+			pcie->pcie_cap = INVALID_PCIE_CAP_INDEX;
+			break;
+		}
+	}
+	if (pcie->pcie_cap > INVALID_PCIE_CAP_INDEX) {
+		_iproc_pci_raw_config_read32(pcie, 2, devfn, pcie->pcie_cap + PCI_EXP_LNKCAP, 4, &temp32);
+		if (temp32 & PCI_EXP_LNKCAP_DLLLARC) {
+			_iproc_pci_raw_config_read32(pcie, 2, devfn, pcie->pcie_cap + PCI_EXP_LNKSTA, 2, &temp32);
+			if (!(temp32 & PCI_EXP_LNKSTA_NLW))
+				return 0;
+		}
+	}
+	return 1;
+}
+
 static int iproc_pcie_config_write32(struct pci_bus *bus, unsigned int devfn,
 				     int where, int size, u32 val)
 {
@@ -259,6 +297,28 @@ static int iproc_pcie_config_write32(struct pci_bus *bus, unsigned int devfn,
 		return iproc_pcie_axi_reset(bus);
 
 	ret = pci_generic_config_write32(bus, devfn, where, size, val);
+
+	if (bus->number == 2) {
+		struct iproc_pcie *pcie = iproc_pcie_data(bus);
+		u32 temp32;
+
+		/* Do not enable the device if link is down */
+		if ((where & ~3) ==  PCI_COMMAND) {
+			if (!is_link_up(pcie, devfn)) {
+				_iproc_pci_raw_config_read32(pcie, bus->number, devfn, PCI_COMMAND, 4, &temp32);
+				temp32 &= 0xFFF0;
+				_iproc_pci_raw_config_write32(pcie, bus->number, devfn, PCI_COMMAND, 4, temp32);
+			}
+		}
+		/* Do not set Subordinate and Secondary bus numbers if link is down */
+		if ((where & ~3) ==  PCI_PRIMARY_BUS) {
+			if (!is_link_up(pcie, devfn)) {
+				_iproc_pci_raw_config_read32(pcie, bus->number, devfn, PCI_PRIMARY_BUS, 4, &temp32);
+				temp32 &= 0xFF0000FF;
+				_iproc_pci_raw_config_write32(pcie, bus->number, devfn, PCI_PRIMARY_BUS, 4, temp32);
+			}
+		}
+	}
 
 	return ret;
 }

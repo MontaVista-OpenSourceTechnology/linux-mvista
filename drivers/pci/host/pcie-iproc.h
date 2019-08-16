@@ -111,6 +111,9 @@ struct iproc_pcie {
 
 	bool need_msi_steer;
 	struct iproc_msi *msi;
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+	int pcie_cap;
+#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
 };
 
 #ifndef CONFIG_PCIE_XGS_IPROC
