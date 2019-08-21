@@ -151,6 +151,17 @@ static int pcie_port_enable_irq_vec(struct pci_dev *dev, int *irqs, int mask)
 		nvec = max(nvec, entry + 1);
 	}
 
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+	/*
+	 * On ML66 our PEX86xx GPIO driver assume that it can request an MSI vector.
+	 * For this we need to keep the extra entries allocated to the port,
+	 * so we return at this point without reallocating the vectors.
+	 * This behaviour is compatible with our previous v3.10 kernel - where
+	 * pci_enable_msi() was used.
+	 */
+	return 0;
+#endif
+
 	/*
 	 * If nvec is equal to the allocated number of entries, we can just use
 	 * what we have.  Otherwise, the port has some extra entries not for the
