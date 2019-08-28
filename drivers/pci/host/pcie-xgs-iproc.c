@@ -31,6 +31,10 @@
 
 #ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
 #include <linux/soc/bcm/xgs-iproc-idm.h>
+
+#define FSR_EXTERNAL           (1 << 12)
+#define FSR_READ               (0 << 10)
+#define FSR_PRECISE            0x0018
 #endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
 
 #include "pcie-iproc.h"
@@ -287,14 +291,46 @@ static int is_link_up(struct iproc_pcie *pcie, unsigned int devfn)
 	return 1;
 }
 
+static void iproc_pcie_check_downstream_devices(struct pci_bus *bus)
+{
+	struct iproc_pcie *pcie = iproc_pcie_data(bus);
+	int slot;
+
+	for (slot = 0; slot < ARRAY_SIZE(pcie->active_downstream_devices); slot++) {
+		if (pcie->active_downstream_devices[slot])
+			if (!is_link_up(pcie, PCI_DEVFN(slot, 0))) {
+				u32 temp32;
+
+				pcie->active_downstream_devices[slot] = 0;
+				_iproc_pci_raw_config_read32(pcie, 2, PCI_DEVFN(slot, 0), PCI_PRIMARY_BUS, 4, &temp32);
+				dev_err(pcie->dev, "PCIe link is down on downstream port %d => bus %d\n", slot, (temp32 >> 8) & 0xFF);
+				temp32 &= 0xFF0000FF;
+				_iproc_pci_raw_config_write32(pcie, 2, PCI_DEVFN(slot, 0), PCI_PRIMARY_BUS, 4, temp32);
+				_iproc_pci_raw_config_read32(pcie, 2, PCI_DEVFN(slot, 0), PCI_COMMAND, 4, &temp32);
+				temp32 &= 0xFFF0;
+				_iproc_pci_raw_config_write32(pcie, 2, PCI_DEVFN(slot, 0), PCI_COMMAND, 4, temp32);
+				_iproc_pci_raw_config_write32(pcie, 2, PCI_DEVFN(slot, 0), PCI_MEMORY_BASE, 4, 0xFFF0);
+			}
+	}
+}
+
 static int iproc_pcie_config_write32(struct pci_bus *bus, unsigned int devfn,
 				     int where, int size, u32 val)
 {
 	int ret;
 
 	/* Check if reset is requested on config address 0 of the RC */
-	if (unlikely(val == 0x55AA55AA) && (bus->number == 0) && (where == 0))
-		return iproc_pcie_axi_reset(bus);
+	if (unlikely(val == 0x55AA55AA) && (bus->number == 0) && (where == 0)) {
+		iproc_pcie_axi_reset(bus);
+		iproc_pcie_check_downstream_devices(bus);
+		return PCIBIOS_SUCCESSFUL;
+	}
+
+	/* Check for link status */
+	if (unlikely(val == 0x55AA55AB) && (bus->number == 0) && (where == 0)) {
+		iproc_pcie_check_downstream_devices(bus);
+		return PCIBIOS_SUCCESSFUL;
+	}
 
 	ret = pci_generic_config_write32(bus, devfn, where, size, val);
 
@@ -316,7 +352,9 @@ static int iproc_pcie_config_write32(struct pci_bus *bus, unsigned int devfn,
 				_iproc_pci_raw_config_read32(pcie, bus->number, devfn, PCI_PRIMARY_BUS, 4, &temp32);
 				temp32 &= 0xFF0000FF;
 				_iproc_pci_raw_config_write32(pcie, bus->number, devfn, PCI_PRIMARY_BUS, 4, temp32);
-			}
+				pcie->active_downstream_devices[PCI_SLOT(devfn)] = 0;
+			} else
+				pcie->active_downstream_devices[PCI_SLOT(devfn)] = 1;
 		}
 	}
 
@@ -702,7 +740,46 @@ static struct platform_driver iproc_pcie_pltfm_driver = {
 	.remove = iproc_pcie_remove,
 };
 
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+static struct pci_dev *rp;
+static int iproc_pcie_abort_handler(unsigned long addr, unsigned int fsr,
+		struct pt_regs *regs)
+{
+
+	if (fsr == (FSR_EXTERNAL | FSR_READ | FSR_PRECISE)) {
+		pr_err("PCI abort: address = 0x%08lx fsr = 0x%03x PC = 0x%08lx LR = 0x%08lx\n",
+			addr, fsr, regs->ARM_pc, regs->ARM_lr);
+
+		if (!rp)
+			rp = pcie_find_root_port(pci_get_device(PCI_ANY_ID, PCI_ANY_ID, NULL));
+		/* Trigger reset by writing a "magic" value to config address 0 on the RC.
+		 * These are arbitrarily chosen values with the only purpose to get an RC
+		 * reset while holding the "pci_lock", so no other config access can take
+		 * place during the reset.
+		 */
+		pci_write_config_dword(rp, 0, 0x55AA55AA);
+		return 0;
+	}
+
+	return 1;
+}
+
+static int __init iproc_pcie_init(void)
+{
+	/*
+	 * Since probe() can be deferred we need to make sure that
+	 * hook_fault_code is not called after __init memory is freed
+	 * by kernel.
+	 */
+	hook_fault_code(8, iproc_pcie_abort_handler, SIGBUS, 0,
+			"external abort on non-linefetch");
+
+	return platform_driver_register(&iproc_pcie_pltfm_driver);
+}
+device_initcall(iproc_pcie_init);
+#else
 module_platform_driver(iproc_pcie_pltfm_driver);
+#endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
 
 MODULE_DESCRIPTION("Broadcom XGS iProc PCIe driver");
 MODULE_LICENSE("GPL v2");

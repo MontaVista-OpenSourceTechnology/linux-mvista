@@ -113,6 +113,9 @@ struct iproc_pcie {
 	struct iproc_msi *msi;
 #ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
 	int pcie_cap;
+
+	/* number of reserved downstream ports */
+	unsigned char active_downstream_devices[32];
 #endif /* CONFIG_ML66_NPU_IPROC_PLATFORM */
 };
 
