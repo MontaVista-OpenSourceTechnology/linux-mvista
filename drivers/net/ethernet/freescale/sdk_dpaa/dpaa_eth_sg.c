@@ -967,7 +967,7 @@ bypass_workaround:
 		frag = &skb_shinfo(skb)->frags[i - 1];
 		qm_sg_entry_set_bpid(&sgt[i], 0xff);
 		qm_sg_entry_set_offset(&sgt[i], 0);
-		qm_sg_entry_set_len(&sgt[i], frag->size);
+		qm_sg_entry_set_len(&sgt[i], frag->bv_len);
 		qm_sg_entry_set_ext(&sgt[i], 0);
 
 		if (i == nr_frags)
@@ -976,7 +976,7 @@ bypass_workaround:
 			qm_sg_entry_set_final(&sgt[i], 0);
 
 		DPA_BUG_ON(!skb_frag_page(frag));
-		addr = skb_frag_dma_map(dpa_bp->dev, frag, 0, frag->size,
+		addr = skb_frag_dma_map(dpa_bp->dev, frag, 0, frag->bv_len,
 					dma_dir);
 		if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
 			dev_err(dpa_bp->dev, "DMA mapping failed");
