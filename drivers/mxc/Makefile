@@ -5,6 +5,7 @@ obj-$(CONFIG_MXC_IPU_V3) += ipu3/
 obj-$(CONFIG_MXC_HDMI_CEC) += hdmi-cec/
 obj-$(CONFIG_MXC_HANTRO) += hantro/
 obj-$(CONFIG_MXC_HANTRO_845) += hantro_845/
+obj-$(CONFIG_MXC_HANTRO_845_H1) += hantro_845_h1/
 obj-$(CONFIG_MXC_VPU_MALONE) += vpu_malone/
 obj-$(CONFIG_MXC_VPU_WINDSOR) += vpu_windsor/
 obj-$(CONFIG_MXC_MIPI_CSI2) += mipi/
