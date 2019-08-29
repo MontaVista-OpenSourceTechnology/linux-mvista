@@ -34,6 +34,8 @@ source "drivers/mxc/vpu_malone/Kconfig"
 source "drivers/mxc/vpu_windsor/Kconfig"
 endif
 
+source "drivers/mxc/vpu/Kconfig"
+
 endmenu
 
 endif
