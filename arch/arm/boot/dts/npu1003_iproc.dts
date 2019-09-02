@@ -63,6 +63,12 @@
 		compatible = "ericsson,pcie";
 	};
 
+	gpio_pcie: gpio_pcie {
+		compatible = "ericsson,gpio_pcie";
+		#gpio-cells = <2>;
+		gpio-controller;
+	};
+
 	spi_eeprom {
 		compatible = "ericsson,spi-eeprom,cs_gpio";
 		spi-cpol;
