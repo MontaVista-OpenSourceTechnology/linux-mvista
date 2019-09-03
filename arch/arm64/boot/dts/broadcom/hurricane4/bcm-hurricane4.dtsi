@@ -34,8 +34,8 @@
 #include <dt-bindings/gpio/gpio.h>
 
 / {
-	model = "Broadcom HX5 iProc";
-	compatible = "brcm,helix5";
+	model = "Broadcom hurricane4 iProc";
+	compatible = "brcm,hurricane4";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;
@@ -173,7 +173,7 @@
 		};
 
 		gmac0: ethernet@10239000 {
-			compatible = "brcm,xgs-iproc-apm,hx5";
+			compatible = "brcm,xgs-iproc-apm,hr4";
 			reg = <0x10239000 0x1000>,
 			      <0x1025e000 0x1000>;
 			reg-names = "apm_base", "idm_base";
@@ -188,7 +188,7 @@
 		};
 
 		gmac1: ethernet@1023a000 {
-			compatible = "brcm,xgs-iproc-apm,hx5";
+			compatible = "brcm,xgs-iproc-apm,hr4";
 			reg = <0x1023a000 0x1000>,
 			      <0x1025f000 0x1000>;
 			reg-names = "apm_base", "idm_base";
@@ -217,7 +217,7 @@
 
 		usbphy: usbphy@102378c0 {
 			#phy-cells = <0>;
-			compatible = "brcm,usb-phy,hx5";
+			compatible = "brcm,usb-phy,hr4";
 			reg = icfg_usb: <0x102378c0 0x50>;
 			status = "disabled";
 		};
@@ -346,12 +346,45 @@
         };
 
 		pl022: dma@10206000 {
-			  compatible = "arm,pl022", "arm,primecell";
-			  reg = pl022_base: <0x10206000 0x1000>;
-			  interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
-			  clocks = <&iproc_clk250>;
-			  clock-names = "apb_pclk";
-			  status = "disabled";
+			compatible = "arm,pl022", "arm,primecell";
+			reg = pl022_base: <0x10206000 0x1000>;
+			interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&iproc_clk250>;
+			clock-names = "apb_pclk";
+			status = "disabled";
+		};
+
+		pcie: pcie@10230000 {
+			compatible = "brcm,iproc-pcie";
+			reg = <0x10230000 0x1000>;
+			linux,pci-domain = <0>;
+
+			#interrupt-cells = <1>;
+			interrupt-map-mask = <0 0 0 0>;
+			interrupt-map = <0 0 0 0 &gic GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>;
+
+			#address-cells = <3>;
+			#size-cells = <2>;
+			device_type = "pci";
+
+			/*
+			* non-prefetchable mem space, pcie addr 0x0 0x20000000,
+			* cpu addr 0x20000000, size 0x0 0x20000000
+			*/
+			ranges = <0x82000000 0 0x20000000 0x20000000 0 0x20000000>;
+/*			wa-list = "pcie_perst"; */
+			status = "disabled";
+
+			msi-parent = <&msi>;
+			msi: msi@10230000 {
+				compatible = "brcm,iproc-msi";
+				msi-controller;
+				interrupt-parent = <&gic>;
+				interrupts = <GIC_SPI 56 IRQ_TYPE_NONE>,
+				     <GIC_SPI 57 IRQ_TYPE_NONE>,
+				     <GIC_SPI 58 IRQ_TYPE_NONE>,
+				     <GIC_SPI 59 IRQ_TYPE_NONE>;
+			};
 		};
 
 		dmu_pcu: dmu_pcu@10220000 {

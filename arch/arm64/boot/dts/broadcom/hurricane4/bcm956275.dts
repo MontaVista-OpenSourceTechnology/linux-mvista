@@ -32,11 +32,11 @@
 
 /dts-v1/;
 
-#include "bcm-helix5.dtsi"
+#include "bcm-hurricane4.dtsi"
 
 / {
-	model = "Broadcom HX5 SVK (BCM956370K)";
-	compatible = "brcm,bcm956370k", "brcm,helix5";
+	model = "Broadcom Hurricane4 SVK (BCM956275K)";
+	compatible = "brcm,bcm956275k", "brcm,hurricane4";
 
 	aliases {
 		serial0 = &uart0;
@@ -72,7 +72,6 @@
 
 &usbphy {
 	status = "okay";
-	mdio-phy-handle = <&usb_phy>;
 };
 
 &xhci {
@@ -87,11 +86,12 @@
 	status = "okay";
 };
 
-/*
-&pcie0 {
+
+&pcie {
 	status = "okay";
+	mdio-phy-handle = <&pcie_phy>;
 };
-*/
+
 
 &i2c0 {
 	status = "okay";
@@ -181,14 +181,14 @@
 
 &mdio_int {
 	status = "okay";
-	usb_phy: usb_phy@0 {
-		reg = <2>;
+	pcie_phy: pcie_phy@0 {
+		reg = <1>;
 	};
 	apm_serdes0: apm_serdes@0 {
-		reg = <3>;
+		reg = <2>;
 	};
 	apm_serdes1: apm_serdes@1 {
-		reg = <5>;
+		reg = <4>;
 	};
 };
 

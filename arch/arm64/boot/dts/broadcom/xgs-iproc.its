@@ -1,0 +1,61 @@
+/dts-v1/;
+
+/ {
+	description = "Linux kernel and FDT blob";
+	#address-cells = <2>;
+
+	images {
+		kernel_1 {
+			description = "Broadcom iProc Linux";
+			data = /incbin/("../../Image.gz");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "gzip";
+			load = <0x0 0x61080000>;
+			entry = <0x0 0x61080000>;
+			hash_1 {
+				algo = "crc32";
+			};
+		};
+
+		fdt_hx5 {
+			description = "Helix5 Device Tree blob - bcm956370.dtb";
+			data = /incbin/("./helix5/bcm956370.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			load = <0x0 0x61000000>;
+			hash_1 {
+				algo = "crc32";
+			};
+		};
+
+		fdt_hr4 {
+			description = "Hurricane4 Device Tree blob - bcm956275.dtb";
+			data = /incbin/("./hurricane4/bcm956275.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			compression = "none";
+			load = <0x0 0x61000000>;
+			hash_1 {
+				algo = "crc32";
+			};
+		};
+	};
+
+	configurations {
+		default = "hx5";
+		/* use "bootm 0x64000000#hx5" for booting Helix5 */
+		hx5 {
+			description = "Boot Linux kernel with Helix5 FDT blob ";
+			kernel = "kernel_1";
+			fdt = "fdt_hx5";
+		};
+		hr4 {
+			description = "Boot Linux kernel with Hurricane4 FDT blob ";
+			kernel = "kernel_1";
+			fdt = "fdt_hr4";
+		};
+	};
+};
