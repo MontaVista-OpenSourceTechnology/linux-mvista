@@ -330,6 +330,14 @@
 			status = "disabled";
 		};
 
+		pka: pka@1803A000 {
+			compatible = "brcm,iproc-pka";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = reg_ctlstat: <0x1803A000 0x100>;
+			status = "disabled";
+        };
+
 		iproc_wdt: iproc_wdt@0x18039000 {
 			compatible = "arm,sp805", "arm,primecell";
 			reg = iproc_wdt_base: <0x18039000 0x1000>,

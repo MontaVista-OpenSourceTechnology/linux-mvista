@@ -311,6 +311,14 @@
 			status = "disabled";
 		};
 
+		pka: pka@18031000 {
+			compatible = "brcm,iproc-pka";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = reg_ctlstat: <0x18031000 0x100>;
+			status = "disabled";
+		};
+
 		iproc_wdt: iproc_wdt@18009000 {
 			compatible = "arm,sp805", "arm,primecell";
 			reg = iproc_wdt_base: <0x18009000 0x1000>,
@@ -367,7 +375,7 @@
 		 * cpu addr 0x20000000, size 0x0 0x20000000
 		 */
 		ranges = <0x82000000 0 0x20000000 0x20000000 0 0x20000000>;
-		wa-list = "pcie_rc";
+		wa-list = "pcie_rc", "pcie_perst";
 		status = "disabled";
 
 		msi-parent = <&msi0>;

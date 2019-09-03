@@ -1084,7 +1084,7 @@ dtb-$(CONFIG_MACH_HR3) += \
 	bcm956160.dtb \
 	bcm953444.dtb
 dtb-$(CONFIG_MACH_WH2) += bcm953547.dtb
-dtb-$(CONFIG_MACH_NPU1003) += npu1003_iproc.dtb
+dtb-$(CONFIG_MACH_HX5) += bcm956370.dtb
 dtb-$(CONFIG_XGS_IPROC_ARM32_PLATFORM) += \
 	bcm956340.dtb \
 	bcm956450.dtb \
@@ -1093,7 +1093,8 @@ dtb-$(CONFIG_XGS_IPROC_ARM32_PLATFORM) += \
 	bcm956160.dtb \
 	bcm953444.dtb \
 	bcm956170.dtb \
-	bcm953547.dtb
+	bcm953547.dtb \
+	bcm956370.dtb
 dtb-$(CONFIG_MACH_NPU1002) += npu1002_iproc.dtb
 dtb-$(CONFIG_MACH_NPU1003) += npu1003_iproc.dtb
 dtb-$(CONFIG_MACH_NPU1005) += npu1005_iproc.dtb

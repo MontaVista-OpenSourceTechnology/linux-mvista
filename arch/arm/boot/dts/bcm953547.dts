@@ -153,6 +153,10 @@
 	status = "okay";
 };
 
+&pka {
+	status = "okay";
+};
+
 &iproc_wdt {
 	status = "okay";
 };

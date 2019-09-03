@@ -58,13 +58,6 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 
-		a9pll: arm_clk@00000 {
-			#clock-cells = <0>;
-			compatible = "brcm,xgs-iproc-armpll";
-			clocks = <&osc>;
-			reg = <0x0 0x1000>;
-		};
-
 		gic: interrupt-controller@21000 {
 			compatible = "arm,cortex-a9-gic";
 			#interrupt-cells = <3>;
@@ -99,6 +92,15 @@
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;
+
+		a9pll: arm_clk@00000 {
+			#clock-cells = <0>;
+			compatible = "brcm,xgs-iproc-armpll";
+			clocks = <&osc>;
+			reg = <0x19000000 0x1000>,
+			      <0x1800fca4 0x4>;
+			strap_xtal_freq_sel_shift = <25>;
+		};
 
 		osc: oscillator {
 			#clock-cells = <0>;
@@ -314,6 +316,14 @@
 			reg = <0x18032000 0x1000>;
 			status = "disabled";
 		};
+
+		pka: pka@18044000 {
+			compatible = "brcm,iproc-pka";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = reg_ctlstat: <0x18044000 0x100>;
+			status = "disabled";
+        };
 
 		iproc_wdt: iproc_wdt@18009000 {
 			compatible = "arm,sp805", "arm,primecell";

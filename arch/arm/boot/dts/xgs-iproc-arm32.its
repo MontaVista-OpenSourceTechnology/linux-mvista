@@ -106,6 +106,17 @@
 				algo = "crc32";
 			};
 		};
+
+		fdt_hx5 {
+			description = "Helix5 aarch32 Device Tree blob - bcm956370.dtb";
+			data = /incbin/("./bcm956370.dtb");
+			type = "flat_dt";
+			arch = "arm";
+			compression = "none";
+			hash@1 {
+				algo = "crc32";
+			};
+		};
 	};
 
 	configurations {
@@ -159,5 +170,10 @@
 			fdt = "fdt_wh2";
 		};
 
+		hx5 {
+			description = "Boot Linux kernel with Helix5 aarch32 FDT blob ";
+			kernel = "kernel_iproc";
+			fdt = "fdt_hx5";
+		};
 	};
 };

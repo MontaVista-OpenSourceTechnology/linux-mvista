@@ -1,0 +1,504 @@
+/*
+ *  BSD LICENSE
+ *
+ *  Copyright(c) 2016 Broadcom Corporation.  All rights reserved.
+ *
+ *  Redistribution and use in source and binary forms, with or without
+ *  modification, are permitted provided that the following conditions
+ *  are met:
+ *
+ *    * Redistributions of source code must retain the above copyright
+ *      notice, this list of conditions and the following disclaimer.
+ *    * Redistributions in binary form must reproduce the above copyright
+ *      notice, this list of conditions and the following disclaimer in
+ *      the documentation and/or other materials provided with the
+ *      distribution.
+ *    * Neither the name of Broadcom Corporation nor the names of its
+ *      contributors may be used to endorse or promote products derived
+ *      from this software without specific prior written permission.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ *  A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ *  OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *  SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *  LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ *  DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ *  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGdLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ *  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	model = "Broadcom HX5 iProc";
+	compatible = "brcm,helix5";
+	interrupt-parent = <&gic>;
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a72", "arm,armv8";
+			next-level-cache = <&L2>;
+			reg = <0 0>;
+		};
+
+		L2: l2-cache@000 {
+			compatible = "cache";
+		};
+	};
+
+	gic: interrupt-controller@10781000 {
+			compatible = "arm,gic-400";
+			#interrupt-cells = <3>;
+			interrupt-controller;
+			reg = <0x10781000 0x1000>,
+			      <0x10782000 0x2000>,
+			      <0x10784000 0x2000>,
+			      <0x10786000 0x2000>;
+			interrupts = <GIC_PPI 9 (GIC_CPU_MASK_RAW(0xf) | IRQ_TYPE_LEVEL_LOW)>;
+	};
+
+	timer {
+		compatible = "arm,armv7-timer";
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_RAW(0xf) | IRQ_TYPE_LEVEL_LOW)>,
+					 <GIC_PPI 14 (GIC_CPU_MASK_RAW(0xf) | IRQ_TYPE_LEVEL_LOW)>,
+					 <GIC_PPI 11 (GIC_CPU_MASK_RAW(0xf) | IRQ_TYPE_LEVEL_LOW)>,
+					 <GIC_PPI 10 (GIC_CPU_MASK_RAW(0xf) | IRQ_TYPE_LEVEL_LOW)>;
+	};
+
+	clocks {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		osc: oscillator_50M {
+			#clock-cells = <0>;
+			compatible = "fixed-clock";
+			clock-frequency = <50000000>;
+		};
+
+		iproc_clk: iproc_clk {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&osc>;
+			clock-div = <7>;
+			clock-mult = <120>;
+		};
+
+		iproc_clk250: iproc_clk250 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&osc>;
+			clock-div = <24>;
+			clock-mult = <120>;
+		};
+
+		iproc_clk200: iproc_clk200 {
+			#clock-cells = <0>;
+			compatible = "fixed-factor-clock";
+			clocks = <&osc>;
+			clock-div = <1>;
+			clock-mult = <4>;
+		};
+	};
+
+	axi {
+		compatible = "simple-bus";
+		ranges;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		uart0: serial@10200000 {
+			compatible = "ns16550a";
+			reg = <0x10200000 0x100>;
+			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&iproc_clk250>;
+			reg-io-width = <4>;
+			reg-shift = <2>;
+			status = "disabled";
+		};
+
+		uart1: serial@10201000 {
+			compatible = "ns16550a";
+			reg = <0x10201000 0x100>;
+			interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&iproc_clk250>;
+			reg-io-width = <4>;
+			reg-shift = <2>;
+			status = "disabled";
+		};
+
+		qspi: spi@15000000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "brcm,spi-bcm-qspi", "brcm,spi-xgs-iproc-qspi";
+			reg = <0x15000200 0x188>,
+				  <0x15000000 0x050>,
+				  <0x10236460 0x004>,
+				  <0x150003a0 0x01c>,
+				  <0x10241000 0x004>;
+			reg-names = "mspi", "bspi", "intr_regs", "intr_status_reg", "cru_ctrl";
+			interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			#chip-select = <0>;
+			clocks = <&iproc_clk250>;
+			status = "disabled";
+		};
+
+		nand: nand@15001000 {
+			compatible = "brcm,nand-iproc", "brcm,brcmnand-v6.1";
+			reg = <0x15001000 0x600>,
+			      <0x1023787c 0x10>,
+			      <0x15001f00 0x20>;
+			reg-names = "nand", "iproc-idm", "iproc-ext";
+			interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			brcm,nand-has-wp;
+			status = "disabled";
+		};
+
+		gmac0: ethernet@10239000 {
+			compatible = "brcm,xgs-iproc-apm,hx5";
+			reg = <0x10239000 0x1000>,
+			      <0x1025e000 0x1000>;
+			reg-names = "apm_base", "idm_base";
+			pm-type = "pm4x10";
+			land-idx = <0>;
+			tx-channels = <1>;
+			strict-mode = <1>;
+			interrupts = <GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>,
+						 <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>,
+						 <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		gmac1: ethernet@1023a000 {
+			compatible = "brcm,xgs-iproc-apm,hx5";
+			reg = <0x1023a000 0x1000>,
+			      <0x1025f000 0x1000>;
+			reg-names = "apm_base", "idm_base";
+			pm-type = "pm4x10";
+			land-idx = <2>;
+			tx-channels = <1>;
+			strict-mode = <1>;
+			interrupts = <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>,
+						 <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>,
+						 <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		gpio_ccg: gpio@10207000 {
+			compatible = "brcm,iproc-gpio-ccg";
+			#gpio-cells = <2>;
+			reg = gpio: <0x10207000 0x50>;
+			ngpios = <10>;
+			pin-reg-bit-shift = <0>;
+			pin-base = <0>;
+			gpio-controller;
+			interrupt-controller;
+			interrupts = <GIC_SPI 46 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		usbphy: usbphy@102378c0 {
+			#phy-cells = <0>;
+			compatible = "brcm,usb-phy,hx5";
+			reg = icfg_usb: <0x102378c0 0x50>;
+			status = "disabled";
+		};
+
+		xhci: usb@10243000 {
+			compatible = "generic-xhci";
+			reg = <0x10243000 0x1000>;
+			interrupts = <GIC_SPI 85 IRQ_TYPE_LEVEL_HIGH>;
+			usb-phy = <&usbphy>;
+			status = "disabled";
+		};
+
+		usbd: usbd@10242000 {
+			compatible = "brcm,bdc";
+			reg = <0x10242000 0x1000>;
+			interrupts = <GIC_SPI 81 IRQ_TYPE_LEVEL_HIGH>;
+			status = "disabled";
+		};
+
+		i2c0: i2c@10202000 {
+			compatible = "brcm,iproc-i2c";
+			reg = <0x10202000 0x100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 42 IRQ_TYPE_LEVEL_HIGH>;
+			clock-frequency = <100000>;
+			status = "disabled";
+		};
+
+		i2c1: i2c@10203000 {
+			compatible = "brcm,iproc-i2c";
+			reg = <0x10203000 0x100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 43 IRQ_TYPE_LEVEL_HIGH>;
+			clock-frequency = <100000>;
+			status = "disabled";
+		};
+
+		i2c2: i2c@10204000 {
+			compatible = "brcm,iproc-i2c";
+			reg = <0x10204000 0x100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
+			clock-frequency = <100000>;
+			status = "disabled";
+		};
+
+		i2c3: i2c@10205000 {
+			compatible = "brcm,iproc-i2c";
+			reg = <0x10205000 0x100>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <GIC_SPI 45 IRQ_TYPE_LEVEL_HIGH>;
+			clock-frequency = <100000>;
+			status = "disabled";
+		};
+
+		mdio_int: mdio_int@10019000 {
+			compatible = "brcm,iproc-cmicx-mdio";
+			reg = <0x10019000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#bus-id = <3>;
+			bus-type = "internal";
+			clocks = <&iproc_clk250>;
+			status = "disabled";
+		};
+
+		mdio_ext: mdio_ext@10019000 {
+			compatible = "brcm,iproc-cmicx-mdio";
+			reg = <0x10019000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#bus-id = <3>;
+			bus-type = "external";
+			clocks = <&iproc_clk250>;
+			status = "disabled";
+		};
+
+		hwrng: hwrng@1021e000 {
+			compatible = "brcm,iproc-rng200";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x1021e000 0x1000>;
+			status = "disabled";
+		};
+
+		pka: pka@10238000 {
+			compatible = "brcm,iproc-pka";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = reg_ctlstat: <0x10238000 0x100>;
+			status = "disabled";
+        };
+
+		iproc_wdt: iproc_wdt@10211000 {
+			compatible = "arm,sp805", "arm,primecell";
+			reg = iproc_wdt_base: <0x10211000 0x1000>,
+				iproc_reset_reg: <0x10220014 0x4>;
+				wdt_boot_status_bit = <0x0>;
+			interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&iproc_clk250>;
+			clock-names = "apb_pclk";
+			status = "disabled";
+		};
+
+        dmac0: dma@10234000 {
+            compatible = "arm,pl330", "arm,primecell";
+            reg = pl330_base: <0x10234000 0x1000>;
+            interrupts = <GIC_SPI 48 IRQ_TYPE_LEVEL_HIGH>,
+                            <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>,
+                            <GIC_SPI 50 IRQ_TYPE_LEVEL_HIGH>,
+                            <GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>,
+                            <GIC_SPI 52 IRQ_TYPE_LEVEL_HIGH>,
+                            <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH>,
+                            <GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>,
+                            <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>;
+            clocks = <&iproc_clk250>;
+            clock-names = "apb_pclk";
+            #dma-cells = <1>;
+            #dma-channels = <8>;
+            #dma-requests = <16>;
+            status = "disabled";
+        };
+
+		pl022: dma@10206000 {
+			  compatible = "arm,pl022", "arm,primecell";
+			  reg = pl022_base: <0x10206000 0x1000>;
+			  interrupts = <GIC_SPI 72 IRQ_TYPE_LEVEL_HIGH>;
+			  clocks = <&iproc_clk250>;
+			  clock-names = "apb_pclk";
+			  status = "disabled";
+		};
+
+		dmu_pcu: dmu_pcu@10220000 {
+			compatible = "brcm,iproc-dmu-pcu";
+			reg = <0x10220000 0xc00>;
+		};
+
+		iproc_wrap_ctrl: iproc_wrap_ctrl@10220c00 {
+			compatible = "brcm,iproc-wrap-ctrl";
+			reg = <0x10220c00 0x100>;
+		};
+
+		iproc_idm: iproc_idm@10250000 {
+			compatible = "brcm,iproc-idm";
+			reg = idm0: <0x10250000 0x100000>;
+			interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		iproc_cmicx: iproc_cmicx@10100000 {
+			compatible = "brcm,iproc-cmicx";
+			reg = cmicx: <0x10100000 0x20000>,
+				gicd: <0x10781100 0x100>;
+			top-blkid = <7>;
+			amac-blkid = <38>;
+			/* Specify interrupts used by SDK */
+			interrupts = <GIC_SPI 119 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 128 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 129 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 131 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 132 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 133 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 134 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 135 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 137 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 138 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 139 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 142 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 143 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 144 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 145 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 146 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 147 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 148 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 149 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 150 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 151 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 152 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 153 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 154 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 155 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 156 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 157 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 158 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 159 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 160 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 161 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 162 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 163 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 164 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 165 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 166 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 167 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 168 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 169 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 170 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 171 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 172 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 173 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 174 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 175 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 176 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 178 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 179 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 180 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 181 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 182 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 183 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 185 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 186 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 187 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 188 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 189 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 190 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 191 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 192 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 194 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 195 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 196 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 198 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 199 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 200 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 203 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 204 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 205 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 206 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 207 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 209 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 210 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 211 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 212 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 213 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 214 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 215 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 216 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 217 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 218 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 219 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 220 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 221 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 222 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 223 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 224 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 225 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 226 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 227 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 228 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 229 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 230 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 231 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 232 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 233 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 234 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 235 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 236 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 237 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 238 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 239 IRQ_TYPE_LEVEL_HIGH>,
+						/* Skip SCHAN_CH4_OP_DONE(240) used by XLDK */
+						<GIC_SPI 241 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 242 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 243 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 244 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 245 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 246 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 247 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 248 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 249 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 250 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 251 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 252 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 253 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 254 IRQ_TYPE_LEVEL_HIGH>,
+						<GIC_SPI 255 IRQ_TYPE_LEVEL_HIGH>;
+		};
+	};
+};
