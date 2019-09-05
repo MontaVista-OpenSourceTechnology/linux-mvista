@@ -603,8 +603,6 @@ static int iproc_pcie_setup(struct iproc_pcie *pcie, struct list_head *res)
 		if (iproc_pcie_msi_enable(pcie))
 			dev_info(pcie->dev, "not using iProc MSI\n");
 
-	pci_add_flags(PCI_REASSIGN_ALL_RSRC | PCI_REASSIGN_ALL_BUS);
-
 	list_splice_init(res, &host->windows);
 	host->busnr = 0;
 	host->dev.parent = dev;
