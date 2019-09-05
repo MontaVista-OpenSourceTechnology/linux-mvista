@@ -834,7 +834,7 @@ static int bcm_qspi_bspi_flash_read(struct spi_device *spi,
 	struct bcm_qspi *qspi = spi_master_get_devdata(spi->master);
 	u32 addr = 0, len, len_words;
 	int ret = 0;
-	unsigned long timeo = msecs_to_jiffies(1000);
+	unsigned long timeo = msecs_to_jiffies(1500);
 	struct bcm_qspi_soc_intc *soc_intc = qspi->soc_intc;
 
 	if (bcm_qspi_bspi_ver_three(qspi))
