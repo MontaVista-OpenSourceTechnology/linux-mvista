@@ -94,7 +94,7 @@ void inline __iomem *iproc_cmic_base_get(void)
 
 /****************************************************************************
  ***************************************************************************/
-int xgs_iproc_cmic_init(void)
+int xgs_iproc_cmic_init(int dev_id)
 {
 	struct device_node *np;
 
@@ -102,6 +102,7 @@ int xgs_iproc_cmic_init(void)
 	if (!cmic) {
 		return -ENOMEM;
 	}
+	cmic->device = dev_id;
 
 	if ((np = of_find_compatible_node(NULL, NULL, "brcm,iproc-cmicx"))) {
 		cmic->sbus_ops = &cmicx_sbus_ops;

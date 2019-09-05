@@ -1,8 +1,23 @@
 #ifndef _IPROC_CMIC_H
 #define _IPROC_CMIC_H
 
+enum iproc_dev_id {
+	IPROC_DEVICE_HX4 = 0,
+	IPROC_DEVICE_KT2,
+	IPROC_DEVICE_HR2,
+	IPROC_DEVICE_GH,
+	IPROC_DEVICE_SB2,
+	IPROC_DEVICE_HR3,
+	IPROC_DEVICE_GH2,
+	IPROC_DEVICE_WH2,
+	IPROC_DEVICE_HX5,
+	IPROC_DEVICE_HR4,
+	IPROC_MAX_DEVICES,
+};
+
 struct iproc_cmic {
 	void __iomem *base;
+	int device;
 	const struct sbus_ops *sbus_ops;
 };
 
@@ -29,6 +44,6 @@ extern int iproc_cmic_schan_ucmem_write(u32 blk_type, u32 *mem);
 extern int iproc_cmic_schan_ucmem_read(u32 blk_type, u32 *mem);
 extern void inline __iomem *iproc_cmic_base_get(void);
 
-extern int xgs_iproc_cmic_init(void);
+extern int xgs_iproc_cmic_init(int dev_id);
 
 #endif /* _IPROC_CMIC_H */

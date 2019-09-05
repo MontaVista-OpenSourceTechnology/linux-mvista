@@ -22,6 +22,7 @@
 
 #define CMICX_TOP_SBUS_TIMEOUT(base)			(base + 0x00000)
 #define CMICX_TOP_SBUS_RING_MAP_0_7(base)		(base + 0x0000c)
+#define CMIC_TOP_SBUS_RING_MAP_24_31(base)		(base + 0x00018)
 #define CMICX_TOP_SBUS_RING_MAP_32_39(base)		(base + 0x0001c)
 #define CMICX_SCHAN_CH0_CTRL(base)				(base + 0x10000 + (CMIC_COMMON_POOL_SCHAN_NUM << 8))
 #define CMICX_SCHAN_CH0_MESSAGE(base)			(base + 0x1000c + (CMIC_COMMON_POOL_SCHAN_NUM << 8))
@@ -46,7 +47,7 @@
 #define UCMEM_DATA_LEN					16
 
 #define CMICX_BLOCK_ID_TOP				7
-#define CMICX_BLOCK_ID_XLPORT7			38
+#define CMICX_BLOCK_ID_XLPORT			((cmic->device == IPROC_DEVICE_HX5) ? 38 : 31)
 
 
 #define CMICX_CMD(mode, blk, len)		((mode << SBUSV4_OPCODE_SHIFT) | \
@@ -132,7 +133,8 @@ static int iproc_cmicx_schan_reg32_write(struct iproc_cmic *cmic,
 	if (blk_type == CMIC_BLOCK_TYPE_TOP) {
 		block = CMICX_BLOCK_ID_TOP;
 	} else if (blk_type == CMIC_BLOCK_TYPE_APM) {
-		block = CMICX_BLOCK_ID_XLPORT7;	} else {
+		block = CMICX_BLOCK_ID_XLPORT;
+	} else {
 		return -EINVAL;
 	}
 
@@ -152,7 +154,8 @@ static u32 iproc_cmicx_schan_reg32_read(struct iproc_cmic *cmic,
 	if (blk_type == CMIC_BLOCK_TYPE_TOP) {
 		block = CMICX_BLOCK_ID_TOP;
 	} else if (blk_type == CMIC_BLOCK_TYPE_APM) {
-		block = CMICX_BLOCK_ID_XLPORT7;	} else {
+		block = CMICX_BLOCK_ID_XLPORT;
+	} else {
 		return -EINVAL;
 	}
 
@@ -172,7 +175,8 @@ static int iproc_cmicx_schan_reg64_write(struct iproc_cmic *cmic,
 	if (blk_type == CMIC_BLOCK_TYPE_TOP) {
 		block = CMICX_BLOCK_ID_TOP;
 	} else if (blk_type == CMIC_BLOCK_TYPE_APM) {
-		block = CMICX_BLOCK_ID_XLPORT7;	} else {
+		block = CMICX_BLOCK_ID_XLPORT;
+	} else {
 		return -EINVAL;
 	}
 
@@ -195,7 +199,8 @@ static u64 iproc_cmicx_schan_reg64_read(struct iproc_cmic *cmic,
 	if (blk_type == CMIC_BLOCK_TYPE_TOP) {
 		block = CMICX_BLOCK_ID_TOP;
 	} else if (blk_type == CMIC_BLOCK_TYPE_APM) {
-		block = CMICX_BLOCK_ID_XLPORT7;	} else {
+		block = CMICX_BLOCK_ID_XLPORT;
+	} else {
 		return -EINVAL;
 	}
 
@@ -217,7 +222,8 @@ static int iproc_cmicx_schan_ucmem_write(struct iproc_cmic *cmic,
 	if (blk_type == CMIC_BLOCK_TYPE_TOP) {
 		block = CMICX_BLOCK_ID_TOP;
 	} else if (blk_type == CMIC_BLOCK_TYPE_APM) {
-		block = CMICX_BLOCK_ID_XLPORT7;	} else {
+		block = CMICX_BLOCK_ID_XLPORT;
+	} else {
 		return -EINVAL;
 	}
 
@@ -237,7 +243,8 @@ static int iproc_cmicx_schan_ucmem_read(struct iproc_cmic *cmic,
 	if (blk_type == CMIC_BLOCK_TYPE_TOP) {
 		block = CMICX_BLOCK_ID_TOP;
 	} else if (blk_type == CMIC_BLOCK_TYPE_APM) {
-		block = CMICX_BLOCK_ID_XLPORT7;	} else {
+		block = CMICX_BLOCK_ID_XLPORT;
+	} else {
 		return -EINVAL;
 	}
 
@@ -251,14 +258,25 @@ static int iproc_cmicx_init(struct iproc_cmic *cmic)
 		return -EINVAL;
 	}
 
-	/*
-	 * SBUS ring and block number:
-	 * ring 5: TOP(7)
-	 * ring 7: XLPORT7(38)
-	 */
-	writel(0x52222100, CMICX_TOP_SBUS_RING_MAP_0_7(cmic->base));
-	writel(0x07500066, CMICX_TOP_SBUS_RING_MAP_32_39(cmic->base));
-	writel(0x5000, CMICX_TOP_SBUS_TIMEOUT(cmic->base));
+	if (cmic->device == IPROC_DEVICE_HX5) {
+		/*
+		 * SBUS ring and block number:
+		 * ring 5: TOP(7)
+		 * ring 7: XLPORT7(38)
+		 */
+		writel(0x52222100, CMICX_TOP_SBUS_RING_MAP_0_7(cmic->base));
+		writel(0x07500066, CMICX_TOP_SBUS_RING_MAP_32_39(cmic->base));
+		writel(0x5000, CMICX_TOP_SBUS_TIMEOUT(cmic->base));
+	} else if (cmic->device == IPROC_DEVICE_HR4) {
+		/*
+		 * SBUS ring and block number:
+		 * ring 5: TOP(7)
+		 * ring 7: XLPORT3(31)
+		 */
+		writel(0x52222100, CMICX_TOP_SBUS_RING_MAP_0_7(cmic->base));
+		writel(0x70003666, CMIC_TOP_SBUS_RING_MAP_24_31(cmic->base));
+		writel(0x5000, CMICX_TOP_SBUS_TIMEOUT(cmic->base));
+	}
 
 	return 0;
 }

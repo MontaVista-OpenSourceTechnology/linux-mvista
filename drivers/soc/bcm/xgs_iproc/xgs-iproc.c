@@ -56,24 +56,22 @@ static struct notifier_block xgs_iproc_nb = {
 	.priority       = 192,
 };
 
-static char * xgs_iproc_dt_compat_str[] = {
-	"brcm,helix5",
-	"",
-};
+#define XGS_IPROC_HX5_COMPATIBLE 	"brcm,helix5"
+#define XGS_IPROC_HR4_COMPATIBLE 	"brcm,hurricane4"
 
 static int __init xgs_iproc_init(void)
 {
 	int ret;
-	int idx = 0;
+	int dev_id = 0;
 
-	while(1) {
-		if (strlen(xgs_iproc_dt_compat_str[idx]) == 0) {
-			return -EINVAL;
-		}
-		if (of_machine_is_compatible(xgs_iproc_dt_compat_str[idx])) {
-			break;
-		}
-		idx++;
+	if (of_machine_is_compatible(XGS_IPROC_HX5_COMPATIBLE)) {
+		dev_id = IPROC_DEVICE_HX5;
+	} else if (of_machine_is_compatible(XGS_IPROC_HR4_COMPATIBLE)) {
+		dev_id = IPROC_DEVICE_HR4;
+	}
+
+	if (!dev_id) {
+		return -EINVAL;
 	}
 
 	ret = xgs_iproc_misc_setup();
@@ -88,7 +86,7 @@ static int __init xgs_iproc_init(void)
 		return ret;
 	}
 
-	ret = xgs_iproc_cmic_init();
+	ret = xgs_iproc_cmic_init(dev_id);
 	if (ret < 0) {
 		return ret;
 	}

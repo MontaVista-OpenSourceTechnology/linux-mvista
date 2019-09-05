@@ -73,6 +73,11 @@ config MACH_WH2
 	help
 	  Support for the Broadcom Wolfhound2 bring-up board.
 
+config MACH_HX5
+	bool "Support Broadcom Helix5 in aarch32 mode"
+	help
+	  Support for the Broadcom Helix5 bring-up board.
+
 config ML66_NPU_IPROC_PLATFORM
 	bool "Support all ML66 NPU iProc ARM32 platforms"
 	help
