@@ -274,57 +274,59 @@ static int bcm_iproc_i2c_xfer(struct i2c_adapter *adapter,
 	int ret, i;
 	int xfer_msg_len;
 	u8 addr_h, addr_l;
+	struct i2c_msg msg;
 
 	/* go through all messages */
 	for (i = 0; i < num; i++) {
-		xfer_msg_len = msgs[i].len;
+		msg = msgs[i];
+		xfer_msg_len = msg.len;
 
 		while (xfer_msg_len) {
 			if (xfer_msg_len > I2C_MAX_DATA_LEN)
-				msgs[i].len = I2C_MAX_DATA_LEN;
+				msg.len = I2C_MAX_DATA_LEN;
 
-			ret = bcm_iproc_i2c_xfer_one_msg(iproc_i2c, &msgs[i]);
+			ret = bcm_iproc_i2c_xfer_one_msg(iproc_i2c, &msg);
 			if (ret) {
 				dev_dbg(iproc_i2c->device, "xfer failed\n");
 				return ret;
 			}
 
-			xfer_msg_len -= msgs[i].len;
+			xfer_msg_len -= msg.len;
 			if (xfer_msg_len == 0)
 				break;
 
 #if defined(CONFIG_ENABLE_WRITE_MSG_SPLIT)
 			/* Keep the addr offset for later use */
-			addr_h = msgs[i].buf[0];
-			addr_l = msgs[i].buf[1];
+			addr_h = msg.buf[0];
+			addr_l = msg.buf[1];
 #endif
 
-			msgs[i].len = xfer_msg_len;
-			msgs[i].buf += I2C_MAX_DATA_LEN;
+			msg.len = xfer_msg_len;
+			msg.buf += I2C_MAX_DATA_LEN;
 
 #if defined(CONFIG_ENABLE_WRITE_MSG_SPLIT)
-			if (!(msgs[i].flags & I2C_M_RD)) {
+			if (!(msg.flags & I2C_M_RD)) {
 				/*
 				 * For write transfer with len >= 64B, assuming
 				 * 2-byte addressing should be reasonable.
 				 */
 				xfer_msg_len += 2;
-				msgs[i].len = xfer_msg_len;
+				msg.len = xfer_msg_len;
 				/*
 				 * Append a new 2-byte address offset.
 				 * The upper byte should be unchanged, and the
 				 * lower byte is increased by actually written
 				 * bytes: (I2C_MAX_DATA_LEN - 2)
 				 */
-				msgs[i].buf -= 2;
-				msgs[i].buf[0] = addr_h;
-				msgs[i].buf[1] = addr_l + I2C_MAX_DATA_LEN - 2;
+				msg.buf -= 2;
+				msg.buf[0] = addr_h;
+				msg.buf[1] = addr_l + I2C_MAX_DATA_LEN - 2;
 
 				/*
 				 * Wait some time so that EEPROM is ready to
 				 * respond after previous partial page write.
 				 */
-				if (!(msgs[i].flags & I2C_M_RD))
+				if (!(msg.flags & I2C_M_RD))
 					mdelay(10);
 			}
 #endif	/* CONFIG_ENABLE_WRITE_MSG_SPLIT */
