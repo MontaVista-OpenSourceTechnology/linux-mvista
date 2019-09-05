@@ -214,6 +214,7 @@ static const struct ethtool_ops apm_ethtool_ops = {
 	.get_sset_count		= apm_get_sset_count,
 	.get_ethtool_stats	= apm_get_ethtool_stats,
 	.get_drvinfo		= apm_get_drvinfo,
+	.get_link		= ethtool_op_get_link,
 	.get_link_ksettings     = phy_ethtool_get_link_ksettings,
 	.set_link_ksettings     = phy_ethtool_set_link_ksettings,
 };

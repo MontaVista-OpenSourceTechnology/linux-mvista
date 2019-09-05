@@ -15,9 +15,10 @@
 #include <linux/of_address.h>
 #include <linux/of_mdio.h>
 #include <linux/of_net.h>
-#include "pm.h"
 #include "apm.h"
+#include "pm.h"
 
+extern void __iomem *get_iproc_wrap_ctrl_base(void);
 static bool apm_clk_enabled(struct apm *apm);
 
 static u32 apm_read(struct apm *apm, u16 offset)
@@ -659,7 +660,7 @@ static int apm_tx_dma_init(struct apm *apm,
 
 	tx_ring->desc_num = desc_num;
 	tx_ring->desc_base = apm->desc_buf + offset;
-	tx_ring->dma_base = (dma_addr_t)((u32)apm->dma_addr +
+	tx_ring->dma_base = (dma_addr_t)(apm->dma_addr +
 						offset * sizeof(struct apm_dma_desc));
 	tx_ring->slots = apm->slot_buf + offset;
 
@@ -683,7 +684,7 @@ static int apm_rx_dma_init(struct apm *apm, struct apm_dma_ring *rx_ring)
 	rx_ring->desc_num = APM_RX_MAX_DESCS;
 	rx_ring->mmio_base = APM_DMA_BASE0;
 	rx_ring->desc_base = apm->desc_buf + offset;
-	rx_ring->dma_base = (dma_addr_t)((u32)apm->dma_addr +
+	rx_ring->dma_base = (dma_addr_t)(apm->dma_addr +
 						offset * sizeof(struct apm_dma_desc));
 	rx_ring->slots = apm->slot_buf + offset;
 
@@ -1214,7 +1215,7 @@ static void apm_enet_remove(struct apm *apm)
  **************************************************/
 static int apm_probe(struct platform_device *pdev)
 {
-	struct device_node *np = pdev->dev.of_node;
+	struct device_node *dn = pdev->dev.of_node;
 	struct apm *apm;
 	struct resource *regs;
 	const u8 *mac_addr;
@@ -1235,7 +1236,7 @@ static int apm_probe(struct platform_device *pdev)
 	apm->dev = &pdev->dev;
 	apm->dma_dev = &pdev->dev;
 
-	mac_addr = of_get_mac_address(np);
+	mac_addr = of_get_mac_address(dn);
 	if (mac_addr)
 		ether_addr_copy(apm->mac_addr, mac_addr);
 	else
@@ -1278,8 +1279,21 @@ static int apm_probe(struct platform_device *pdev)
 		return PTR_ERR(apm->plat.idm_base);
 	}
 
+	apm->plat.wrap_base = get_iproc_wrap_ctrl_base();
+	if (IS_ERR(apm->plat.wrap_base)) {
+		return PTR_ERR(apm->plat.wrap_base);
+	}
+
+	if (of_device_is_compatible(dn, "brcm,xgs-iproc-apm,hx5")) {
+		apm->apm_device = XGS_IPROC_APM_HX5;
+	} else if (of_device_is_compatible(dn, "brcm,xgs-iproc-apm,hr4")) {
+		apm->apm_device = XGS_IPROC_APM_HR4;
+	} else {
+		return -ENODEV;
+	}
+
 	/* Get TX queue number and QoS mode from DTS file */
-	if (of_property_read_u32(np, "tx-channels", &value)) {
+	if (of_property_read_u32(dn, "tx-channels", &value)) {
 		/* Set the default TX channel number */
 		apm->tx_channel = 1;
 	} else {
@@ -1291,7 +1305,7 @@ static int apm_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (of_property_read_u32(np, "strict-mode", &value)) {
+	if (of_property_read_u32(dn, "strict-mode", &value)) {
 		/* Set the default strict mode */
 		apm->strict_mode = true;
 	} else {
@@ -1302,14 +1316,14 @@ static int apm_probe(struct platform_device *pdev)
 	}
 
 	/* Get lane index in PM */
-	if (of_property_read_u32(np, "land-idx", &value)) {
+	if (of_property_read_u32(dn, "land-idx", &value)) {
 		dev_err(&pdev->dev, "Unable to get the PM land index\n");
 		return -EINVAL;
 	}
 	apm->land_idx = value;
 
 	/* Get the PM type */
-	if (of_property_read_string(np, "pm-type", &pm_type)) {
+	if (of_property_read_string(dn, "pm-type", &pm_type)) {
 		dev_err(&pdev->dev, "Unable to get the PM type\n");
 		return -EINVAL;
 	}
@@ -1322,10 +1336,14 @@ static int apm_probe(struct platform_device *pdev)
 		apm->pm_ops->port_mac_addr = pm4x10_xlport_mac_addr_set;
 		apm->pm_ops->port_stats = pm4x10_xlport_stats_get;
 		apm->pm_ops->port_stats_clear = pm4x10_xlport_mib_reset;
-		pm4x10_pm_init(apm->pm_ops, apm->land_idx);
+		pm4x10_pm_init(apm);
 	} else {
 		dev_err(&pdev->dev, "Unknown the PM type - %s\n", pm_type);
 		return -EINVAL;
+	}
+
+	if (dma_set_mask_and_coherent(apm->dma_dev, DMA_BIT_MASK(36))) {
+		dev_err(&pdev->dev, "Unable to set 36-bit dma mask\n");
 	}
 
 	return apm_enet_probe(apm);
@@ -1346,6 +1364,7 @@ static int apm_remove(struct platform_device *pdev)
 static const struct of_device_id apm_of_enet_match[] = {
 	{.compatible = "brcm,xgs-iproc-apm",},
 	{.compatible = "brcm,xgs-iproc-apm,hx5",},
+	{.compatible = "brcm,xgs-iproc-apm,hr4",},
 	{},
 };
 MODULE_DEVICE_TABLE(of, apm_of_enet_match);

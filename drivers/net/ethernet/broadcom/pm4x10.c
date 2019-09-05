@@ -16,15 +16,17 @@
 #include <linux/delay.h>
 #include <linux/soc/bcm/iproc-cmic.h>
 #include <asm/io.h>
+#include "apm.h"
 #include "pm.h"
 #include "merlin16_ucode.h"
 #include "merlin16_regs.h"
 
 #define JUMBO_MAXSZ			0x3fe8
 
-#define IPROC_WRAP_MISC_CONTROL			0x10220c18
-#define IPROC_WRAP_MISC_CONTROL_IPROC_PM_RST_L	1
-extern void __iomem *get_iproc_wrap_ctrl_base(void);
+#define HR4_IPROC_WRAP_MISC_CONTROL_ADDR(base)				(base + 0x1c)
+
+#define HX5_IPROC_WRAP_MISC_CONTROL_ADDR(base)				(base + 0x18)
+#define IPROC_WRAP_MISC_CONTROL__IPROC_PM_RST_L				1
 
 #define debug(fmt, args...) do {} while (0)
 
@@ -738,7 +740,7 @@ static int pm4x10_pm_disable(void)
 	return 0;
 }
 
-static inline u32
+static inline void
 pm_phy_configure(int port)
 {
 	/* [0xc113] reset and enable tx lane */
@@ -807,7 +809,11 @@ pm_ucode_download(u8 *ucode_image, u16 ucode_len)
 		pm_phy_sbus_read(0, MICRO_A_AHB_STATUS0, &get_val);
 		/* code/data RAM initialization process is complete */
 		if (get_val == 0x1)	break;
+#if defined(__arm__)
+		mdelay(2);
+#else
 		udelay(2500);
+#endif
 	}
 	if (i == 100) {
 		debug("code/data RAM initialization process is timeout !!\n");
@@ -952,7 +958,11 @@ static void pm4x10_tsc_config_2(void)
 		pm_phy_sbus_read(0, MICRO_A_AHB_STATUS0, &val);
 		if (val == 0x1)		/* code/data RAM initialization process is complete */
 			break;
+#if defined(__arm__)
+		mdelay(2);
+#else
 		udelay(2500);
+#endif
 	}
 	if (i == 100) {
 		debug("code/data RAM initialization process is timeout !!\n");
@@ -1019,8 +1029,13 @@ pm_ucode_CRC_check(u16 ucode_len, u16 ucode_crc)
 				break;  /* uC is ready for command */
 			}
 		}
-		if (i > 10)
-			udelay(2500);
+		if (i > 10) {
+#if defined(__arm__)
+		mdelay(2);
+#else
+		udelay(2500);
+#endif
+		}
 	}
 
 	/* [0xd00e] Read from DSC uC Control register for the calculated CRC */
@@ -1102,21 +1117,35 @@ static int pm4x10_pm_enable(void)
 	return 0;
 }
 
-int pm4x10_pm_init(struct iproc_pm_ops *pm_ops, u8 land_idx)
+int pm4x10_pm_init(struct apm *apm)
 {
 	u32 val;
 	volatile void __iomem *addr;
+	struct iproc_pm_ops *pm_ops;
+	void __iomem *wrap_base;
+	u8 land_idx;
+
+	if (!apm) {
+		return -EINVAL;
+	}
+
+	pm_ops = apm->pm_ops;
+	land_idx = apm->land_idx;
+	wrap_base = apm->plat.wrap_base;
 
 	if (!pm4x10_enabled) { /* check initialize for first time */
 		/* Bring APM out of reset (to access IPROC_WRAP_MISC_CONTROL) */
-		addr = (volatile void __iomem *)(get_iproc_wrap_ctrl_base() + 0x18);
+		if (apm->apm_device == XGS_IPROC_APM_HX5) {
+			addr = (volatile void __iomem *)HX5_IPROC_WRAP_MISC_CONTROL_ADDR(wrap_base);
+		} else {
+			addr = (volatile void __iomem *)HR4_IPROC_WRAP_MISC_CONTROL_ADDR(wrap_base);
+		}
 		val = ioread32(addr);
-		val &= ~(1 << IPROC_WRAP_MISC_CONTROL_IPROC_PM_RST_L);
+		val &= ~(1 << IPROC_WRAP_MISC_CONTROL__IPROC_PM_RST_L);
 		iowrite32(val, addr);
 		msleep(1);
-
 		val = ioread32(addr);
-		val |= (1 << IPROC_WRAP_MISC_CONTROL_IPROC_PM_RST_L);
+		val |= (1 << IPROC_WRAP_MISC_CONTROL__IPROC_PM_RST_L);
 		iowrite32(val, addr);
 		msleep(1);
 
@@ -1154,11 +1183,6 @@ int pm4x10_pm_init(struct iproc_pm_ops *pm_ops, u8 land_idx)
 
 int pm4x10_pm_deinit(struct iproc_pm_ops *pm_ops)
 {
-#if 0
-	kfree(pm_ops);
-	pm_ops = NULL;
-#endif
-
 	pm4x10_enabled--;
 	if (!pm4x10_enabled) {
 		pm4x10_pm_disable();

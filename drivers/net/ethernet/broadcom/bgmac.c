@@ -1504,6 +1504,7 @@ static const struct ethtool_ops bgmac_ethtool_ops = {
 	.get_sset_count		= bgmac_get_sset_count,
 	.get_ethtool_stats	= bgmac_get_ethtool_stats,
 	.get_drvinfo		= bgmac_get_drvinfo,
+	.get_link		= ethtool_op_get_link,
 	.get_link_ksettings     = phy_ethtool_get_link_ksettings,
 	.set_link_ksettings     = phy_ethtool_set_link_ksettings,
 };

@@ -13,7 +13,6 @@
 #ifndef _PM_H
 #define _PM_H
 
-
 #define pmLoopbackMac	0
 #define pmLoopbackPhy	1
 
@@ -83,7 +82,7 @@ struct iproc_pm_ops {
 	int (*port_stats_clear)(int port);
 };
 
-extern int pm4x10_pm_init(struct iproc_pm_ops *pm_ops, u8 lane_idx);
+extern int pm4x10_pm_init(struct apm *apm);
 extern int pm4x10_pm_deinit(struct iproc_pm_ops *pm_ops);
 
 extern int pm4x10_pm_xlport_port_config(int port, int enable);

@@ -291,6 +291,12 @@ enum apm_dma_ring_type {
 	APM_DMA_RING_TYPE_NUM
 };
 
+enum apm_support_dev_ids {
+	XGS_IPROC_APM_HX5 = 0,
+	XGS_IPROC_APM_HR4,
+	XGS_IPROC_MAX_DEVS,
+};
+
 /**
  * apm_dma_ring - contains info about DMA ring (either TX or RX one)
  * @start: index of the first slot containing data
@@ -326,12 +332,14 @@ struct apm {
 		struct {
 			void *base;
 			void *idm_base;
+			void *wrap_base;
 		} plat;
 	};
 
 	struct device *dev;
 	struct device *dma_dev;
 
+	u32 apm_device;
 	struct iproc_pm_ops *pm_ops;
 	u8 land_idx;
 
