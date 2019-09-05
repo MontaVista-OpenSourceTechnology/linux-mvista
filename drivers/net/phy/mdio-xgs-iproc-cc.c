@@ -102,7 +102,7 @@ bool xgs_mdio_bus_release(void)
 static void xgs_iproc_mdio_enable(struct iproc_mdio_ctrl *ctrl, int enable)
 {
 	void __iomem *iproc_mdio_enable_reg = NULL;
-	u32 iproc_mdio_sel;
+	u32 iproc_mdio_sel, serdes_mdio_sel = 0;
 	u32 tmp;
 
 	if (!ctrl->iproc_mdio_enable_reg)
@@ -110,13 +110,19 @@ static void xgs_iproc_mdio_enable(struct iproc_mdio_ctrl *ctrl, int enable)
 
 	iproc_mdio_enable_reg = ctrl->iproc_mdio_enable_reg;
 	iproc_mdio_sel = ctrl->iproc_mdio_sel_bit;
+	if (iproc_mdio_sel > 1)
+		serdes_mdio_sel = iproc_mdio_sel - 1;
 
 	tmp = readl(iproc_mdio_enable_reg);
 
-	if (enable)
+	if (enable) {
 		tmp |= (1 << iproc_mdio_sel);
-	else
+		tmp |= serdes_mdio_sel? (1 << serdes_mdio_sel) : 0;
+	} else {
 		tmp &= ~(1 << iproc_mdio_sel);
+		if (serdes_mdio_sel)
+			tmp &= ~(1 << serdes_mdio_sel);
+	}
 
 	writel(tmp, iproc_mdio_enable_reg);
 }
