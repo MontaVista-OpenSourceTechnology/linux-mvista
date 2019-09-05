@@ -33,45 +33,59 @@
 
 #ifdef DEBUG
 #define USB_GET_RH_STATE		0
+#define USB_DUMP_PHY_REGS		0 /* Only support on HX5 */
 #endif /* DEBUG */
 
-#define ICFG_USB_CTRL_ADDR(base)					(base + 0x00)
-#define  ICFG_USB_CTRL__DRD_FAST_SIM_MODE			7
-#define  ICFG_USB_CTRL__DRD_FORCE_HOST_MODE			6
-#define  ICFG_USB_CTRL__DRD_FORCE_DEVICE_MODE		5
-#define  ICFG_USB_CTRL__XHC_CSR_RESET				4
-#define  ICFG_USB_CTRL__BDC_CSR_RESET				3
-#define  ICFG_USB_CTRL__DRD_SOFT_RESET				2
-#define  ICFG_USB_CTRL__XHC_SOFT_RESET				1
-#define  ICFG_USB_CTRL__BDC_SOFT_RESET				0
-#define ICFG_USB_STAT_ADDR(base)					(base + 0x10)
-#define  ICFG_USB_STAT__DRD_USB_VBUS_OVC			8
-#define  ICFG_USB_STAT__DRD_USB_ID					7
-#define  ICFG_USB_STAT__DRD_USB_VBUS_PRESENT		6
-#define  ICFG_USB_STAT__DRD_USB_HOST				1
-#define  ICFG_USB_STAT__DRD_USB_DEVICE				0
-#define ICFG_USB_DRD_DBG_REG1_ADDR(base)			(base + 0x14)
-#define  ICFG_USB_DBG_OVC_POLARITY					20
-#define ICFG_USB_XHC_DBG_REG1_ADDR(base)			(base + 0x24)
-#define ICFG_USB_XHC_DBG_REG2_ADDR(base)			(base + 0x28)
-#define ICFG_USB_PHY_CTRL_ADDR(base)				(base + 0x2c)
-#define  ICFG_USB_PHY_CTRL__SOFT_RESET				1
+#define ICFG_USB_CTRL_ADDR(base)							(base + 0x00)
+#define  ICFG_USB_CTRL__DRD_FAST_SIM_MODE					7
+#define  ICFG_USB_CTRL__DRD_FORCE_HOST_MODE					6
+#define  ICFG_USB_CTRL__DRD_FORCE_DEVICE_MODE				5
+#define  ICFG_USB_CTRL__XHC_CSR_RESET						4
+#define  ICFG_USB_CTRL__BDC_CSR_RESET						3
+#define  ICFG_USB_CTRL__DRD_SOFT_RESET						2
+#define  ICFG_USB_CTRL__XHC_SOFT_RESET						1
+#define  ICFG_USB_CTRL__BDC_SOFT_RESET						0
+#define ICFG_USB_STAT_ADDR(base)							(base + 0x10)
+#define  ICFG_USB_STAT__DRD_USB_VBUS_OVC					8
+#define  ICFG_USB_STAT__DRD_USB_ID							7
+#define  ICFG_USB_STAT__DRD_USB_VBUS_PRESENT				6
+#define  ICFG_USB_STAT__DRD_USB_HOST						1
+#define  ICFG_USB_STAT__DRD_USB_DEVICE						0
+#define ICFG_USB_DRD_DBG_REG1_ADDR(base)					(base + 0x14)
+#define  ICFG_USB_DBG_OVC_POLARITY							20
+#define ICFG_USB_XHC_DBG_REG1_ADDR(base)					(base + 0x24)
+#define ICFG_USB_XHC_DBG_REG2_ADDR(base)					(base + 0x28)
+#define ICFG_USB_PHY_CTRL_ADDR(base)						(base + 0x2c)
+#define  ICFG_USB_PHY_CTRL__SOFT_RESET						1
 
-#define IPROC_WRAP_USBPHY_CTRL_0_ADDR(base)			(base + 0x00)
-#define  IPROC_WRAP_USBPHY_CTRL_0__PHY_ISO			18
-#define  IPROC_WRAP_USBPHY_CTRL_0__PLL_CTRL_45		17
-#define  IPROC_WRAP_USBPHY_CTRL_0__PLL_SUSPEND_EN	16
-#define  IPROC_WRAP_USBPHY_CTRL_0__PLL_RESETB		15
-#define  IPROC_WRAP_USBPHY_CTRL_0__RESETB			14
-#define IPROC_WRAP_USBPHY_CTRL_2_ADDR(base)			(base + 0x08)
-#define  IPROC_WRAP_USBPHY_CTRL_2__CORERDY			6
-#define  IPROC_WRAP_USBPHY_CTRL_2__AFE_LDO_PWRDWNB	2
-#define  IPROC_WRAP_USBPHY_CTRL_2__AFE_PLL_PWRDWNB	1
-#define  IPROC_WRAP_USBPHY_CTRL_2__AFE_BG_PWRDWNB	0
-#define IPROC_WRAP_MISC_STATUS_0_ADDR(base)			(base + 0x1c)
-#define  IPROC_WRAP_MISC_STATUS_0__USBPHY_PWRON_FLAG	5
-#define  IPROC_WRAP_MISC_STATUS_0__USBPHY_PLL_LOCK	0
-#define IPROC_WRAP_MISC_STATUS_1_ADDR(base)			(base + 0x20)
+#define HX5_IPROC_WRAP_USBPHY_CTRL_0_ADDR(base)				(base + 0x00)
+#define  HX5_IPROC_WRAP_USBPHY_CTRL_0__PHY_ISO				18
+#define  HX5_IPROC_WRAP_USBPHY_CTRL_0__PLL_CTRL_45			17
+#define  HX5_IPROC_WRAP_USBPHY_CTRL_0__PLL_SUSPEND_EN		16
+#define  HX5_IPROC_WRAP_USBPHY_CTRL_0__PLL_RESETB			15
+#define  HX5_IPROC_WRAP_USBPHY_CTRL_0__RESETB				14
+#define HX5_IPROC_WRAP_USBPHY_CTRL_2_ADDR(base)				(base + 0x08)
+#define  HX5_IPROC_WRAP_USBPHY_CTRL_2__CORERDY				6
+#define  HX5_IPROC_WRAP_USBPHY_CTRL_2__AFE_LDO_PWRDWNB		2
+#define  HX5_IPROC_WRAP_USBPHY_CTRL_2__AFE_PLL_PWRDWNB		1
+#define  HX5_IPROC_WRAP_USBPHY_CTRL_2__AFE_BG_PWRDWNB		0
+#define HX5_IPROC_WRAP_MISC_STATUS_0_ADDR(base)				(base + 0x1c)
+#define  HX5_IPROC_WRAP_MISC_STATUS_0__USBPHY_PWRON_FLAG	5
+#define  HX5_IPROC_WRAP_MISC_STATUS_0__USBPHY_PLL_LOCK		0
+#define HX5_IPROC_WRAP_MISC_STATUS_1_ADDR(base)				(base + 0x20)
+
+#define HR4_IPROC_WRAP_USBPHY_CTRL_0_ADDR(base)				(base + 0x00)
+#define  HR4_IPROC_WRAP_USBPHY_CTRL_0__RESETN				31
+#define  HR4_IPROC_WRAP_USBPHY_CTRL_0__PORTRESETN			30
+#define HR4_IPROC_WRAP_USBPHY_STATUS_0_ADDR(base)			(base + 0x18)
+#define  HR4_IPROC_WRAP_USBPHY_STATUS_0__USB_PLL_LOCK_O		2
+
+
+enum drd_support_dev_ids {
+	XGS_IPROC_USB_HX5 = 0,
+	XGS_IPROC_USB_HR4,
+	XGS_IPROC_MAX_DEVS,
+};
 
 struct iproc_usb_priv {
 	struct usb_phy phy;
@@ -81,24 +95,19 @@ struct iproc_usb_priv {
 	void __iomem *wrap_base;
 	void __iomem *icfg_usb_base;
 	int init_count;
+	int usb_device;
 };
 
 extern void __iomem *get_iproc_wrap_ctrl_base(void);
 
-#ifdef DEBUG
+#if defined(USB_DUMP_PHY_REGS) && (USB_DUMP_PHY_REGS == 1)
 static int g_dump_phy = 0;
 module_param(g_dump_phy, int, 0644);
 MODULE_PARM_DESC(g_dump_phy, "Dump PHY register");
-static int g_gpio1 = -1;
-module_param(g_gpio1, int, 0644);
-MODULE_PARM_DESC(g_gpio1, "Set VBUS GPIO value");
-#endif /* DEBUG */
-
-static int __iproc_usb_phy_reset(struct device *dev, void __iomem *wrap_base);
-
+#endif /* defined(USB_DUMP_PHY_REGS) && (USB_DUMP_PHY_REGS == 1) */
 /***************************************************************************
 ***************************************************************************/
-#ifdef DEBUG
+#if defined(USB_DUMP_PHY_REGS) && (USB_DUMP_PHY_REGS == 1)
 static u16 phy_rd_reg(struct phy_device *phydev, u16 base, u16 addr)
 {
 	if (phydev) {
@@ -159,38 +168,15 @@ static void __dump_phy_register(struct phy_device *phydev)
 		printk("\n");
 	}
 }
+#endif /* defined(USB_DUMP_PHY_REGS) && (USB_DUMP_PHY_REGS == 1) */
 
-static int __set_gpio(struct device *dev, int val)
-{
-	int gpio_pin = 1;
-	int ret;
-
-	ret = devm_gpio_request(dev, gpio_pin, "usbphy-vbus");
-	if (ret != 0) {
-		devm_gpio_free(dev, gpio_pin);
-		dev_err(dev, "Failed to request gpio #%d, ret:%d\n", gpio_pin, ret);
-		return ret;
-	}
-
-	gpio_direction_output(gpio_pin, 1);
-	if (g_gpio1 > 0) {
-		gpio_set_value(gpio_pin, 1);
-	} else {
-		gpio_set_value(gpio_pin, 0);
-	}
-
-	devm_gpio_free(dev, gpio_pin);
-	return 0;
-}
-#endif /* DEBUG */
-
-static int  __drd_status_kthread(void *arg)
+static int iproc_drd_state_kthread(void *arg)
 {
 	struct iproc_usb_priv *iproc_usb_data = (struct iproc_usb_priv *)arg;
 	void __iomem *icfg_usb_base;
 	void __iomem *wrap_base;
 	struct device *dev;
-	u32 prev_val = 0, curr_val = 0;
+	u32 val, prev_val = 0;
 	u32 curr_mode = 0;
 
 	if (!iproc_usb_data) {
@@ -201,49 +187,48 @@ static int  __drd_status_kthread(void *arg)
 	dev = iproc_usb_data->dev;
 	wrap_base = iproc_usb_data->wrap_base;
 
-#ifdef DEBUG
-#if USB_GET_RH_STATE
+#if defined(USB_GET_RH_STATE) && USB_GET_RH_STATE == 1
 	writel(0x0f100000, ICFG_USB_XHC_DBG_REG1_ADDR(icfg_usb_base));
-#endif /* USB_GET_RH_STATE */
-#endif /* DEBUG */
+#endif /* defined(USB_GET_RH_STATE) && USB_GET_RH_STATE == 1 */
 
 	while(1) {
-		curr_val = readl(ICFG_USB_STAT_ADDR(icfg_usb_base));
-		if (prev_val != curr_val) {
-			if (curr_val & (1 << ICFG_USB_STAT__DRD_USB_DEVICE)) {
-				dev_info(dev, "drd status change (%.8x): device mode\n", curr_val);
+		val = readl(ICFG_USB_STAT_ADDR(icfg_usb_base));
+		if (prev_val != val) {
+			if (val & (1 << ICFG_USB_STAT__DRD_USB_DEVICE) && curr_mode != 1) {
+				dev_info(dev, "drd status change (%.8x): device mode\n", val);
 				curr_mode = 1;
-			} else if (curr_val & (1 << ICFG_USB_STAT__DRD_USB_HOST)) {
-				dev_info(dev, "drd status change (%.8x): host mode\n", curr_val);
+			} else if (val & (1 << ICFG_USB_STAT__DRD_USB_HOST) && curr_mode != 2) {
+				dev_info(dev, "drd status change (%.8x): host mode\n", val);
 				curr_mode = 2;
-			} else {
-				dev_info(dev, "drd status change (%.8x): idle mode\n", curr_val);
-
-				/* WAR from USB DVT "FS mode stuck and stopping HS mode to work"
-				 * Reset the USB phy
-				 */
-				if (curr_mode != 0) {
-					__iproc_usb_phy_reset(dev, wrap_base);
-				}
+			} else if (curr_mode != 0){
+				dev_info(dev, "drd status change (%.8x): idle mode\n", val);
 				curr_mode = 0;
+
+				if (iproc_usb_data->usb_device == XGS_IPROC_USB_HX5) {
+					/* WAR from USB DVT "FS mode stuck and stopping HS mode to work"
+					* Reset the USB phy
+					*/
+					val = readl(ICFG_USB_PHY_CTRL_ADDR(icfg_usb_base));
+					val &= ~(1 << ICFG_USB_PHY_CTRL__SOFT_RESET);
+					writel(val, ICFG_USB_PHY_CTRL_ADDR(icfg_usb_base));
+					udelay(100);
+					val |= (1 << ICFG_USB_PHY_CTRL__SOFT_RESET);
+					writel(val, ICFG_USB_PHY_CTRL_ADDR(icfg_usb_base));
+				}
 			}
 
-			prev_val = curr_val;
+			prev_val = val;
 		}
 
-#ifdef DEBUG
+#if defined(USB_DUMP_PHY_REGS) && (USB_DUMP_PHY_REGS == 1)
 		/* For debug purpose */
 		if (g_dump_phy) {
 			__dump_phy_register(iproc_usb_data->mdio_phy);
 			g_dump_phy = 0;
 		}
+#endif /* defined(USB_DUMP_PHY_REGS) && USB_DUMP_PHY_REGS == 1 */
 
-		if (g_gpio1 >= 0) {
-			__set_gpio(dev, g_gpio1);
-			g_gpio1 = -1;
-		}
-
-#if	USB_GET_RH_STATE
+#if defined(USB_GET_RH_STATE) && (USB_GET_RH_STATE == 1)
 		{	/* Internal debug register */
 			u32 prev_state = 0, curr_state = 0;
 
@@ -253,72 +238,110 @@ static int  __drd_status_kthread(void *arg)
 				prev_state = curr_state;
 			}
 		}
-#endif /* USB_GET_RH_STATE */
-#endif /* DEBIG */
+#endif /* defined(USB_GET_RH_STATE) && USB_GET_RH_STATE == 1 */
 
 		usleep_range(1000, 10000);
 	}
 	return 0;
 }
 
-static int __iproc_usb_phy_reset(struct device *dev, void __iomem *wrap_base)
+static int _wait_pll_lock(struct device *dev, void __iomem *reg, uint32_t mask)
 {
-	u32 val;
-	ulong mask, count = 0;
+	volatile uint32_t val;
+	uint32_t count = 0;
 
-	if (!wrap_base) {
-		return -EINVAL;
-	}
-
-	val = readl(IPROC_WRAP_USBPHY_CTRL_2_ADDR(wrap_base));
-	val &= ~(1 << IPROC_WRAP_USBPHY_CTRL_2__CORERDY);
-	writel(val, IPROC_WRAP_USBPHY_CTRL_2_ADDR(wrap_base));
-	msleep(10);
-
-	val = readl(IPROC_WRAP_USBPHY_CTRL_2_ADDR(wrap_base));
-	val |= (1 << IPROC_WRAP_USBPHY_CTRL_2__CORERDY);
-	writel(val, IPROC_WRAP_USBPHY_CTRL_2_ADDR(wrap_base));
-	msleep(10);
-
-	val = readl(IPROC_WRAP_USBPHY_CTRL_0_ADDR(wrap_base));
-	val &= ~(1 << IPROC_WRAP_USBPHY_CTRL_0__PLL_RESETB);
-	val &= ~(1 << IPROC_WRAP_USBPHY_CTRL_0__RESETB);
-	writel(val, IPROC_WRAP_USBPHY_CTRL_0_ADDR(wrap_base));
-	msleep(10);
-
-	val = readl(IPROC_WRAP_USBPHY_CTRL_0_ADDR(wrap_base));
-	val |= (1 << IPROC_WRAP_USBPHY_CTRL_0__PLL_RESETB);
-	val |= (1 << IPROC_WRAP_USBPHY_CTRL_0__RESETB);
-	writel(val, IPROC_WRAP_USBPHY_CTRL_0_ADDR(wrap_base));
-	msleep(10);
-
-	/* check pll_lock */
-	mask = ((1 << IPROC_WRAP_MISC_STATUS_0__USBPHY_PLL_LOCK) |
-			(1 << IPROC_WRAP_MISC_STATUS_0__USBPHY_PWRON_FLAG));
 	do {
-		val = readl(IPROC_WRAP_MISC_STATUS_0_ADDR(wrap_base));
+		val = readl((volatile uint32_t *)reg);
 		if ((val & mask) == mask) {
 			break;
 		} else {
-			msleep(1);
+			udelay(10);
 			count ++;
 		}
-	} while(count <= 100);
-	if (count > 100) {
+	} while(count <= 10);
+
+	if (count > 10) {
 		dev_err(dev, "%s : PLL not lock! IPROC_WRAP_MISC_STATUS_0 = 0x%.8x\n",
-					__FUNCTION__, val);
+							__FUNCTION__, val);
 		return -ETIMEDOUT;
 	}
 	return 0;
 }
 
-static int __iproc_usb_drd_init(struct device *dev, struct usb_phy *phy)
+static int hx5_usbphy_init(struct device *dev, struct iproc_usb_priv *iproc_usb_data)
+{
+	void __iomem *wrap_base;
+	void __iomem *icfg_usb_base;
+	ulong mask, count = 0;
+	u32 val;
+	int ret = 0, retry = 5;
+
+	if (!iproc_usb_data) {
+		return -EINVAL;
+	}
+
+	wrap_base = iproc_usb_data->wrap_base;
+	icfg_usb_base = iproc_usb_data->icfg_usb_base;
+
+	while(retry--) {
+		/* Enable the USB phy */
+		val = readl(HX5_IPROC_WRAP_USBPHY_CTRL_2_ADDR(wrap_base));
+		val |= (1 << HX5_IPROC_WRAP_USBPHY_CTRL_2__CORERDY);
+		writel(val, HX5_IPROC_WRAP_USBPHY_CTRL_2_ADDR(wrap_base));
+
+		/* check pll_lock */
+		count = 0;
+		mask = ((1 << HX5_IPROC_WRAP_MISC_STATUS_0__USBPHY_PLL_LOCK) |
+				(1 << HX5_IPROC_WRAP_MISC_STATUS_0__USBPHY_PWRON_FLAG));
+
+		ret = _wait_pll_lock(dev, HX5_IPROC_WRAP_MISC_STATUS_0_ADDR(wrap_base), mask);
+		if (ret) {
+			msleep(10);
+			continue;
+		}
+
+		/* Bring the USB phy out of reset */
+		val = readl(ICFG_USB_PHY_CTRL_ADDR(icfg_usb_base));
+		val |= (1 << ICFG_USB_PHY_CTRL__SOFT_RESET);
+		writel(val, ICFG_USB_PHY_CTRL_ADDR(icfg_usb_base));
+		break;
+	}
+
+	return ret;
+}
+
+static int hr4_usbphy_init(struct device *dev, struct iproc_usb_priv *iproc_usb_data)
+{
+	void __iomem *wrap_base;
+	ulong mask, val;
+
+	if (!iproc_usb_data) {
+		return -EINVAL;
+	}
+
+	wrap_base = iproc_usb_data->wrap_base;
+
+	val = readl((volatile uint32_t *)HR4_IPROC_WRAP_USBPHY_CTRL_0_ADDR(wrap_base));
+	val &= ~((1 << HR4_IPROC_WRAP_USBPHY_CTRL_0__RESETN) |
+		     (1 << HR4_IPROC_WRAP_USBPHY_CTRL_0__PORTRESETN));
+	writel(val, (volatile uint32_t *)HR4_IPROC_WRAP_USBPHY_CTRL_0_ADDR(wrap_base));
+	msleep(1);
+	val |= ((1 << HR4_IPROC_WRAP_USBPHY_CTRL_0__RESETN) |
+		    (1 << HR4_IPROC_WRAP_USBPHY_CTRL_0__PORTRESETN));
+	writel(val, (volatile uint32_t *)HR4_IPROC_WRAP_USBPHY_CTRL_0_ADDR(wrap_base));
+	msleep(10);
+
+	mask = (1 << HR4_IPROC_WRAP_USBPHY_STATUS_0__USB_PLL_LOCK_O);
+	return _wait_pll_lock(dev, HR4_IPROC_WRAP_USBPHY_STATUS_0_ADDR(wrap_base), mask);
+}
+
+static int iproc_drd_init(struct device *dev, struct usb_phy *phy)
 {
 	struct iproc_usb_priv *iproc_usb_data = container_of(phy, struct iproc_usb_priv, phy);
 	void __iomem *wrap_base;
 	void __iomem *icfg_usb_base;
 	u32 val;
-	int ret;
+	int ret = 0;
 
 	if (!iproc_usb_data) {
 		return -EINVAL;
@@ -333,14 +356,13 @@ static int __iproc_usb_drd_init(struct device *dev, struct usb_phy *phy)
 	wrap_base = iproc_usb_data->wrap_base;
 	icfg_usb_base = iproc_usb_data->icfg_usb_base;
 
-	ret = __iproc_usb_phy_reset(dev, wrap_base);
-	if (ret) {
-		return ret;
+	if (iproc_usb_data->usb_device == XGS_IPROC_USB_HX5) {
+		hx5_usbphy_init(dev, iproc_usb_data);
+	} else if (iproc_usb_data->usb_device == XGS_IPROC_USB_HR4) {
+		hr4_usbphy_init(dev, iproc_usb_data);
+	} else {
+		return -EINVAL;
 	}
-
-	val = readl(ICFG_USB_PHY_CTRL_ADDR(icfg_usb_base));
-	val |= (1 << ICFG_USB_PHY_CTRL__SOFT_RESET);
-	writel(val, ICFG_USB_PHY_CTRL_ADDR(icfg_usb_base));
 
 	val = readl(ICFG_USB_STAT_ADDR(icfg_usb_base));
 	if (val & (1 << ICFG_USB_STAT__DRD_USB_VBUS_OVC)) {
@@ -361,13 +383,15 @@ static int __iproc_usb_drd_init(struct device *dev, struct usb_phy *phy)
 
 	iproc_usb_data->init_count = 1;
 
-	return 0;
+	return ret;
 }
 
 static int iproc_usb_phy_init(struct usb_phy *phy)
 {
 	struct iproc_usb_priv *iproc_usb_data;
 	struct device *dev;
+	struct task_struct *kthread_task;
+	int ret = 0;
 
 	if (!phy) {
 		return -EINVAL;
@@ -377,8 +401,22 @@ static int iproc_usb_phy_init(struct usb_phy *phy)
 	if (!iproc_usb_data) {
 		return -EINVAL;
 	}
+	dev = iproc_usb_data->dev;
 
-	return __iproc_usb_drd_init(iproc_usb_data->dev, phy);
+	ret = iproc_drd_init(dev, &iproc_usb_data->phy);
+	if (ret) {
+		dev_err(dev, "Failed to init the usb drd\n");
+		return ret;
+	}
+
+	kthread_task = kthread_create(iproc_drd_state_kthread, iproc_usb_data, "drd");
+	if (IS_ERR(kthread_task)) {
+		dev_err(dev, "Failed to creat drd kernel thread\n");
+		return PTR_ERR(kthread_task);
+	}
+	wake_up_process(kthread_task);
+
+	return ret;
 }
 
 static int xgs_iproc_drd_probe(struct platform_device *pdev)
@@ -386,7 +424,6 @@ static int xgs_iproc_drd_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct device_node *dn = pdev->dev.of_node;
 	struct iproc_usb_priv *iproc_usb_data;
-	struct task_struct *kthread_task;
 	struct device_node *mdio_phy_np = NULL;
 	int ret;
 
@@ -425,23 +462,18 @@ static int xgs_iproc_drd_probe(struct platform_device *pdev)
 		iproc_usb_data->mdio_phy = NULL;
 	}
 
+	if (of_device_is_compatible(dn, "brcm,usb-phy,hx5")) {
+		iproc_usb_data->usb_device = XGS_IPROC_USB_HX5;
+	} else if (of_device_is_compatible(dn, "brcm,usb-phy,hr4")) {
+		iproc_usb_data->usb_device = XGS_IPROC_USB_HR4;
+	} else {
+		return -ENODEV;
+	}
+
 	iproc_usb_data->phy.dev = dev;
 	iproc_usb_data->phy.type = USB_PHY_TYPE_USB2;
 	iproc_usb_data->phy.init = iproc_usb_phy_init;
 	iproc_usb_data->init_count = 0;
-
-	ret = __iproc_usb_drd_init(dev, &iproc_usb_data->phy);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to init the usb drd\n");
-		goto err;
-	}
-
-	kthread_task = kthread_create(__drd_status_kthread, iproc_usb_data, "drd");
-	if (IS_ERR(kthread_task)) {
-		ret = PTR_ERR(kthread_task);
-		goto err;
-	}
-	wake_up_process(kthread_task);
 
 	ret = usb_add_phy_dev(&iproc_usb_data->phy);
 	if (ret) {
@@ -482,6 +514,7 @@ static int xgs_iproc_drd_remove(struct platform_device *pdev)
 
 static const struct of_device_id xgs_iproc_drd_dt_ids[] = {
 	{ .compatible = "brcm,usb-phy,hx5", },
+	{ .compatible = "brcm,usb-phy,hr4", },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, xgs_iproc_drd_dt_ids);
