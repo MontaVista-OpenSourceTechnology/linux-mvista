@@ -28,8 +28,6 @@
 #define IPROC_MSI_EQ_EN_SHIFT          0
 #define IPROC_MSI_EQ_EN                BIT(IPROC_MSI_EQ_EN_SHIFT)
 
-#define IPROC_MSI_EQ_MASK              0x3f
-
 /* Max number of GIC interrupts */
 #define NR_HW_IRQS                     6
 
@@ -123,6 +121,7 @@ struct iproc_msi {
 	void *eq_cpu;
 	dma_addr_t eq_dma;
 	phys_addr_t msi_addr;
+	unsigned int dev_eq_mask;
 };
 
 static const u16 iproc_msi_reg_paxb[NR_HW_IRQS][IPROC_MSI_REG_SIZE] = {
@@ -349,29 +348,26 @@ static void iproc_msi_handler(struct irq_desc *desc)
 	 * data is guaranteed to be in the event queue memory before the tail
 	 * pointer is updated by the iProc MSI core.
 	 */
-	head = iproc_msi_read_reg(msi, IPROC_MSI_EQ_HEAD,
-				  eq) & IPROC_MSI_EQ_MASK;
+	head = iproc_msi_read_reg(msi, IPROC_MSI_EQ_HEAD, eq) & msi->dev_eq_mask;
 	do {
-		tail = iproc_msi_read_reg(msi, IPROC_MSI_EQ_TAIL,
-					  eq) & IPROC_MSI_EQ_MASK;
+		tail = iproc_msi_read_reg(msi, IPROC_MSI_EQ_TAIL, eq) & msi->dev_eq_mask;
 
 		/*
 		 * Figure out total number of events (MSI data) to be
 		 * processed.
 		 */
-		nr_events = (tail < head) ?
-			(EQ_LEN - (head - tail)) : (tail - head);
+		nr_events = (tail < head) ? ((msi->dev_eq_mask + 1) - (head - tail)) : (tail - head);
 		if (!nr_events)
 			break;
 
 		/* process all outstanding events */
 		while (nr_events--) {
-			hwirq = decode_msi_hwirq(msi, eq, head);
+			hwirq = decode_msi_hwirq(msi, eq, (head % EQ_LEN));
 			virq = irq_find_mapping(msi->inner_domain, hwirq >> 5) + (hwirq & 0x1f);
 			generic_handle_irq(virq);
 
 			head++;
-			head %= EQ_LEN;
+			head %= (msi->dev_eq_mask + 1);
 		}
 
 		/*
@@ -528,6 +524,7 @@ int iproc_msi_init(struct iproc_pcie *pcie, struct device_node *node)
 	struct iproc_msi *msi;
 	int i, ret;
 	unsigned int cpu;
+	int head;
 
 	if (!of_device_is_compatible(node, "brcm,iproc-msi"))
 		return -ENODEV;
@@ -591,6 +588,12 @@ int iproc_msi_init(struct iproc_pcie *pcie, struct device_node *node)
 
 	if (of_find_property(node, "brcm,pcie-msi-inten", NULL))
 		msi->has_inten_reg = true;
+
+	/* Get the dev_eq_mask value from EQ_HEAD register */
+	head = iproc_msi_read_reg(msi, IPROC_MSI_EQ_HEAD, 0);
+	iproc_msi_write_reg(msi, IPROC_MSI_EQ_HEAD, 0, 0xffffffff);
+	msi->dev_eq_mask = iproc_msi_read_reg(msi, IPROC_MSI_EQ_HEAD, 0);
+	iproc_msi_write_reg(msi, IPROC_MSI_EQ_HEAD, 0, head);
 
 #ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
 	msi->nr_msi_vecs = VEC_NUM;
