@@ -68,6 +68,8 @@ enum iproc_arm_pll_fid {
 struct iproc_arm_pll {
 	struct clk_hw hw;
 	void __iomem *base;
+	void __iomem *strap_status;
+	int strap_xtal_freq_sel_shift;
 	unsigned long rate;
 };
 
@@ -227,6 +229,13 @@ static unsigned long iproc_arm_pll_recalc_rate(struct clk_hw *hw,
 		return 0;
 	}
 
+	/* Check strap pin whether PLL is 50 MHz */
+	if ((pll->strap_status != 0x0) && (pll->strap_xtal_freq_sel_shift != -1)) {
+		val = readl(pll->strap_status);
+		if (val & (1 << pll->strap_xtal_freq_sel_shift))
+			parent_rate *= 2;
+	}
+
 	/* To avoid pll->rate overflow, do divide before multiply */
 	parent_rate = (parent_rate / pdiv) / mdiv;
 	pll->rate = (ndiv * parent_rate) >> 20;
@@ -249,6 +258,7 @@ void __init iproc_armpll_setup(struct device_node *node)
 	struct iproc_arm_pll *pll;
 	struct clk_init_data init;
 	const char *parent_name;
+	u32 tmp;
 
 	pll = kzalloc(sizeof(*pll), GFP_KERNEL);
 	if (WARN_ON(!pll))
@@ -257,6 +267,13 @@ void __init iproc_armpll_setup(struct device_node *node)
 	pll->base = of_iomap(node, 0);
 	if (WARN_ON(!pll->base))
 		goto err_free_pll;
+
+	pll->strap_status = of_iomap(node, 1);
+
+	if (of_property_read_u32(node, "strap_xtal_freq_sel_shift", &tmp))
+		pll->strap_xtal_freq_sel_shift = -1;
+	else
+		pll->strap_xtal_freq_sel_shift = (int)tmp;
 
 	init.name = node->name;
 	init.ops = &iproc_arm_pll_ops;
