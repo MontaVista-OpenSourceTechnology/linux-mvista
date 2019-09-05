@@ -64,6 +64,10 @@
 
 #define IPROC_PCI_EXP_CAP		0xac
 
+#define IPROC_PCI_DEVICE_ID_HR4		0xb275
+#define PCI_DL_STATUS				0x1048
+#define  PCI_DL_STATUS_PHY_LINKUP	0x2000
+
 struct pcie_sw_wa {
 	const char *wa_name;
 	void (*wa_func)(struct iproc_pcie *pcie);
@@ -115,7 +119,6 @@ static void __iomem *iproc_pcie_map_cfg_bus(struct iproc_pcie *pcie,
 		(where & CFG_ADDR_REG_NUM_MASK) |
 		(1 & CFG_ADDR_CFG_TYPE_MASK);
 	writel(val, pcie->base + CFG_ADDR_OFFSET);
-
 	return (pcie->base + CFG_DATA_OFFSET);
 }
 
@@ -385,7 +388,7 @@ static void iproc_pcie_reset(struct iproc_pcie *pcie)
 	writel(0, pcie->base + CLK_CONTROL_OFFSET);
 	mdelay(1);
 	writel(1, pcie->base + CLK_CONTROL_OFFSET);
-	msleep(100);
+	msleep(500);
 }
 
 static void pcie_rc_wa(struct iproc_pcie * pcie)
@@ -426,6 +429,26 @@ static const struct pcie_sw_wa pcie_wa_tab[] = {
 	},
 };
 
+ /* Check if specific pcie workaround function is required */
+static bool pcie_sw_wa_required(const char *wa_name, struct iproc_pcie *pcie)
+{
+	struct device_node *np = pcie->dev->of_node;
+	int wa_num = of_property_count_strings(np, "wa-list");
+	const char *wa_name_dts;
+	int i;
+
+	if (wa_num <= 0)
+		return 0;
+
+	for (i = 0; i < wa_num; i++) {
+		of_property_read_string_index(np, "wa-list", i, &wa_name_dts);
+		if (!strcmp(wa_name, wa_name_dts))
+			return 1;
+	}
+
+	return 0;
+}
+
 /*
  * Run the specific pcie workaround function specified in "pcie_wa_tab",
  * if "wa_name" is found on the "wa-list" property of pcie node.
@@ -462,7 +485,7 @@ static void pcie_sw_wa_func(const char *wa_name, struct iproc_pcie *pcie)
 static int iproc_pcie_check_link(struct iproc_pcie *pcie)
 {
 	struct device *dev = pcie->dev;
-	u32 hdr_type, link_ctrl, link_status, class;
+	u32 device_id, hdr_type, link_ctrl, link_status, class;
 	bool link_is_active = false;
 
 	/* make sure we are not in EP mode */
@@ -475,7 +498,7 @@ static int iproc_pcie_check_link(struct iproc_pcie *pcie)
 	/* SB2/GH/HR3/GH2 */
 	pcie_sw_wa_func("pcie_rc", pcie);
 
-	/* GH/HR3/GH2 */
+	/* SB2/GH/HR3/GH2 */
 	pcie_sw_wa_func("pcie_perst", pcie);
 
 	/* Not enabled in DT file currently */
@@ -492,11 +515,21 @@ static int iproc_pcie_check_link(struct iproc_pcie *pcie)
 	iproc_pci_raw_config_write32(pcie, 0, PCI_BRIDGE_CTRL_REG_OFFSET,
 				     4, class);
 
+
 	/* check link status to see if link is active */
-	iproc_pci_raw_config_read32(pcie, 0, IPROC_PCI_EXP_CAP + PCI_EXP_LNKSTA,
-				    2, &link_status);
-	if (link_status & PCI_EXP_LNKSTA_NLW)
-		link_is_active = true;
+	iproc_pci_raw_config_read32(pcie, 0, PCI_DEVICE_ID,
+				     2, &device_id);
+	if (device_id == IPROC_PCI_DEVICE_ID_HR4) {
+		iproc_pci_raw_config_read32(pcie, 0, PCI_DL_STATUS,
+						2, &link_status);
+		if (link_status & PCI_DL_STATUS_PHY_LINKUP)
+			link_is_active = true;
+	} else {
+		iproc_pci_raw_config_read32(pcie, 0, IPROC_PCI_EXP_CAP + PCI_EXP_LNKSTA,
+						2, &link_status);
+		if (link_status & PCI_EXP_LNKSTA_NLW)
+			link_is_active = true;
+	}
 
 	if (!link_is_active) {
 		/* try GEN 1 link speed */
@@ -582,7 +615,14 @@ static int iproc_pcie_setup(struct iproc_pcie *pcie, struct list_head *res)
 		goto err_exit_phy;
 	}
 
-	iproc_pcie_reset(pcie);
+	/* If "pcie_perst" workaround required, don't call reset here. */
+	/* For SB2/GH/HR3/GH2, the RC output clock is not available for
+	 * end-point at this stage. Call reset here may cause some
+	 * pcie devices to run into out of control states that even PCIe
+	 * reset can't recover.
+	 */
+	if (!pcie_sw_wa_required(pcie_wa_tab[2].wa_name, pcie))
+		iproc_pcie_reset(pcie);
 
 #ifdef CONFIG_ARM
 	pcie->sysdata.private_data = pcie;
@@ -602,6 +642,11 @@ static int iproc_pcie_setup(struct iproc_pcie *pcie, struct list_head *res)
 	if (IS_ENABLED(CONFIG_PCI_MSI))
 		if (iproc_pcie_msi_enable(pcie))
 			dev_info(pcie->dev, "not using iProc MSI\n");
+
+	/* Reassign PCI bus number and resource as u-boot pcie driver may not
+	 * properly configured them.
+	 */
+	pci_add_flags(PCI_REASSIGN_ALL_RSRC | PCI_REASSIGN_ALL_BUS);
 
 	list_splice_init(res, &host->windows);
 	host->busnr = 0;
