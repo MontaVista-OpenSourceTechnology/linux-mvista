@@ -72,7 +72,7 @@
 	};
 
 	spi_liu {
-		compatible = "ericsson,spi-liu,idt82v2084,cs_gpio";
+		compatible = "ericsson,spi-liu,idt82p5088,cs_gpio";
 		spi-cpol;
 		cs = <&io_exp1 0xa GPIO_ACTIVE_LOW>;
 	};
