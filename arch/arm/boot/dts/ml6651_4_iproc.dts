@@ -74,7 +74,7 @@
 	spi_liu {
 		compatible = "ericsson,spi-liu,idt82p5088,cs_gpio";
 		spi-cpol;
-		cs = <&io_exp1 0xa GPIO_ACTIVE_LOW>;
+		cs = <&io_exp1 0x8 GPIO_ACTIVE_LOW>;
 	};
 
 	spi_tempsensor {
@@ -248,8 +248,8 @@
 		fan_led        = <&gpio_ccg 0xf GPIO_ACTIVE_LOW>;  // LED_CTRL[3]
 		// GPIO on IO Expander
 		reset_type     = <&io_exp1  0x2 GPIO_ACTIVE_HIGH>; // RESET_TYPE
-		fpga_ready     = <&io_exp4  0xa GPIO_ACTIVE_HIGH>; // FPGA_READY
-		fpga_loaded    = <&io_exp4  0xb GPIO_ACTIVE_HIGH>; // FPGA_DONE
+		fpga_ready     = <&io_exp4  0x8 GPIO_ACTIVE_HIGH>; // FPGA_READY
+		fpga_loaded    = <&io_exp4  0x9 GPIO_ACTIVE_HIGH>; // FPGA_DONE
 	};
 };
 
