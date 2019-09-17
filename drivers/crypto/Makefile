@@ -49,3 +49,4 @@ obj-$(CONFIG_CRYPTO_DEV_ARTPEC6) += axis/
 obj-$(CONFIG_CRYPTO_DEV_ZYNQMP_SHA3) += zynqmp-sha.o
 obj-$(CONFIG_CRYPTO_DEV_XILINX_RSA) += zynqmp-rsa.o
 obj-$(CONFIG_CRYPTO_DEV_ZYNQMP_AES) += zynqmp-aes.o
+obj-$(CONFIG_CRYPTO_DEV_IPROC_PKA) += iproc-pka/

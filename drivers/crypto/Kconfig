@@ -759,4 +759,12 @@ config CRYPTO_DEV_ARTPEC6
 
 	  To compile this driver as a module, choose M here.
 
+config CRYPTO_DEV_IPROC_PKA
+	tristate "Broadcom IPROC public key acceleration (PKA) support"
+	depends on ARCH_XGS_IPROC
+	help
+	  This driver provides kernel support for Broadcom IPROC public key
+	  acceleration (PKA). The PKA driver enables use of a specialized
+	  math coprocessor that accelerates operations on very large numbers.
+
 endif # CRYPTO_HW
