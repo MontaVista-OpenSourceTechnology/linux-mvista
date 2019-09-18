@@ -1,0 +1,159 @@
+/*
+ *  Copyright (C) 2011 - 2014 Xilinx
+ *  Copyright (C) 2012 National Instruments Corp.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+/dts-v1/;
+/include/ "zynq-7000.dtsi"
+/include/ "zynq-zc702-ax.dtsi"
+/{
+       model = "Zynq ZC702 Development Board";
+       compatible = "xlnx,zynq-zc702", "xlnx,zynq-7000";
+
+       chosen {
+                bootargs = "";
+                stdout-path = "serial0:115200n8";
+       };
+
+       memory {
+               device_type = "memory";
+               reg = <0x0 0x20000000>;
+       };
+
+       aliases {
+                ethernet0 = &gem0;
+                i2c0 = &i2c0;
+                usb0 = &usb0;
+                serial0 = &uart0;
+                serial1 = &uart1;
+                serial3 = &uart0;
+                serial4 = &uart1;
+                spi0 = &axi_quad_spi_1;
+                spi1 = &axi_quad_spi_2;
+                spi2 = &spi1;
+       };
+
+     usb_phy0: usb_phy@0 {
+         compatible = "usb-nop-xceiv";
+         #phy-cells = <0>;
+         reg = <0xe0002000 0x1000>;
+         view-port = <0x170>;
+         drv-vbus;
+       };
+ };
+
+
+&clkc {
+        fclk-enable = <0xf>;
+        ps-clk-frequency = <33333333>;
+};
+
+
+&gem0 {
+    status = "okay";
+    fixed-link {
+        speed = <1000>;
+        full-duplex;
+    };
+};
+
+
+&i2c0 {
+    rtc:rtc@6F {
+        compatible = "isil,isl12022";
+        reg = <0x6F>;
+    };
+};
+
+&ph0_hier_BERT_0 {
+    compatible = "generic-uio";
+};
+
+&ph1_hier_BERT_1 {
+    compatible = "generic-uio";
+};
+
+&ph0_hier_GPIO_0 {
+    compatible = "generic-uio";
+};
+
+&ph1_hier_GPIO_1 {
+    compatible = "generic-uio";
+};
+
+&pcore_hk {
+    compatible = "generic-uio";
+};
+
+
+&usb0 {
+   status = "okay";
+   dr_mode = "host";
+   usb-phy = <&usb_phy0>;
+};
+
+
+// spi1 refers to spi@e0007000 (even if this one is aliased as spi0)
+&spi1 {
+    is-decoded-cs = <0>;
+    num-cs = <1>;
+    status = "okay";
+    spidev@0x00 {
+        compatible = "microchip,ksz8794cnx";
+        spi-max-frequency = <50000000>;
+        reg = <0>;
+    };
+};
+
+// spi 0 is here refering to SPI 0 of the Zynq PL sides spi controllers
+ &spis_hier_spi_0_expander {
+    is-decoded-cs = <0>;
+    num-cs = <1>;
+    #address-cells=<1>;
+    #size-cells=<0>;
+    status = "okay";
+    device@0 {
+        compatible = "spidev";
+        reg = <0>;  //Chip select 0
+        spi-max-frequency = <26000000>;
+    };
+};
+
+
+
+// spi 1 is here refering to SPI 1 of the Zynq PL sides spi controllers
+&spis_hier_spi_1_housekeeping {
+    compatible = "generic-uio";
+    /delete-property/ bits-per-word;
+    /delete-property/ fifo-size;
+    /delete-property/ num-cs;
+    /delete-property/ xlnx,num-ss-bits;
+    /delete-property/ xlnx,spi-mode;
+
+};
+
+&i2c0 {
+	status = "okay";
+};
+&sdhci0 {
+	status = "okay";
+};
+&spi1 {
+	status = "okay";
+};
+&uart0 {
+	device_type = "serial";
+	status = "okay";
+};
+&uart1 {
+	device_type = "serial";
+	status = "okay";
+};                                                       

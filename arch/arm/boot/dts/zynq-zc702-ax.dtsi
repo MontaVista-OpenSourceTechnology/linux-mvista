@@ -1,0 +1,397 @@
+/*
+ *  Copyright (C) 2011 - 2014 Xilinx
+ *  Copyright (C) 2012 National Instruments Corp.
+ *
+ * This software is licensed under the terms of the GNU General Public
+ * License version 2, as published by the Free Software Foundation, and
+ * may be copied, distributed, and modified under those terms.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+
+/ {
+       chosen {
+               bootargs = "console=ttyPS0,115200 earlyprintk uio_pdrv_genirq.of_id=\"generic-uio\" root=/dev/mmcblk0p2 isolcpus=1";
+       };
+
+       cpus {
+                cpu@0 {
+                        operating-points = <666666 1000000 333333 1000000>;
+                };
+       };
+ 
+      amba_pl {
+        xylon_fb {
+            compatible = "xylon,fb-3.00.a";
+            device = <&logicvc_1>;
+            console-layer = <0>;
+        };
+
+        ph0_hier_BERT_0: BERT@40090000 {
+        };
+
+        ph1_hier_BERT_1: BERT@401a0000 {
+        };
+
+        ph0_hier_GPIO_0: GPIO@40080000 {
+        };
+
+        ph1_hier_GPIO_1: GPIO@40190000 {
+        };
+
+        logicvc_1: logicvc@40030000 {
+        };
+
+        pcore_hk: galileo2_pcore_BUILD@40100000 {
+        };
+
+        spis_hier_spi_0_expander: axi_quad_spi@400c0000 {
+        };
+
+        spis_hier_spi_1_housekeeping: axi_quad_spi@40120000 {
+        };
+
+       };
+
+       //SOC
+       aliases {
+        serial0 = &axi_uart16550_0;
+        serial1 = &axi_uart16550_1;
+        serial2 = &axi_uart16550_2;
+        spi0 = "/amba/spi@e0007000";
+        spi1 = "/amba_pl/axi_quad_spi@400c0000";
+        uio0 = "/amba_pl/BERT@40090000";
+        uio1 = "/amba_pl/GPIO@40080000";
+        uio2 = "/amba_pl/axi_quad_spi@40120000";
+        uio3 = "/amba_pl/galileo2_pcore_BUILD@40100000";
+       };
+
+	amba_pl: amba_pl {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		ranges ;
+		BERT_0: BERT@40090000 {
+			compatible = "xlnx,BERT-1.0";
+			interrupt-names = "event_irq";
+			interrupt-parent = <&intc>;
+			interrupts = <0 59 4>;
+			reg = <0x40090000 0x10000 0x400a0000 0x10000>;
+			xlnx,bert-burst-length-byte = <0xc>;
+			xlnx,m00-axi-addr-width = <0x20>;
+			xlnx,m00-axi-aruser-width = <0x1>;
+			xlnx,m00-axi-awuser-width = <0x1>;
+			xlnx,m00-axi-burst-len = <0x10>;
+			xlnx,m00-axi-buser-width = <0x1>;
+			xlnx,m00-axi-data-width = <0x20>;
+			xlnx,m00-axi-id-width = <0x1>;
+			xlnx,m00-axi-ruser-width = <0x1>;
+			xlnx,m00-axi-target-slave-base-addr = <0x40000000>;
+			xlnx,m00-axi-wuser-width = <0x1>;
+			xlnx,s00-axi-addr-width = <0xa>;
+			xlnx,s00-axi-data-width = <0x20>;
+			xlnx,s01-axi-addr-width = <0xa>;
+			xlnx,s01-axi-data-width = <0x20>;
+		};
+		CUB_0: CUB@40050000 {
+			compatible = "xlnx,CUB-1.0";
+			interrupt-names = "cub_int";
+			interrupt-parent = <&intc>;
+			interrupts = <0 56 4>;
+			reg = <0x40050000 0x10000>;
+		};
+		GPIO_0: GPIO@40080000 {
+			compatible = "xlnx,GPIO-2.0";
+			interrupt-names = "gpio_interrupt_line";
+			interrupt-parent = <&intc>;
+			interrupts = <0 57 4>;
+			reg = <0x40080000 0x10000>;
+		};
+		Smartcard_0: Smartcard@400b0000 {
+			compatible = "xlnx,Smartcard-1.0";
+			reg = <0x400b0000 0x10000>;
+		};
+		axi_build_version_store_0: axi_build_version_store@40130000 {
+			compatible = "xlnx,axi-build-version-store-1.0";
+			reg = <0x40130000 0x10000>;
+			xlnx,s00-axi-addr-width = <0x4>;
+			xlnx,s00-axi-data-width = <0x20>;
+		};
+		axi_quad_spi_1: axi_quad_spi@40120000 {
+			bits-per-word = <8>;
+			compatible = "xlnx,xps-spi-2.00.a";
+			fifo-size = <0>;
+			num-cs = <0x2>;
+			reg = <0x40120000 0x10000>;
+			xlnx,num-ss-bits = <0x2>;
+			xlnx,spi-mode = <0>;
+		};
+		axi_quad_spi_2: axi_quad_spi@400c0000 {
+			bits-per-word = <8>;
+			compatible = "xlnx,xps-spi-2.00.a";
+			fifo-size = <16>;
+			interrupt-names = "ip2intc_irpt";
+			interrupt-parent = <&intc>;
+			interrupts = <0 35 1>;
+			num-cs = <0x1>;
+			reg = <0x400c0000 0x10000>;
+			xlnx,num-ss-bits = <0x1>;
+			xlnx,spi-mode = <0>;
+		};
+		axi_uart16550_0: serial@400f0000 {
+			clock-frequency = <66666672>;
+			clock-names = "s_axi_aclk";
+			clocks = <&clkc 15>;
+			compatible = "xlnx,xps-uart16550-2.00.a", "ns16550a";
+			current-speed = <115200>;
+			device_type = "serial";
+			interrupt-names = "ip2intc_irpt";
+			interrupt-parent = <&intc>;
+			interrupts = <0 36 4>;
+			port-number = <0>;
+			reg = <0x400f0000 0x10000>;
+			reg-offset = <0x1000>;
+			reg-shift = <2>;
+			xlnx,external-xin-clk-hz = <0x17d7840>;
+			xlnx,external-xin-clk-hz-d = <0x19>;
+			xlnx,has-external-rclk = <0x0>;
+			xlnx,has-external-xin = <0x0>;
+			xlnx,is-a-16550 = <0x1>;
+			xlnx,s-axi-aclk-freq-hz-d = "66.666672";
+			xlnx,use-modem-ports = <0x1>;
+			xlnx,use-user-ports = <0x1>;
+		};
+		axi_uart16550_1: serial@400e0000 {
+			clock-frequency = <66666672>;
+			clock-names = "s_axi_aclk";
+			clocks = <&clkc 15>;
+			compatible = "xlnx,xps-uart16550-2.00.a", "ns16550a";
+			current-speed = <115200>;
+			device_type = "serial";
+			interrupt-names = "ip2intc_irpt";
+			interrupt-parent = <&intc>;
+			interrupts = <0 52 4>;
+			port-number = <2>;
+			reg = <0x400e0000 0x10000>;
+			reg-offset = <0x1000>;
+			reg-shift = <2>;
+			xlnx,external-xin-clk-hz = <0x17d7840>;
+			xlnx,external-xin-clk-hz-d = <0x19>;
+			xlnx,has-external-rclk = <0x0>;
+			xlnx,has-external-xin = <0x0>;
+			xlnx,is-a-16550 = <0x0>;
+			xlnx,s-axi-aclk-freq-hz-d = "66.666672";
+			xlnx,use-modem-ports = <0x1>;
+			xlnx,use-user-ports = <0x1>;
+		};
+		axi_uart16550_2: serial@400d0000 {
+			clock-frequency = <66666672>;
+			clock-names = "s_axi_aclk";
+			clocks = <&clkc 15>;
+			compatible = "xlnx,xps-uart16550-2.00.a", "ns16550a";
+			current-speed = <115200>;
+			device_type = "serial";
+			interrupt-names = "ip2intc_irpt";
+			interrupt-parent = <&intc>;
+			interrupts = <0 53 4>;
+			port-number = <3>;
+			reg = <0x400d0000 0x10000>;
+			reg-offset = <0x1000>;
+			reg-shift = <2>;
+			xlnx,external-xin-clk-hz = <0x17d7840>;
+			xlnx,external-xin-clk-hz-d = <0x19>;
+			xlnx,has-external-rclk = <0x0>;
+			xlnx,has-external-xin = <0x0>;
+			xlnx,is-a-16550 = <0x1>;
+			xlnx,s-axi-aclk-freq-hz-d = "66.666672";
+			xlnx,use-modem-ports = <0x1>;
+			xlnx,use-user-ports = <0x1>;
+		};
+		galileo2_pcore_BUILD_0: galileo2_pcore_BUILD@40100000 {
+			compatible = "xlnx,galileo2-pcore-BUILD-1.0";
+			interrupt-names = "galileo2_pcore_interrupt";
+			interrupt-parent = <&intc>;
+			interrupts = <0 34 4>;
+			reg = <0x40100000 0x10000 0x40110000 0x10000>;
+			xlnx,s00-axi-addr-width = <0x9>;
+			xlnx,s00-axi-data-width = <0x20>;
+			xlnx,s01-axi-addr-width = <0xd>;
+			xlnx,s01-axi-data-width = <0x20>;
+		};
+		logicvc_1: logicvc@40030000 {
+			compatible = "xlnx,logicvc-4.2";
+			interrupt-names = "interrupt";
+			interrupt-parent = <&intc>;
+			interrupts = <0 55 4>;
+			reg = <0x40030000 0x10000>;
+			xlnx,buffer-0-offset = <0x400>;
+			xlnx,buffer-1-offset = <0x400>;
+			xlnx,buffer-2-offset = <0x400>;
+			xlnx,buffer-3-offset = <0x400>;
+			xlnx,buffer-4-offset = <0x400>;
+			xlnx,display-color-space = <0x0>;
+			xlnx,display-interface = <0x4>;
+			xlnx,dvi-clk-mode = <0x0>;
+			xlnx,e-data-width = <0x18>;
+			xlnx,e-layer = <0x0>;
+			xlnx,enable-three-state-control = <0x0>;
+			xlnx,increase-fifo = <0x1>;
+			xlnx,ip-license-check = <0x1>;
+			xlnx,ip-license-type = <0x2>;
+			xlnx,ip-major-revision = <0x4>;
+			xlnx,ip-minor-revision = <0x2>;
+			xlnx,ip-patch-level = <0x1>;
+			xlnx,ip-time-before-break = <0x0>;
+			xlnx,layer-0-addr = <0x00000000>;
+			xlnx,layer-0-alpha-mode = <0x0>;
+			xlnx,layer-0-data-width = <0x10>;
+			xlnx,layer-0-type = <0x0>;
+			xlnx,layer-1-addr = <0x00000000>;
+			xlnx,layer-1-alpha-mode = <0x0>;
+			xlnx,layer-1-data-width = <0x10>;
+			xlnx,layer-1-type = <0x0>;
+			xlnx,layer-2-addr = <0x00000000>;
+			xlnx,layer-2-alpha-mode = <0x0>;
+			xlnx,layer-2-data-width = <0x10>;
+			xlnx,layer-2-type = <0x0>;
+			xlnx,layer-3-addr = <0x00000000>;
+			xlnx,layer-3-alpha-mode = <0x0>;
+			xlnx,layer-3-data-width = <0x10>;
+			xlnx,layer-3-type = <0x0>;
+			xlnx,layer-4-addr = <0x00000000>;
+			xlnx,layer-4-alpha-mode = <0x0>;
+			xlnx,layer-4-data-width = <0x10>;
+			xlnx,layer-4-type = <0x0>;
+			xlnx,lvds-data-width = <0x3>;
+			xlnx,mem-burst = <0x4>;
+			xlnx,mem-byte-swap = <0x0>;
+			xlnx,mem-little-endian = <0x1>;
+			xlnx,mplb-awidth = <0x20>;
+			xlnx,mplb-dwidth = <0x40>;
+			xlnx,mplb-num-masters = <0x8>;
+			xlnx,mplb-priority = <0x3>;
+			xlnx,mplb-smallest-slave = <0x20>;
+			xlnx,num-of-layers = <0x1>;
+			xlnx,opb-awidth = <0x20>;
+			xlnx,opb-dwidth = <0x20>;
+			xlnx,pixel-data-width = <0x10>;
+			xlnx,readable-regs = <0x1>;
+			xlnx,reg-byte-swap = <0x0>;
+			xlnx,regs-interface = <0x2>;
+			xlnx,row-stride = <0x800>;
+			xlnx,use-background = <0x0>;
+			xlnx,use-e-parallel-input = <0x0>;
+			xlnx,use-e-vclk-bufgmux = <0x0>;
+			xlnx,use-emb-sync = <0x0>;
+			xlnx,use-ext-buffering = <0x0>;
+			xlnx,use-gpio = <0x0>;
+			xlnx,use-multiplier = <0x2>;
+			xlnx,use-size-position = <0x1>;
+			xlnx,use-vclk2 = <0x1>;
+			xlnx,use-xtreme-dsp = <0x1>;
+			xlnx,vclk-period = <0x61a8>;
+			xlnx,vmem-interface = <0x2>;
+			xlnx,xcolor = <0x0>;
+			xlnx,xmb-data-bus-width = <0x40>;
+		};
+	};
+};
+
+&logicvc_1 {
+    compatible = "xylon,logicvc-3.00.a";
+    //reg = <0x40030000 0x10000>;
+    interrupt-parent = <&intc>;
+    //interrupts = <0x0 0x1f 0x4>;
+    background-layer-bits-per-pixel = <16>;
+    background-layer-type = "rgb";
+    readable-regs;
+    size-position;
+    pixel-stride = <2048>;
+
+    xlnx,use-ext-buffering = <0x0>;
+    xlnx,use-emb-sync = <0x0>;
+    xlnx,use-gpio = <0x0>;
+    xlnx,use-xtreme-dsp = <0x1>;
+    layer_0 {
+        //address = <0x3C000000 0x2000000>;
+        //buffer-offset = <0>;
+        bits-per-pixel = <16>;
+        type = "rgb";
+        transparency = "layer";
+    };
+    display-timings {
+        LCD_10inch: 800x600 {
+            clock-frequency = <40000000>;
+            hactive = <800>;
+            vactive = <600>;
+            hfront-porch = <40>;
+            hback-porch = <88>;
+            hsync-len = <128>;
+            vfront-porch = <1>;
+            vback-porch = <23>;
+            vsync-len = <4>;
+        };
+        LCD_7inch: 800x480 {
+            clock-frequency = <30000000>;
+            hactive = <800>;
+            vactive = <480>;
+            hfront-porch = <40>;
+            hback-porch = <88>;
+            hsync-len = <128>;
+            vfront-porch = <1>;
+            vback-porch = <23>;
+            vsync-len = <4>;
+        };
+    };
+};
+
+
+&gem0 {
+        phy-mode = "rgmii-id";
+        status = "okay";
+        xlnx,ptp-enet-clock = <0x69f6bcb>;
+        local-mac-address = [00 0a 35 00 1e 53];
+};
+&gpio0 {
+        emio-gpio-width = <64>;
+        gpio-mask-high = <0x0>;
+        gpio-mask-low = <0x5600>;
+};
+&i2c0 {
+        clock-frequency = <400000>;
+        status = "okay";
+};
+&intc {
+        num_cpus = <2>;
+        num_interrupts = <96>;
+};
+&sdhci0 {
+        status = "okay";
+        xlnx,has-cd = <0x1>;
+        xlnx,has-power = <0x0>;
+        xlnx,has-wp = <0x1>;
+};
+&spi1 {
+        is-decoded-cs = <0>;
+        num-cs = <0x1>;
+        status = "okay";
+};
+&uart0 {
+        device_type = "serial";
+        port-number = <4>;
+        status = "okay";
+};
+&uart1 {
+        device_type = "serial";
+        port-number = <5>;
+        status = "okay";
+};
+&usb0 {
+        phy_type = "ulpi";
+        status = "okay";
+        usb-reset = <&gpio0 7 0>;
+};
