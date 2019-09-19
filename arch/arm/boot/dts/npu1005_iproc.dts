@@ -139,6 +139,26 @@
 		compatible = "dallas,ds1307";
 		reg = <0x68>;
 	};
+	userio@20 {
+		compatible = "nxp,pcf8574";
+		reg = <0x20>;
+		gpio-controller;
+		#gpio-cells = <0x2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		interrupt-parent = <&gpio_pcie>;
+		interrupts = <12 IRQ_TYPE_EDGE_FALLING>;
+	};
+	userio@21 {
+		compatible = "nxp,pcf8574";
+		reg = <0x21>;
+		gpio-controller;
+		#gpio-cells = <0x2>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+		interrupt-parent = <&gpio_pcie>;
+		interrupts = <11 IRQ_TYPE_EDGE_FALLING>;
+	};
 };
 
 &i2c1 {
