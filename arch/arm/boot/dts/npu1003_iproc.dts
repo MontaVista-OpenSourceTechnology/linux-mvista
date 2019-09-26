@@ -143,6 +143,7 @@
 		compatible = "nxp,pcf8574";
 		reg = <0x20>;
 		gpio-controller;
+		dedicated-out-pins = <0x10>;
 		#gpio-cells = <0x2>;
 		interrupt-controller;
 		#interrupt-cells = <2>;

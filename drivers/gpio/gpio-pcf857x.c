@@ -91,6 +91,7 @@ struct pcf857x {
 	unsigned		status;		/* current status */
 	unsigned int		irq_parent;
 	unsigned		irq_enabled;	/* enabled irqs */
+	unsigned		outputs;	/* dedicated outputs */
 
 	int (*write)(struct i2c_client *client, unsigned data);
 	int (*read)(struct i2c_client *client);
@@ -262,11 +263,13 @@ static int pcf857x_probe(struct i2c_client *client,
 	struct device_node		*np = client->dev.of_node;
 	struct pcf857x			*gpio;
 	unsigned int			n_latch = 0;
+	unsigned int			outputs = 0;
 	int				status;
 
-	if (IS_ENABLED(CONFIG_OF) && np)
+	if (IS_ENABLED(CONFIG_OF) && np) {
 		of_property_read_u32(np, "lines-initial-states", &n_latch);
-	else if (pdata)
+		of_property_read_u32(np, "dedicated-out-pins", &outputs);
+	} else if (pdata)
 		n_latch = pdata->n_latch;
 	else
 		dev_dbg(&client->dev, "no platform data\n");
@@ -287,6 +290,7 @@ static int pcf857x_probe(struct i2c_client *client,
 	gpio->chip.direction_input	= pcf857x_input;
 	gpio->chip.direction_output	= pcf857x_output;
 	gpio->chip.ngpio		= id->driver_data;
+	gpio->outputs			= outputs;
 
 	/* NOTE:  the OnSemi jlc1562b is also largely compatible with
 	 * these parts, notably for output.  It has a low-resolution
@@ -355,8 +359,15 @@ static int pcf857x_probe(struct i2c_client *client,
 	 * Using n_latch avoids that trouble.  When left initialized to zero,
 	 * our software copy of the "latch" then matches the chip's all-ones
 	 * reset state.  Otherwise it flags pins to be driven low.
+	 *
+	 * "outputs" contains a bitmask of dedicated output lines. By reading
+	 * back the register and preserve only the "dedicated outputs" the
+	 * code will not reset those I/Os. It can be set in the dts. If this
+	 * setting is not present in the dts the code will behave as it did
+	 * before.
 	 */
-	gpio->out = ~n_latch;
+	gpio->out = status | ~outputs;
+	gpio->out &= ~n_latch;
 	gpio->status = gpio->out;
 
 	status = devm_gpiochip_add_data(&client->dev, &gpio->chip, gpio);
@@ -440,9 +451,9 @@ static int pcf857x_remove(struct i2c_client *client)
 static void pcf857x_shutdown(struct i2c_client *client)
 {
 	struct pcf857x *gpio = i2c_get_clientdata(client);
-
-	/* Drive all the I/O lines high */
-	gpio->write(gpio->client, BIT(gpio->chip.ngpio) - 1);
+	unsigned int outval = gpio->read(gpio->client) | ~gpio->outputs;
+	/* Drive all the I/O lines high except those are reserved as output */
+	gpio->write(gpio->client, outval);
 }
 
 static struct i2c_driver pcf857x_driver = {

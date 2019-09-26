@@ -142,6 +142,7 @@
 	userio@20 {
 		compatible = "nxp,pcf8574";
 		reg = <0x20>;
+		dedicated-out-pins = <0x70>;
 		gpio-controller;
 		#gpio-cells = <0x2>;
 		interrupt-controller;
@@ -152,6 +153,7 @@
 	userio@21 {
 		compatible = "nxp,pcf8574";
 		reg = <0x21>;
+		dedicated-out-pins = <0x80>;
 		gpio-controller;
 		#gpio-cells = <0x2>;
 		interrupt-controller;
