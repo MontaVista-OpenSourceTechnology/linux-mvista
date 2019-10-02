@@ -36,7 +36,7 @@
                 serial1 = &uart1;
                 serial3 = &uart0;
                 serial4 = &uart1;
-                spi0 = &axi_quad_spi_1;
+                spi0 = "/amba/spi@e0007000";
                 spi1 = &axi_quad_spi_2;
                 spi2 = &spi1;
        };
