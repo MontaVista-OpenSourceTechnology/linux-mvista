@@ -152,5 +152,5 @@
 			clock-names = "fck";
 			bus_freq	= <2500000>;
 		};
-		/include/ "keystone-k2hk-netcp.dtsi"
+		/include/ "keystone-agib-netcp.dtsi"
 };
