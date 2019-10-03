@@ -434,6 +434,10 @@ static void xgs_serdes_init(struct phy_device *phy_dev)
 		/* Set autoneg */
 		data16 = IEEE0BLK_IEEECONTROL0_ENABLE_AN_MASK |
 				IEEE0BLK_IEEECONTROL0_RESTART_AN_MASK;
+#ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+		/* Set Full-duplex */
+		data16 |= IEEE0BLK_IEEECONTROL0_FULL_DUPLEX;
+#endif
 		xgs_serdes_wr_reg(phydev, XGXS16G_COMBO_IEEE0_MIICNTLr, data16);
 
 		/* Disable 10G parallel detect */
