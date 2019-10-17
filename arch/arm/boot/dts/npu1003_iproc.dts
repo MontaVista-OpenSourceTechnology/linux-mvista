@@ -152,6 +152,10 @@
 	};
 };
 
+&i2c1 {
+	status = "okay";
+};
+
 &nand {
 	status = "okay";
 	nandcs@1 {
