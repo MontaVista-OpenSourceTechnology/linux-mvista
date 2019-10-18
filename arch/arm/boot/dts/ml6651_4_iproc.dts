@@ -83,6 +83,17 @@
 		spi-cpha;
 		cs = <&gpio_ccg 0xe GPIO_ACTIVE_HIGH>;
 	};
+
+	npu_liu {
+		compatible = "ericsson,ml6651-npu-liu";
+		interrupts-extended =
+			<&gpio_ccg 7 IRQ_TYPE_EDGE_FALLING>;     // LIU_IRQ_N
+		// GPIO on MCU
+		liu_int   = <&gpio_ccg 7 GPIO_ACTIVE_LOW>; // LIU_IRQ_N
+		// GPIO on IO Expander
+		liu_reset = <&io_exp1 0 GPIO_ACTIVE_LOW>;  // LIU_RESET_N
+		liu_thz   = <&io_exp1 1 GPIO_ACTIVE_HIGH>; // LIU_THZ
+	};
 };
 
 &uart0 {
