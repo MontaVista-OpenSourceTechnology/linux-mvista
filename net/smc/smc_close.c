@@ -113,9 +113,10 @@ int smc_close_abort(struct smc_connection *conn)
 /* terminate smc socket abnormally - active abort
  * link group is terminated, i.e. RDMA communication no longer possible
  */
-static void smc_close_active_abort(struct smc_sock *smc)
+void smc_close_active_abort(struct smc_sock *smc)
 {
 	struct sock *sk = &smc->sk;
+	bool release_clcsock = false;
 
 	struct smc_cdc_conn_state_flags *txflags =
 		&smc->conn.local_tx_ctrl.conn_state_flags;
@@ -151,6 +152,8 @@ static void smc_close_active_abort(struct smc_sock *smc)
 		} else {
 			sk->sk_state = SMC_CLOSED;
 		}
+		smc_conn_free(&smc->conn);
+		release_clcsock = true;
 		sock_put(sk); /* passive closing */
 		break;
 	case SMC_PROCESSABORT:
@@ -168,6 +171,12 @@ static void smc_close_active_abort(struct smc_sock *smc)
 
 	smc_sock_set_flag(sk, SOCK_DEAD);
 	sk->sk_state_change(sk);
+
+	if (release_clcsock) {
+		release_sock(sk);
+		smc_clcsock_release(smc);
+		lock_sock(sk);
+	}
 }
 
 static inline bool smc_close_sent_any_close(struct smc_connection *conn)
@@ -355,12 +364,6 @@ static void smc_close_passive_work(struct work_struct *work)
 
 	lock_sock(sk);
 	old_state = sk->sk_state;
-
-	if (conn->killed) {
-		/* abnormal termination */
-		smc_close_active_abort(smc);
-		goto wakeup;
-	}
 
 	rxflags = &conn->local_rx_ctrl.conn_state_flags;
 	if (rxflags->peer_conn_abort) {
