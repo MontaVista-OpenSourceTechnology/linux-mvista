@@ -132,18 +132,18 @@ static int ohci_platform_probe(struct platform_device *dev)
 	if (usb_disabled())
 		return -ENODEV;
 
-	if (IS_ENABLED(CONFIG_USB_OHCI_XGS_IPROC)) {
-		phy = devm_usb_get_phy_by_phandle(&dev->dev, "usb-phy", 0);
-		if (IS_ERR(phy)) {
-			dev_err(&dev->dev, "unable to find transceiver\n");
-			return PTR_ERR(phy);
-		}
-
-		if (phy->flags != IPROC_USB_MODE_HOST)
-			return -ENODEV;
-
-		usb_phy_init(phy);
+#if IS_ENABLED(CONFIG_USB_OHCI_XGS_IPROC)
+	phy = devm_usb_get_phy_by_phandle(&dev->dev, "usb-phy", 0);
+	if (IS_ERR(phy)) {
+		dev_err(&dev->dev, "unable to find transceiver\n");
+		return PTR_ERR(phy);
 	}
+
+	if (phy->flags != IPROC_USB_MODE_HOST)
+		return -ENODEV;
+
+	usb_phy_init(phy);
+#endif
 
 	/*
 	 * Use reasonable defaults so platforms don't have to provide these
@@ -285,12 +285,12 @@ static int ohci_platform_probe(struct platform_device *dev)
 	hcd->rsrc_start = res_mem->start;
 	hcd->rsrc_len = resource_size(res_mem);
 
-	if (IS_ENABLED(CONFIG_USB_OHCI_XGS_IPROC)) {
-		if (of_find_property(dev->dev.of_node, "iproc-ocpm-fix", NULL))
-			writel(readl(hcd->regs + UHCRHDA_REG_OFFSET) |
-				UHCRHDA_OCPM, hcd->regs + UHCRHDA_REG_OFFSET);
-		hcd->usb_phy = phy;
-	}
+#if IS_ENABLED(CONFIG_USB_OHCI_XGS_IPROC)
+	if (of_find_property(dev->dev.of_node, "iproc-ocpm-fix", NULL))
+		writel(readl(hcd->regs + UHCRHDA_REG_OFFSET) |
+			UHCRHDA_OCPM, hcd->regs + UHCRHDA_REG_OFFSET);
+	hcd->usb_phy = phy;
+#endif
 
 	err = usb_add_hcd(hcd, irq, IRQF_SHARED);
 	if (err)

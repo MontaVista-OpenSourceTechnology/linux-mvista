@@ -163,18 +163,18 @@ static int ehci_platform_probe(struct platform_device *dev)
 	if (usb_disabled())
 		return -ENODEV;
 
-	if (IS_ENABLED(CONFIG_USB_EHCI_XGS_IPROC)) {
-		phy = devm_usb_get_phy_by_phandle(&dev->dev, "usb-phy", 0);
-		if (IS_ERR(phy)) {
-			dev_err(&dev->dev, "unable to find transceiver\n");
-			return PTR_ERR(phy);
-		}
-
-		if (phy->flags != IPROC_USB_MODE_HOST)
-			return -ENODEV;
-
-		usb_phy_init(phy);
+#if IS_ENABLED(CONFIG_USB_EHCI_XGS_IPROC)
+	phy = devm_usb_get_phy_by_phandle(&dev->dev, "usb-phy", 0);
+	if (IS_ERR(phy)) {
+		dev_err(&dev->dev, "unable to find transceiver\n");
+		return PTR_ERR(phy);
 	}
+
+	if (phy->flags != IPROC_USB_MODE_HOST)
+		return -ENODEV;
+
+	usb_phy_init(phy);
+#endif
 
 	/*
 	 * Use reasonable defaults so platforms don't have to provide these
@@ -326,9 +326,10 @@ static int ehci_platform_probe(struct platform_device *dev)
 	device_wakeup_enable(hcd->self.controller);
 	device_enable_async_suspend(hcd->self.controller);
 
-	if (IS_ENABLED(CONFIG_USB_EHCI_XGS_IPROC))
-		ehci_writel(ehci, BCM_USB_FIFO_THRESHOLD,
-				&ehci->regs->reserved4[6]);
+#if IS_ENABLED(CONFIG_USB_EHCI_XGS_IPROC)
+	ehci_writel(ehci, BCM_USB_FIFO_THRESHOLD,
+		    &ehci->regs->reserved4[6]);
+#endif
 
 	platform_set_drvdata(dev, hcd);
 
