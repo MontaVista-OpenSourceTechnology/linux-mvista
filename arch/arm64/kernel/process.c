@@ -358,7 +358,7 @@ static void ssbs_thread_switch(struct task_struct *next)
 	    test_tsk_thread_flag(next, TIF_SSBD))
 		return;
 
-	if (compat_user_mode(regs))
+	if (a32_user_mode(regs))
 		set_compat_ssbs_bit(regs);
 	else if (user_mode(regs))
 		set_ssbs_bit(regs);
