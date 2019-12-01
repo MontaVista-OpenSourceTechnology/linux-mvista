@@ -276,7 +276,7 @@ retry:
 		mapping = dst_vma->vm_file->f_mapping;
 		i_mmap_lock_read(mapping);
 		idx = linear_page_index(dst_vma, dst_addr);
-		hash = hugetlb_fault_mutex_hash(h, mapping, idx);
+		hash = hugetlb_fault_mutex_hash(mapping, idx);
 		mutex_lock(&hugetlb_fault_mutex_table[hash]);
 
 		err = -ENOMEM;

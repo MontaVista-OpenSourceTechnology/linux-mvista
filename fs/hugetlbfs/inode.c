@@ -496,7 +496,7 @@ static void remove_inode_hugepages(struct inode *inode, loff_t lstart,
 			u32 hash;
 
 			index = page->index;
-			hash = hugetlb_fault_mutex_hash(h, mapping, index);
+			hash = hugetlb_fault_mutex_hash(mapping, index);
 			if (!truncate_op) {
 				/*
 				 * Only need to hold the fault mutex in the
@@ -713,7 +713,7 @@ static long hugetlbfs_fallocate(struct file *file, int mode, loff_t offset,
 		 * and hole punch.  inode_lock previously taken protects
 		 * against truncation.
 		 */
-		hash = hugetlb_fault_mutex_hash(h, mapping, index);
+		hash = hugetlb_fault_mutex_hash(mapping, index);
 		mutex_lock(&hugetlb_fault_mutex_table[hash]);
 
 		/* See if already present in mapping to avoid alloc/free */
