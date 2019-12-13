@@ -36,7 +36,7 @@ static void perf_output_wakeup(struct perf_output_handle *handle)
  */
 static void perf_output_get_handle(struct perf_output_handle *handle)
 {
-	struct ring_buffer *rb = handle->rb;
+	struct perf_buffer *rb = handle->rb;
 
 	preempt_disable();
 	local_inc(&rb->nest);
@@ -45,7 +45,7 @@ static void perf_output_get_handle(struct perf_output_handle *handle)
 
 static void perf_output_put_handle(struct perf_output_handle *handle)
 {
-	struct ring_buffer *rb = handle->rb;
+	struct perf_buffer *rb = handle->rb;
 	unsigned long head;
 
 again:
@@ -144,7 +144,7 @@ __perf_output_begin(struct perf_output_handle *handle,
 		    struct perf_event *event, unsigned int size,
 		    bool backward)
 {
-	struct ring_buffer *rb;
+	struct perf_buffer *rb;
 	unsigned long tail, offset, head;
 	int have_lost, page_shift;
 	struct {
@@ -298,7 +298,7 @@ void perf_output_end(struct perf_output_handle *handle)
 }
 
 static void
-ring_buffer_init(struct ring_buffer *rb, long watermark, int flags)
+ring_buffer_init(struct perf_buffer *rb, long watermark, int flags)
 {
 	long max_size = perf_data_size(rb);
 
@@ -358,7 +358,7 @@ void *perf_aux_output_begin(struct perf_output_handle *handle,
 {
 	struct perf_event *output_event = event;
 	unsigned long aux_head, aux_tail;
-	struct ring_buffer *rb;
+	struct perf_buffer *rb;
 
 	if (output_event->parent)
 		output_event = output_event->parent;
@@ -442,7 +442,7 @@ err:
 }
 EXPORT_SYMBOL_GPL(perf_aux_output_begin);
 
-static __always_inline bool rb_need_aux_wakeup(struct ring_buffer *rb)
+static __always_inline bool rb_need_aux_wakeup(struct perf_buffer *rb)
 {
 	if (rb->aux_overwrite)
 		return false;
@@ -468,7 +468,7 @@ static __always_inline bool rb_need_aux_wakeup(struct ring_buffer *rb)
 void perf_aux_output_end(struct perf_output_handle *handle, unsigned long size)
 {
 	bool wakeup = !!(handle->aux_flags & PERF_AUX_FLAG_TRUNCATED);
-	struct ring_buffer *rb = handle->rb;
+	struct perf_buffer *rb = handle->rb;
 	unsigned long aux_head;
 
 	/* in overwrite mode, driver provides aux_head via handle */
@@ -518,7 +518,7 @@ EXPORT_SYMBOL_GPL(perf_aux_output_end);
  */
 int perf_aux_output_skip(struct perf_output_handle *handle, unsigned long size)
 {
-	struct ring_buffer *rb = handle->rb;
+	struct perf_buffer *rb = handle->rb;
 
 	if (size > handle->size)
 		return -ENOSPC;
@@ -576,7 +576,7 @@ static struct page *rb_alloc_aux_page(int node, int order)
 	return page;
 }
 
-static void rb_free_aux_page(struct ring_buffer *rb, int idx)
+static void rb_free_aux_page(struct perf_buffer *rb, int idx)
 {
 	struct page *page = virt_to_page(rb->aux_pages[idx]);
 
@@ -585,7 +585,7 @@ static void rb_free_aux_page(struct ring_buffer *rb, int idx)
 	__free_page(page);
 }
 
-static void __rb_free_aux(struct ring_buffer *rb)
+static void __rb_free_aux(struct perf_buffer *rb)
 {
 	int pg;
 
@@ -612,7 +612,7 @@ static void __rb_free_aux(struct ring_buffer *rb)
 	}
 }
 
-int rb_alloc_aux(struct ring_buffer *rb, struct perf_event *event,
+int rb_alloc_aux(struct perf_buffer *rb, struct perf_event *event,
 		 pgoff_t pgoff, int nr_pages, long watermark, int flags)
 {
 	bool overwrite = !(flags & RING_BUFFER_WRITABLE);
@@ -706,7 +706,7 @@ out:
 	return ret;
 }
 
-void rb_free_aux(struct ring_buffer *rb)
+void rb_free_aux(struct perf_buffer *rb)
 {
 	if (atomic_dec_and_test(&rb->aux_refcount))
 		__rb_free_aux(rb);
@@ -719,7 +719,7 @@ void rb_free_aux(struct ring_buffer *rb)
  */
 
 static struct page *
-__perf_mmap_to_page(struct ring_buffer *rb, unsigned long pgoff)
+__perf_mmap_to_page(struct perf_buffer *rb, unsigned long pgoff)
 {
 	if (pgoff > rb->nr_pages)
 		return NULL;
@@ -743,13 +743,13 @@ static void *perf_mmap_alloc_page(int cpu)
 	return page_address(page);
 }
 
-struct ring_buffer *rb_alloc(int nr_pages, long watermark, int cpu, int flags)
+struct perf_buffer *rb_alloc(int nr_pages, long watermark, int cpu, int flags)
 {
-	struct ring_buffer *rb;
+	struct perf_buffer *rb;
 	unsigned long size;
 	int i;
 
-	size = sizeof(struct ring_buffer);
+	size = sizeof(struct perf_buffer);
 	size += nr_pages * sizeof(void *);
 
 	if (order_base_2(size) >= PAGE_SHIFT+MAX_ORDER)
@@ -796,7 +796,7 @@ static void perf_mmap_free_page(unsigned long addr)
 	__free_page(page);
 }
 
-void rb_free(struct ring_buffer *rb)
+void rb_free(struct perf_buffer *rb)
 {
 	int i;
 
@@ -807,13 +807,13 @@ void rb_free(struct ring_buffer *rb)
 }
 
 #else
-static int data_page_nr(struct ring_buffer *rb)
+static int data_page_nr(struct perf_buffer *rb)
 {
 	return rb->nr_pages << page_order(rb);
 }
 
 static struct page *
-__perf_mmap_to_page(struct ring_buffer *rb, unsigned long pgoff)
+__perf_mmap_to_page(struct perf_buffer *rb, unsigned long pgoff)
 {
 	/* The '>' counts in the user page. */
 	if (pgoff > data_page_nr(rb))
@@ -831,11 +831,11 @@ static void perf_mmap_unmark_page(void *addr)
 
 static void rb_free_work(struct work_struct *work)
 {
-	struct ring_buffer *rb;
+	struct perf_buffer *rb;
 	void *base;
 	int i, nr;
 
-	rb = container_of(work, struct ring_buffer, work);
+	rb = container_of(work, struct perf_buffer, work);
 	nr = data_page_nr(rb);
 
 	base = rb->user_page;
@@ -847,18 +847,18 @@ static void rb_free_work(struct work_struct *work)
 	kfree(rb);
 }
 
-void rb_free(struct ring_buffer *rb)
+void rb_free(struct perf_buffer *rb)
 {
 	schedule_work(&rb->work);
 }
 
-struct ring_buffer *rb_alloc(int nr_pages, long watermark, int cpu, int flags)
+struct perf_buffer *rb_alloc(int nr_pages, long watermark, int cpu, int flags)
 {
-	struct ring_buffer *rb;
+	struct perf_buffer *rb;
 	unsigned long size;
 	void *all_buf;
 
-	size = sizeof(struct ring_buffer);
+	size = sizeof(struct perf_buffer);
 	size += sizeof(void *);
 
 	rb = kzalloc(size, GFP_KERNEL);
@@ -892,7 +892,7 @@ fail:
 #endif
 
 struct page *
-perf_mmap_to_page(struct ring_buffer *rb, unsigned long pgoff)
+perf_mmap_to_page(struct perf_buffer *rb, unsigned long pgoff)
 {
 	if (rb->aux_nr_pages) {
 		/* above AUX space */
