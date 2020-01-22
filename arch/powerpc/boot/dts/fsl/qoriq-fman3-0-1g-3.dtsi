@@ -58,5 +58,6 @@ fman@400000 {
 		#size-cells = <0>;
 		compatible = "fsl,fman-memac-mdio";
 		reg = <0xe7000 0x1000>;
+		fsl,erratum-a011043; /* must ignore read errors */
 	};
 };
