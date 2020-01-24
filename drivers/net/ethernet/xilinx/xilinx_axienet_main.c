@@ -748,11 +748,13 @@ axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	dma_addr_t tail_p, phys;
 	struct axienet_local *lp = netdev_priv(ndev);
 	struct axidma_bd *cur_p;
-	u32 orig_tail_ptr = lp->tx_bd_tail;
+	u32 orig_tail_ptr = lp->tx_bd_tail; /* FIXME */
+	unsigned long flags;
 
 	num_frag = skb_shinfo(skb)->nr_frags;
 	cur_p = &lp->tx_bd_v[lp->tx_bd_tail];
 
+	spin_lock_irqsave(&lp->tx_lock, flags);
 	if (axienet_check_tx_bd_space(lp, num_frag + 1)) {
 		/* Should not happen as last start_xmit call should have
 		 * checked for sufficient space and queue should only be
@@ -761,6 +763,7 @@ axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		netif_stop_queue(ndev);
 		if (net_ratelimit())
 			netdev_warn(ndev, "TX ring unexpectedly full\n");
+		spin_unlock_irqrestore(&lp->tx_lock, flags);
 		return NETDEV_TX_BUSY;
 	}
 
@@ -785,6 +788,7 @@ axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		if (net_ratelimit())
 			netdev_err(ndev, "TX DMA mapping error\n");
 		ndev->stats.tx_dropped++;
+		spin_unlock_irqrestore(&lp->tx_lock, flags);
 		return NETDEV_TX_OK;
 	}
 	desc_set_phys_addr(lp, phys, cur_p);
@@ -807,6 +811,7 @@ axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 					      NULL);
 			lp->tx_bd_tail = orig_tail_ptr;
 
+			spin_unlock_irqrestore(&lp->tx_lock, flags);
 			return NETDEV_TX_OK;
 		}
 		desc_set_phys_addr(lp, phys, cur_p);
@@ -836,6 +841,7 @@ axienet_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		if (!axienet_check_tx_bd_space(lp, MAX_SKB_FRAGS + 1))
 			netif_wake_queue(ndev);
 	}
+	spin_unlock_irqrestore(&lp->tx_lock, flags);
 
 	return NETDEV_TX_OK;
 }
@@ -2122,6 +2128,7 @@ static int axienet_probe(struct platform_device *pdev)
 	if (lp->eth_irq <= 0)
 		dev_info(&pdev->dev, "Ethernet core IRQ not defined\n");
 
+	spin_lock_init(&lp->tx_lock);
 	spin_lock_init(&lp->rx_lock);
 
 	/* Retrieve the MAC address */
