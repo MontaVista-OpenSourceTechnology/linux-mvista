@@ -45,14 +45,14 @@
 #include <dt-bindings/gpio/gpio.h>
 
 / {
-	model = "Marvell Armada 385 Access Point Development Board";
+	model = "Marvell a385 based PT040 Board";
 	compatible = "marvell,a385-db-ap", "marvell,armada385", "marvell,armada380";
 	chosen {
 		stdout-path = "serial1:115200n8";
 	};
 	memory {
 		device_type = "memory";
-		reg = <0x00000000 0x80000000>; /* 2GB */
+		reg = <0x00000000 0x10000000>; /* 256MB */
 	};
 	soc {
 		pcie-mem-aperture = <0xe0000000 0x8000000>;
@@ -126,6 +126,9 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&mdio_pins>;
 
+				phy0: ethernet-phy@0 {
+					reg = <999>;
+				};
 				phy1: ethernet-phy@1 {
 					reg = <999>;
 				};
@@ -158,11 +161,27 @@
 					marvell,function = "gpio";
 				};
 			};
+			/* CON4 */
+			ethernet@70000 {
+				/*pinctrl-names = "default";*/
+
+				/*
+				 * The Reference Clock 0 is used to
+				 * provide a clock to the PHY
+				 */
+				/*pinctrl-0 = <&ge0_rgmii_pins>, <&ref_clk0_pins>;*/
+				status = "disabled";
+				phy = <&phy0>;
+				phy-mode = "sgmii";
+				buffer-manager = <&bm>;
+				bm,pool-long = <0>;
+				bm,pool-short = <3>;
+			};
 
 			/* CON3 */
 			ethernet@30000 {
 				status = "okay";
-				phy = <&phy2>;
+				phy = <&phy1>;
 				phy-mode = "sgmii";
 				buffer-manager = <&bm>;
 				bm,pool-long = <1>;
@@ -172,7 +191,7 @@
 			/* CON2 */
 			ethernet@34000 {
 				status = "okay";
-				phy = <&phy1>;
+				phy = <&phy2>;
 				phy-mode = "sgmii";
 				buffer-manager = <&bm>;
 				bm,pool-long = <2>;
