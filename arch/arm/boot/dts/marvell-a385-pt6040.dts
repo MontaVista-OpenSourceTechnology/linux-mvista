@@ -64,32 +64,20 @@
 			MBUS_ID(0x0c, 0x04) 0 0xf1200000 0x100000     /* BM: PHYS=0xf1200000 size 1M */
 			MBUS_ID(0x0b, 0x04) 0 0xf1300000 0x100000>;   /* PNC: PHYS=0xf1300000 size 1M */
 
-		devbus-bootcs {
-			status = "okay";
-			/* Device Bus parameters are required */
-			/* Read parameters */
-			devbus,bus-width    = <8>;
-			devbus,turn-off-ps  = <60000>;
-			devbus,badr-skew-ps = <0>;
-			devbus,acc-first-ps = <124000>;
-			devbus,acc-next-ps  = <248000>;
-			devbus,rd-setup-ps  = <0>;
-			devbus,rd-hold-ps   = <0>;
-			/* Write parameters */
-			devbus,sync-enable = <0>;
-			devbus,wr-high-ps  = <60000>;
-			devbus,wr-low-ps   = <60000>;
-			devbus,ale-wr-ps   = <60000>;
-			nor@0 {
-				compatible = "spansion,s29gl064n90bfi03", "cfi-flash";
-				/* 8 MiB */
-				reg = <0 0x800000>;
-				bank-width = <1>;
-				/* Persistent Protection Bit (PPB) support */
-				use-advanced-sector-protection;
-				#address-cells = <1>;
-				#size-cells = <1>;
-			};
+		spi1:spi@10680 {
+        		pinctrl-names = "default";
+		        pinctrl-0 = <&spi1_pins>;
+			delay_after_cs_disable = <0 0 0 0>;
+			delay_after_cs_enable = <0 0 0 0>;
+		        status = "okay";
+
+		        spi-flash@0 {
+                		#address-cells = <1>;
+		                #size-cells = <1>;
+		                compatible = "jedec,spi-nor";
+		                reg = <0>; /* Chip select 0 */
+		                spi-max-frequency = <108000000>;
+		        };
 		};
 		internal-regs {
 
