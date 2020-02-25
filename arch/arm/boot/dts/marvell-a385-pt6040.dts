@@ -85,9 +85,73 @@
 				status = "disabled";
 			};
 
-			i2c0: i2c@11000 {
+			i2c@11000 {
+				pinctrl-names = "default";
+                                pinctrl-0 = <&i2c0_pins>;
 				status = "okay";
 				clock-frequency = <100000>;
+				idt: idt@6C {
+					compatible = "at,24c32";
+					reg = <0x6C>;
+				};
+				mux@70 {
+                                        compatible = "nxp,pca9548";
+                                        reg = <0x70>;
+                                        #address-cells = <1>;
+                                        #size-cells = <0>;
+
+                                        i2c@0 {
+                                                #address-cells = <1>;
+                                                #size-cells = <0>;
+                                                reg = <0>;
+                                                eeprom@50 {
+                                                        compatible = "atmel,24c02";
+                                                        reg = <0x50>;
+                                                };
+                                                eeprom@51 {
+                                                        compatible = "atmel,24c02";
+                                                        reg = <0x51>;
+                                                };
+                                                eeprom@52 {
+                                                        compatible = "atmel,24c02";
+                                                        reg = <0x52>;
+                                                };
+                                        };
+                                        i2c@1 {
+                                                #address-cells = <1>;
+                                                #size-cells = <0>;
+                                                reg = <1>;
+                                                sfp_msa2: eeprom@50 {
+                                                        compatible = "atmel,24c02";
+                                                        reg = <0x50>;
+                                                };
+                                                sfp_ddm2: eeprom@51 {
+                                                        compatible = "atmel,24c02";
+                                                        reg = <0x51>;
+                                                };
+                                                sfp_loop2: eeprom@52 {
+                                                        compatible = "atmel,24c02";
+                                                        reg = <0x52>;
+                                                };
+                                        };
+                                        i2c@2 {
+                                                #address-cells = <1>;
+                                                #size-cells = <0>;
+                                                reg = <2>;
+                                                sfp_msa3: eeprom@50 {
+                                                        compatible = "atmel,24c02";
+                                                        reg = <0x50>;
+                                                };
+                                                sfp_ddm3: eeprom@51 {
+                                                        compatible = "atmel,24c02";
+                                                        reg = <0x51>;
+                                                };
+                                                sfp_loop3: eeprom@52 {
+                                                        compatible = "atmel,24c02";
+                                                        reg = <0x52>;
+                                                };
+					};
+				};
 				gpio3: gpio@22 {
 					compatible = "nxp,pca9535";
 					reg = <0x22>;
@@ -100,12 +164,18 @@
 					#gpio-cells = <2>;
 					gpio-controller;
 				};
+				/* Board temp sensor */
 				adt75@49 {
 					compatible = "ad,adt75";
 					reg = <0x49>;
 				};
+				/* SFP near temp sensor */
+				adt75@4a {
+					compatible = "ad,adt75";
+					reg = <0x4a>;
+				};
 			};
-			i2c1: i2c@11100 {
+			i2c@11100 {
 				status = "disabled";
 				clock-frequency = <100000>;
 			};
