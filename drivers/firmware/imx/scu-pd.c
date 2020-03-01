@@ -237,6 +237,9 @@ static const struct imx_sc_pd_range imx8qxp_scu_pd_ranges[] = {
 	{ "v2x_mu", IMX_SC_R_V2X_MU_2, 1, true, 2},
 	{ "v2x_mu", IMX_SC_R_V2X_MU_3, 2, true, 3},
 
+	/* DB SS */
+	{ "perf", IMX_SC_R_PERF, 1, false, 0},
+
 	/* IMAGE SS */
 	{ "img-pdma", IMX_SC_R_ISI_CH0, 8, true, 0 },
 	{ "img-csi0", IMX_SC_R_CSI_0, 1, false, 0 },
