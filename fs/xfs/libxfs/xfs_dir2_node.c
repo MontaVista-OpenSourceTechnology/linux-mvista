@@ -207,6 +207,7 @@ __xfs_dir3_free_read(
 	if (!xfs_dir3_free_header_check(dp, fbno, *bpp)) {
 		xfs_verifier_error(*bpp, -EFSCORRUPTED);
 		xfs_trans_brelse(tp, *bpp);
+		*bpp = NULL;
 		return -EFSCORRUPTED;
 	}
 
