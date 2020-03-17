@@ -532,6 +532,7 @@ struct ring_buffer_iter {
 	struct buffer_page		*cache_reader_page;
 	unsigned long			cache_read;
 	u64				read_stamp;
+	u64				page_stamp;
 };
 
 /**
@@ -1983,7 +1984,7 @@ static void rb_inc_iter(struct ring_buffer_iter *iter)
 	else
 		rb_inc_page(cpu_buffer, &iter->head_page);
 
-	iter->read_stamp = iter->head_page->page->time_stamp;
+	iter->page_stamp = iter->read_stamp = iter->head_page->page->time_stamp;
 	iter->head = 0;
 }
 
@@ -3622,10 +3623,13 @@ static void rb_iter_reset(struct ring_buffer_iter *iter)
 	iter->cache_reader_page = iter->head_page;
 	iter->cache_read = cpu_buffer->read;
 
-	if (iter->head)
+	if (iter->head) {
 		iter->read_stamp = cpu_buffer->read_stamp;
-	else
+		iter->page_stamp = cpu_buffer->reader_page->page->time_stamp;
+	} else {
 		iter->read_stamp = iter->head_page->page->time_stamp;
+		iter->page_stamp = iter->read_stamp;
+	}
 }
 
 /**
