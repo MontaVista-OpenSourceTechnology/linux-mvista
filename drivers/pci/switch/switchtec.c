@@ -176,7 +176,11 @@ static int mrpc_queue_cmd(struct switchtec_user *stuser)
 	kref_get(&stuser->kref);
 	stuser->read_len = sizeof(stuser->data);
 	stuser_set_state(stuser, MRPC_QUEUED);
+<<<<<<< HEAD
 	stuser->cmd_done = false;
+=======
+	reinit_completion(&stuser->comp);
+>>>>>>> f7eff77c4202... PCI/switchtec: Fix init_completion race condition with poll_wait()
 	list_add_tail(&stuser->list, &stdev->mrpc_queue);
 
 	mrpc_cmd_submit(stdev);
