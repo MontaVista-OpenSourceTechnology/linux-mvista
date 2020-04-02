@@ -111,6 +111,8 @@ u32 hugetlb_fault_mutex_hash(struct hstate *h, struct address_space *mapping,
 
 pte_t *huge_pmd_share(struct mm_struct *mm, unsigned long addr, pud_t *pud);
 
+struct address_space *hugetlb_page_mapping_lock_write(struct page *hpage);
+
 extern int sysctl_hugetlb_shm_group;
 extern struct list_head huge_boot_pages;
 
@@ -151,6 +153,12 @@ static inline void reset_vma_resv_huge_pages(struct vm_area_struct *vma)
 static inline unsigned long hugetlb_total_pages(void)
 {
 	return 0;
+}
+
+static inline struct address_space *hugetlb_page_mapping_lock_write(
+							struct page *hpage)
+{
+	return NULL;
 }
 
 static inline int huge_pmd_unshare(struct mm_struct *mm, unsigned long *addr,
