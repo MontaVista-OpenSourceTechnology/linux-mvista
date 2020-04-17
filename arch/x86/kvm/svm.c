@@ -4195,6 +4195,13 @@ static int avic_handle_apic_id_update(struct kvm_vcpu *vcpu)
 	to_svm(vcpu)->avic_physical_id_cache = new;
 
 	/*
+	 * If RIP is invalid, go ahead with emulation which will cause an
+	 * internal error exit.
+	 */
+	if (!kvm_vcpu_gfn_to_memslot(vcpu, kvm_rip_read(vcpu) >> PAGE_SHIFT))
+		return true;
+
+	/*
 	 * Also update the guest physical APIC ID in the logical
 	 * APIC ID table entry if already setup the LDR.
 	 */
