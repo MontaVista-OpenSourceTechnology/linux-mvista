@@ -131,7 +131,7 @@
 			xlnx,spi-mode = <0>;
 		};
 		axi_quad_spi_2: axi_quad_spi@400c0000 {
-			bits-per-word = <8>;
+			bits-per-word = <16>;
 			compatible = "xlnx,xps-spi-2.00.a";
 			fifo-size = <16>;
 			interrupt-names = "ip2intc_irpt";
