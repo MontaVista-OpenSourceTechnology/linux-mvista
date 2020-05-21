@@ -217,6 +217,9 @@ static void fsl_espi_fill_tx_fifo(struct fsl_espi *espi, u32 events)
 	unsigned int tx_left;
 	const void *tx_buf;
 
+	if (!espi->tx_t) /* In case we get a spurious interrupt. */
+		return;
+
 	/* if events is zero transfer has not started and tx fifo is empty */
 	tx_fifo_avail = events ? SPIE_TXCNT(events) :  FSL_ESPI_FIFO_SIZE;
 start:
@@ -274,6 +277,8 @@ static void fsl_espi_read_rx_fifo(struct fsl_espi *espi, u32 events)
 	unsigned int rx_left;
 	void *rx_buf;
 
+	if (!rx_fifo_avail) /* In case we get a spurious interrupt. */
+		return;
 start:
 	rx_left = espi->rx_t->len - espi->rx_pos;
 	rx_buf = espi->rx_t->rx_buf;
