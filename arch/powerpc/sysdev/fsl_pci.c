@@ -131,6 +131,27 @@ static int fsl_pci_dma_set_mask(struct device *dev, u64 dma_mask)
 		return -EIO;
 
 	/*
+	 * If the new mask is larger than either the host window or the
+	 * bridge's mask, use the smallest mask.
+	 */
+	if (dev_is_pci(dev)) {
+		struct pci_dev *pdev = to_pci_dev(dev);
+		struct pci_controller *phb = pci_bus_to_host(pdev->bus);
+		unsigned int host_dma_bits = ilog2(phb->dma_window_size);
+		u64 new_mask = DMA_BIT_MASK(host_dma_bits);
+
+		if (dma_mask > new_mask)
+			dma_mask = new_mask;
+
+		if (pdev->bus->bridge) {
+			u64 *bmask = pdev->bus->bridge->dma_mask;
+
+			if (bmask && dma_mask > *bmask)
+				dma_mask = *bmask;
+		}
+	}
+
+	/*
 	 * Fix up PCI devices that are able to DMA to the large inbound
 	 * mapping that allows addressing any RAM address from across PCI.
 	 */
