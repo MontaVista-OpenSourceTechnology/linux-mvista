@@ -2968,6 +2968,7 @@ static int _nfs4_open_and_get_state(struct nfs4_opendata *opendata,
 	int ret;
 
 	seq = raw_seqcount_begin(&sp->so_reclaim_seqlock.seqcount);
+	dir_verifier = nfs_save_change_attribute(dir);
 
 	ret = _nfs4_proc_open(opendata, ctx);
 	if (ret != 0)
