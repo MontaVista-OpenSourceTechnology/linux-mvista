@@ -36,9 +36,9 @@ static inline __u32 inotify_mark_user_mask(struct fsnotify_mark *fsn_mark)
 
 extern void inotify_ignored_and_remove_idr(struct fsnotify_mark *fsn_mark,
 					   struct fsnotify_group *group);
-extern int inotify_handle_event(struct fsnotify_group *group,
-				struct inode *inode,
-				u32 mask, const void *data, int data_type,
+extern int inotify_handle_event(struct fsnotify_group *group, u32 mask,
+				const void *data, int data_type,
+				struct inode *dir,
 				const struct qstr *file_name, u32 cookie,
 				struct fsnotify_iter_info *iter_info);
 
