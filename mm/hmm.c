@@ -896,7 +896,7 @@ long hmm_range_fault(struct hmm_range *range, unsigned int flags)
 	struct vm_area_struct *vma;
 	int ret;
 
-	lockdep_assert_held(&hmm->mmu_notifier.mm->mmap_sem);
+	mmap_assert_locked(mm);
 
 	do {
 		/* If range is no longer valid force retry. */
