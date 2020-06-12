@@ -837,6 +837,13 @@ config SPRD_WATCHDOG
 	  Say Y here to include watchdog timer supported
 	  by Spreadtrum system.
 
+config AGIB_BMUQ_WATCHDOG
+	tristate "AGIB BMUQ watchdog support"
+	depends on OF && I2C && AGIB_BMUQT
+	select WATCHDOG_CORE
+	help
+	  Say Y here to include BMUQ watchdog on AGIB board
+
 # X86 (i386 + ia64 + x86_64) Architecture
 
 config ACQUIRE_WDT
