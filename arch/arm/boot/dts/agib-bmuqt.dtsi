@@ -2,5 +2,10 @@
 	bmu@31 {
 		compatible = "bmuqt";
 		reg = <0x31>;
+		
+		bmuq_watchdog {
+			compatible = "nokia,bmuq_watchdog";
+		  timeout-sec = <60>;
+		};
 	};
 };
