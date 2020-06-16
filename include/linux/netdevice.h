@@ -2464,7 +2464,7 @@ void netdev_freemem(struct net_device *dev);
 void synchronize_net(void);
 int init_dummy_netdev(struct net_device *dev);
 
-#define XMIT_RECURSION_LIMIT	10
+#define XMIT_RECURSION_LIMIT	8
 #ifdef CONFIG_PREEMPT_RT_FULL
 static inline int dev_recursion_level(void)
 {
