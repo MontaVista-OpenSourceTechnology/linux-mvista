@@ -3014,7 +3014,7 @@ static inline void input_queue_tail_incr_save(struct softnet_data *sd,
 #endif
 }
 
-#define XMIT_RECURSION_LIMIT	10
+#define XMIT_RECURSION_LIMIT	8
 DECLARE_PER_CPU_ALIGNED(struct softnet_data, softnet_data);
 
 #ifdef CONFIG_PREEMPT_RT_FULL
