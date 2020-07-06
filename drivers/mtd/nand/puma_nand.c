@@ -872,7 +872,7 @@ static int __exit nand_puma_remove(struct platform_device *pdev)
 	iounmap(info->emif_base);
 	iounmap(info->nand_base);
 
-	nand_release(nand_to_mtd(&info->chip));
+	nand_release(&info->chip);
 
 	kfree(info);
 
