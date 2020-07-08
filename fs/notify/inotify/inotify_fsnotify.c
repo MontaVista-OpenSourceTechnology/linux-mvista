@@ -39,7 +39,7 @@ static bool event_compare(struct fsnotify_event *old_fsn,
 	if (old->mask & FS_IN_IGNORED)
 		return false;
 	if ((old->mask == new->mask) &&
-	    (old_fsn->objectid == new_fsn->objectid) &&
+	    (old->wd == new->wd) &&
 	    (old->name_len == new->name_len) &&
 	    (!old->name_len || !strcmp(old->name, new->name)))
 		return true;
@@ -122,7 +122,7 @@ int inotify_handle_event(struct fsnotify_group *group, u32 mask,
 		mask &= ~IN_ISDIR;
 
 	fsn_event = &event->fse;
-	fsnotify_init_event(fsn_event, (unsigned long)inode);
+	fsnotify_init_event(fsn_event, 0);
 	event->mask = mask;
 	event->wd = wd;
 	event->sync_cookie = cookie;
