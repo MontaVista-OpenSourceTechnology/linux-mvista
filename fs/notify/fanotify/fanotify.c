@@ -341,7 +341,7 @@ static struct inode *fanotify_fid_inode(u32 event_mask, const void *data,
 	if (event_mask & ALL_FSNOTIFY_DIRENT_EVENTS)
 		return dir;
 
-	return (struct inode *)fsnotify_data_inode(data, data_type);
+	return fsnotify_data_inode(data, data_type);
 }
 
 static struct fanotify_event *fanotify_alloc_event(struct fsnotify_group *group,
