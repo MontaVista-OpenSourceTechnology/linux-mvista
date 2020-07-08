@@ -1137,11 +1137,11 @@ static void smc_core_going_away(void)
 	}
 	spin_unlock(&smc_ib_devices.lock);
 
-	spin_lock(&smcd_dev_list.lock);
+	mutex_lock(&smcd_dev_list.mutex);
 	list_for_each_entry(smcd, &smcd_dev_list.list, list) {
 		smcd->going_away = 1;
 	}
-	spin_unlock(&smcd_dev_list.lock);
+	mutex_unlock(&smcd_dev_list.mutex);
 }
 
 /* Called (from smc_exit) when module is removed */
@@ -1157,10 +1157,10 @@ void smc_core_exit(void)
 	list_splice_init(&smc_lgr_list.list, &lgr_freeing_list);
 	spin_unlock_bh(&smc_lgr_list.lock);
 
-	spin_lock(&smcd_dev_list.lock);
+	mutex_lock(&smcd_dev_list.mutex);
 	list_for_each_entry(smcd, &smcd_dev_list.list, list)
 		list_splice_init(&smcd->lgr_list, &lgr_freeing_list);
-	spin_unlock(&smcd_dev_list.lock);
+	mutex_unlock(&smcd_dev_list.mutex);
 
 	list_for_each_entry_safe(lgr, lg, &lgr_freeing_list, list) {
 		list_del_init(&lgr->list);
