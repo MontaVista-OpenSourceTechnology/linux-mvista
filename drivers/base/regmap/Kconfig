@@ -49,3 +49,9 @@ config REGMAP_SOUNDWIRE
 config REGMAP_SCCB
 	tristate
 	depends on I2C
+
+config AGIB_DISABLE_REGMAP_DEBUGFS
+       bool 
+       default n
+       help
+       Select this to disable regmap debugfs

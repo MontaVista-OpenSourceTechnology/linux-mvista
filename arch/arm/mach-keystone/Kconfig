@@ -20,6 +20,15 @@ config ARCH_KEYSTONE
 	Support for boards based on the Texas Instruments Keystone family of
 	SoCs.
 
+config MACH_AGIB
+       bool "AGIB Keystone-k2hk based board"
+       default y
+       depends on ARCH_KEYSTONE
+       select TI_K2EVM
+       select AGIB_DISABLE_REGMAP_DEBUGFS
+       help
+       Select this to build a kernel for AGIB SoC.
+
 if ARCH_KEYSTONE
 	config TI_KEYSTONE
 	bool
