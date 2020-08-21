@@ -1165,6 +1165,11 @@ static void isolate_pcp_pages(int count, struct per_cpu_pages *src,
 	int migratetype = 0;
 	int batch_free = 0;
 
+	/*
+	 * Ensure proper count is passed which otherwise would stuck in the
+	 * below while (list_empty(list)) loop.
+	 */
+	count = min(src->count, count);
 	while (count) {
 		struct page *page;
 		struct list_head *list;
