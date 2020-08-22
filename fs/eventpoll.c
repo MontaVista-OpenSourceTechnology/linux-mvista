@@ -2213,19 +2213,14 @@ int do_epoll_ctl(int epfd, int op, int fd, struct epoll_event *epds,
 							&tfile_check_list);
 			}
 			error = epoll_mutex_lock(&ep->mtx, 0, nonblock);
-			if (error) {
-out_del:
-				list_del(&tf.file->f_tfile_llink);
-				if (!is_file_epoll(tf.file))
-					fput(tf.file);
+			if (error)
 				goto error_tgt_fput;
-			}
 			if (is_file_epoll(tf.file)) {
 				tep = tf.file->private_data;
 				error = epoll_mutex_lock(&tep->mtx, 1, nonblock);
 				if (error) {
 					mutex_unlock(&ep->mtx);
-					goto out_del;
+					goto error_tgt_fput;
 				}
 			}
 		}
