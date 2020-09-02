@@ -1839,7 +1839,6 @@ static int ep_loop_check_proc(struct eventpoll *ep, int depth)
 			 * during ep_insert().
 			 */
 			if (list_empty(&epi->ffd.file->f_tfile_llink)) {
-				get_file(epi->ffd.file);
 				if (get_file_rcu(epi->ffd.file))
 					list_add(&epi->ffd.file->f_tfile_llink,
 						 &tfile_check_list);
