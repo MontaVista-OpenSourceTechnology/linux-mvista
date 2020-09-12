@@ -196,19 +196,14 @@ static const char *puma1_boards_compat_dt[] __initconst = {
 };
 static struct of_dev_auxdata puma1_auxdata_lookup[] __initdata = {
 	OF_DEV_AUXDATA("puma,i2c_PUMA", 0x6a000000, "i2c", NULL),
-    /* End */
-};
-static const struct of_device_id puma1_local_bus_nodes[] = {
-		{ .compatible = "simple-bus",},
-		{ .compatible = "arm,amba-bus", },
-		{} /* Empty terminated list */
+	{} /* Empty terminated list */
 };
 
 static void __init puma1_init_machine(void)
 {
 		/* probe child nodes of puma2 device */
-		of_platform_populate(NULL, puma1_local_bus_nodes,
-				puma1_auxdata_lookup, NULL);
+		of_platform_populate(NULL, of_default_bus_match_table,
+				     puma1_auxdata_lookup, NULL);
 }
 
 static struct of_device_id puma1_irq_match[] __initdata = {
@@ -222,7 +217,7 @@ static void __init puma1_init_irq(void)
 		if (of_have_populated_dt())
 			of_irq_init(puma1_irq_match);
 }
-DT_MACHINE_START(SCMB_DT, "iPT1.5 SCMB with PUMA1 SoC (Flattened Device Tree)")
+DT_MACHINE_START(SCMB_DT, "PT1.5 SCMB with PUMA1 SoC (Flattened Device Tree)")
 		.nr_irqs        = NR_IRQS_LEGACY,
 		.map_io         = PUMA_map_io,
 		.init_irq       = puma1_init_irq,
