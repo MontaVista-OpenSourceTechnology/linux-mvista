@@ -72,6 +72,14 @@ static void cp_intc_mask(struct irq_data *d)
 
 static void cp_intc_unmask(struct irq_data *d)
 {
+	uint type = irqd_get_trigger_type(d);
+
+	/* ack the level type irqs here since the uio_pdrv_genirq.c driver uses
+	 * enable_irq() to acknowledge that the irq has been handled by the
+	 * userspace */
+	if (type & IRQ_TYPE_LEVEL_MASK)
+		cp_intc_ack(d);
+
 	cp_intc_write(d->hwirq, CP_INTC_SYS_ENABLE_IDX_SET);
 }
 
