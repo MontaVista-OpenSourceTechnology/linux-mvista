@@ -18,7 +18,7 @@ config MACH_SCMB
 
 config MACH_SCMB_DT
         bool "Generic PUMA support using device tree"
-	select CLKSRC_OF
+	select TIMER_OF
         select USE_OF
 	select SERIAL_OF_PLATFORM
 	select PROC_DEVICETREE

@@ -26,125 +26,61 @@
 #include <linux/of_address.h>
 #include <mach/cp_intc.h>
 
-/* Assert this define to force enable function (cp_intc_enable_irq) to include IRQ status clearing */
-#undef CLEAR_SPURIOUS_IRQ_ON_ENABLE
-
 static void __iomem *cp_intc_base;
-#if defined(CLEAR_SPURIOUS_IRQ_ON_ENABLE)
-static unsigned int irq_type[NR_IRQS] = {IRQ_TYPE_NONE};
-#endif
-static int irq_status[NR_IRQS] = {0};
 
-static inline unsigned int cp_intc_read(unsigned int offset)
+#define pr_regs(cond, irq, str)						\
+	do {								\
+		if (cond) {						\
+			pr_devel("%lu: %s(%lu): " str "\n"		\
+				 "raw       %#08x\n"			\
+				 "st        %#08x\n"			\
+				 "en        %#08x\n",			\
+				 jiffies,				\
+				 __func__,				\
+				 irq,					\
+				 cp_intc_read(				\
+					 CP_INTC_SYS_RAW_STAT(		\
+						 BIT_WORD(irq))),	\
+				 cp_intc_read(				\
+					 CP_INTC_SYS_STAT_CLR(		\
+						 BIT_WORD(irq))),	\
+				 cp_intc_read(				\
+					 CP_INTC_SYS_ENABLE_SET(	\
+						 BIT_WORD(irq))));	\
+		}							\
+	} while (false)
+
+static inline uint cp_intc_read(size_t offset)
 {
-	return __raw_readl(cp_intc_base + offset);
+	return ioread32(cp_intc_base + offset);
 }
 
-static inline void cp_intc_write(unsigned long value, unsigned int offset)
+static inline void cp_intc_write(uint value, size_t offset)
 {
-	__raw_writel(value, cp_intc_base + offset);
+	iowrite32(value, cp_intc_base + offset);
 }
 
-static void cp_intc_ack_irq(struct irq_data *d)
+static void cp_intc_ack(struct irq_data *d)
 {
-	unsigned long reg, id, hwirq;
-
-	/*
-	 * The entire hardware IRQ window is shifted in software
-	 * by PUMA_IRQ_SHIFT. So when talking to the hardware
-	 * substract PUMA_IRQ_SHIFT from hwirq to get the
-	 * actual hardware irq
-	 */
-	hwirq = d->hwirq - PUMA_IRQ_SHIFT;
-
-	reg = BIT_WORD(hwirq);
-	id  = hwirq;
-
+	irq_hw_number_t hwirq = d->hwirq - PUMA_IRQ_SHIFT;
 	cp_intc_write(hwirq, CP_INTC_SYS_STAT_IDX_CLR);
-	while (id >= BITS_PER_LONG)
-		id -= BITS_PER_LONG;
-	/* Write a 1 in a bit position to clear the status of the system interrupt. */
-	/* Writing a 0 has no effect: so mask is useless */
-	cp_intc_write((1 << id), CP_INTC_SYS_STAT_CLR(reg));
 }
 
-/* Disable interrupt */
-static void cp_intc_mask_irq(struct irq_data *d)
+static void cp_intc_mask(struct irq_data *d)
 {
-	unsigned long hwirq;
-
-	hwirq = d->hwirq - PUMA_IRQ_SHIFT;
-
-	/* XXX don't know why we need to disable nIRQ here... */
-	cp_intc_write(1, CP_INTC_HOST_ENABLE_IDX_CLR);
+	irq_hw_number_t hwirq = d->hwirq - PUMA_IRQ_SHIFT;
 	cp_intc_write(hwirq, CP_INTC_SYS_ENABLE_IDX_CLR);
-	cp_intc_write(1, CP_INTC_HOST_ENABLE_IDX_SET);
 }
 
-/* Enable interrupt */
-static void cp_intc_unmask_irq(struct irq_data *d)
+static void cp_intc_unmask(struct irq_data *d)
 {
-	unsigned long hwirq;
-
-	hwirq = d->hwirq - PUMA_IRQ_SHIFT;
-
-	if (!(irq_status[hwirq]))
-		cp_intc_write(hwirq, CP_INTC_SYS_ENABLE_IDX_SET);
-}
-
-static void cp_intc_disable_irq(struct irq_data *d)
-{
-	unsigned long reg, id, hwirq;
-
-	hwirq = d->hwirq - PUMA_IRQ_SHIFT;
-
-	reg = BIT_WORD(hwirq);
-	id  = hwirq;
-
-	while (id >= BITS_PER_LONG)
-		id -= BITS_PER_LONG;
-	/* Write a 1 in a bit position to clear that enable. */
-	/* Writing a 0 has no effect: so mask is useless */
-	cp_intc_write((1 << id), CP_INTC_SYS_ENABLE_CLR(reg));
-
-	cp_intc_mask_irq(d);
-
-	/* Align IRQ status in order to match [disable / enable] couples */
-	irq_status[hwirq]++;
-}
-
-static void cp_intc_enable_irq(struct irq_data *d)
-{
-	unsigned long reg, id, hwirq;
-
-	hwirq = d->hwirq - PUMA_IRQ_SHIFT;
-
-	reg = BIT_WORD(hwirq);
-	id  = hwirq;
-	/* No disable left: enable this IRQ */
-	if ((!(irq_status[hwirq])) || ((irq_status[hwirq] > 0) &&
-		(!(--irq_status[hwirq])))) {
-		while (id >= BITS_PER_LONG)
-			id -= BITS_PER_LONG;
-
-#if defined(CLEAR_SPURIOUS_IRQ_ON_ENABLE)
-		if (irq_type[irq] == (IRQ_TYPE_LEVEL_HIGH | IRQ_TYPE_LEVEL_LOW)) {
-			/* Clear the irq spurious status */
-			cp_intc_write((1 << id), CP_INTC_SYS_STAT_CLR(reg));
-		}
-#endif
-
-		/* Write a 1 in a bit position to set that enable. */
-		/* Writing a 0 has no effect: so mask is useless */
-		cp_intc_write((1 << id), CP_INTC_SYS_ENABLE_SET(reg));
-
-		cp_intc_unmask_irq(d);
-	}
+	irq_hw_number_t hwirq = d->hwirq - PUMA_IRQ_SHIFT;
+	cp_intc_write(hwirq, CP_INTC_SYS_ENABLE_IDX_SET);
 }
 
 static int cp_intc_set_irq_type(struct irq_data *d, unsigned int flow_type)
 {
-	unsigned long reg, hwirq, mask, polarity, type, status;
+	unsigned long reg, hwirq, mask, polarity, type;
 
 	hwirq = d->hwirq - PUMA_IRQ_SHIFT;
 
@@ -153,7 +89,6 @@ static int cp_intc_set_irq_type(struct irq_data *d, unsigned int flow_type)
 
 	polarity	= cp_intc_read(CP_INTC_SYS_POLARITY(reg));
 	type		= cp_intc_read(CP_INTC_SYS_TYPE(reg));
-	status		= cp_intc_read(CP_INTC_SYS_RAW_STAT(reg));
 
 	switch (flow_type) {
 	case IRQ_TYPE_EDGE_RISING:
@@ -182,52 +117,30 @@ static int cp_intc_set_irq_type(struct irq_data *d, unsigned int flow_type)
 	switch (flow_type) {
 	case IRQ_TYPE_EDGE_RISING:
 	case IRQ_TYPE_EDGE_FALLING:
-		irq_set_handler(d->hwirq, handle_edge_irq);
-#if defined(CLEAR_SPURIOUS_IRQ_ON_ENABLE)
-		irq_type[hwirq] = (IRQ_TYPE_EDGE_FALLING | IRQ_TYPE_EDGE_RISING);
-#endif
+		irq_set_handler(d->irq, handle_edge_irq);
 		break;
 	case IRQ_TYPE_LEVEL_HIGH:
 	case IRQ_TYPE_LEVEL_LOW:
-		irq_set_handler(d->hwirq, handle_level_irq);
-#if defined(CLEAR_SPURIOUS_IRQ_ON_ENABLE)
-		irq_type[hwirq] = (IRQ_TYPE_LEVEL_HIGH | IRQ_TYPE_LEVEL_LOW);
-#endif
+		/* the status register holds the pending status so we can use
+		 * the fasteoi handler that issues only a single
+		 * end-of-interrupt call after the irq has been serviced to
+		 * acknowledge the level interrupts */
+		irq_set_handler(d->irq, handle_fasteoi_irq);
 		break;
+	default:
+		return -EINVAL;
 	}
-
-	/* Check if the irq of which the type has been modified was previously already set */
-	if (status & mask) {
-		unsigned int id     = hwirq;
-
-		/* Clear the irq spurious status */
-		while (id >= BITS_PER_LONG)
-			id -= BITS_PER_LONG;
-		cp_intc_write((1 << id), CP_INTC_SYS_STAT_CLR(reg));
-	}
-
-	return 0;
-}
-
-/*
- * Faking this allows us to to work with suspend functions of
- * generic drivers which call {enable|disable}_irq_wake for
- * wake up interrupt sources (eg RTC on DA850).
- */
-static int cp_intc_set_wake(struct irq_data *d, unsigned int on)
-{
 	return 0;
 }
 
 static struct irq_chip cp_intc_irq_chip = {
 	.name		= "cp_intc",
-	.irq_enable	= cp_intc_enable_irq,
-	.irq_disable	= cp_intc_disable_irq,
-	.irq_ack	= cp_intc_ack_irq,
-	.irq_mask	= cp_intc_mask_irq,
-	.irq_unmask	= cp_intc_unmask_irq,
+	.irq_eoi	= cp_intc_ack,
+	.irq_ack	= cp_intc_ack,
+	.irq_mask	= cp_intc_mask,
+	.irq_unmask	= cp_intc_unmask,
 	.irq_set_type	= cp_intc_set_irq_type,
-	.irq_set_wake	= cp_intc_set_wake,
+	.flags		= IRQCHIP_SKIP_SET_WAKE,
 };
 
 
@@ -236,23 +149,10 @@ static struct irq_domain *cp_intc_domain;
 static int cp_intc_host_map(struct irq_domain *h, unsigned int virq,
 					irq_hw_number_t hw)
 {
-	pr_debug("cp_intc_host_map(%d, 0x%lx)\n", virq, hw);
+	pr_devel("cp_intc_host_map(%d, 0x%lx)\n", virq, hw);
 
-	/* Set up genirq dispatching for cp_intc */
 	irq_set_chip(virq, &cp_intc_irq_chip);
 	irq_set_probe(virq);
-
-	if ((hw == 35) || (hw == 36) || (hw == 37) || (hw == 38)) {
-		irq_set_handler(hw, handle_level_irq);
-#if defined(CLEAR_SPURIOUS_IRQ_ON_ENABLE)
-		irq_type[i] = (IRQ_TYPE_LEVEL_HIGH | IRQ_TYPE_LEVEL_LOW);
-#endif
-	} else {
-		irq_set_handler(hw, handle_edge_irq);
-#if defined(CLEAR_SPURIOUS_IRQ_ON_ENABLE)
-		irq_type[i] = (IRQ_TYPE_EDGE_FALLING | IRQ_TYPE_EDGE_RISING);
-#endif
-	}
 
 	return 0;
 }

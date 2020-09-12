@@ -221,7 +221,6 @@ DT_MACHINE_START(SCMB_DT, "PT1.5 SCMB with PUMA1 SoC (Flattened Device Tree)")
 		.nr_irqs        = NR_IRQS_LEGACY,
 		.map_io         = PUMA_map_io,
 		.init_irq       = puma1_init_irq,
-		.init_time      = PUMA_timer_init,
 		.init_machine   = puma1_init_machine,
 		.init_late      = NULL,
 		.dt_compat      = puma1_boards_compat_dt,

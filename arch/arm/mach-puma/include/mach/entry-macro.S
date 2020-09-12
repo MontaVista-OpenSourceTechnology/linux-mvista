@@ -27,17 +27,11 @@
                 .endm
 
                 .macro  get_irqnr_and_base, irqnr, irqstat, base, tmp
-
-1001:           ldr \irqnr, [\base, #0x80] /* get irq number */
-                and \irqnr, \irqnr, #0xff  /* irq is in bits 0-9 */
-                mov \tmp, \irqnr, lsr #3
-                and \tmp, \tmp, #0xfc
-                add \tmp, \tmp, #0x280 /* get the register offset */
-                ldr \irqstat, [\base, \tmp] /* get the intc status */
-                add \irqnr, \irqnr, #1
-                cmp \irqstat, #0x0
-
-1002:
+                ldr \irqnr, [\base, #0x80] /* get global prioritized index reg */
+                mov \tmp, \irqnr, lsr #31  /* get irq pending bit */
+                and \irqnr, \irqnr, #0xff  /* get irq nr that is in bits 0-9 */
+                add \irqnr, \irqnr, #PUMA_IRQ_SHIFT /* apply puma irq shift */
+                cmp \tmp, #1               /* is irq pending? 1 == no irq */
                 .endm
 
                 .macro  irq_prio_table

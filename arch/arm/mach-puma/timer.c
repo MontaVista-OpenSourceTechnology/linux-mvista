@@ -403,7 +403,7 @@ static int __init puma_of_init_timer(struct device_node *np)
 
 	return 0;
 }
-CLOCKSOURCE_OF_DECLARE(puma1_timer, "ericsson,puma1-timer", puma_of_init_timer);
+TIMER_OF_DECLARE(puma1_timer, "ericsson,puma1-timer", puma_of_init_timer);
 
 extern void __iomem	*wdt_base;
 
