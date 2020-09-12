@@ -49,7 +49,7 @@
 			reg = <0x65000000 0x1000>,
 				<0x66000000 0x1000>;
 			interrupt-parent = <&intc>;
-			interrupts = <14 1>,<15 1>, <16 1>, <17 1>;
+			interrupts = <13 1>,<14 1>, <15 1>, <16 1>;
 		};
 
 		wdt@67000000 {
@@ -62,7 +62,7 @@
 			clock-frequency = <100000000>;
 			reg-shift = <2>;
 			interrupt-parent = <&intc>;
-			interrupts = <18 1>;
+			interrupts = <17 1>;
 		};
 
 		nand0: nand@81000000 {
@@ -111,7 +111,7 @@
 			bus-frequency = <150000>;
 			bus-delay = <20>;
 			interrupt-parent = <&intc>;
-			interrupts = <19 1>;
+			interrupts = <18 1>;
 
 			lm75: lm75@49 {
 				compatible = "national,lm75";
@@ -173,7 +173,7 @@
 			device_type = "network";
 			reg = <0x63000000 0x302000>;
 			interrupt-parent = <&intc>;
-			interrupts = <54 1>, <55 1>, <2 1>, <1 1> ;
+			interrupts = <53 1>, <54 1>, <1 1>, <0 1> ;
 			puma1,ctrl_reg_offset = <0x0100000>;
 			puma1,ctrl_mod_reg_offset = <0x0000000>;
 			puma1,mdio_reg_offset = <0x0200000>;

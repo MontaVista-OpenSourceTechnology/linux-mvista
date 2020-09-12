@@ -18,26 +18,32 @@
 #define __ASM_ARCH_IRQS_H
 
 /*
- * Shift the entire hardware IRQ window by PUMA_IRQ_SHIFT. In Puma
- * the hardware irq window starts at 0; but linux don't
- * recognize hardware IRQ0. So lifting it.
+ * puma1 top irq controller (cpintc) uses legacy irq domain that ignores kernel
+ * irq number 0 (which means no irq). Therefore, we use PUMA_IRQ_SHIFT as a
+ * fixed offset from hardware irq numbers to kernel irq numbers for cpintc.
  */
-#define PUMA_IRQ_SHIFT	1
-#define PUMA_IRQ(x)      (PUMA_IRQ_SHIFT + (x))
-#define NR_IRQS	56
+#define PUMA_IRQ_SHIFT 1
 
-#define IRQ_PUMA_C0_RX_PULSE		PUMA_IRQ(0)
-#define IRQ_PUMA_C0_TX_PULSE		PUMA_IRQ(1)
-#define IRQ_PUMA_CCINTG			PUMA_IRQ(2)
-#define IRQ_PUMA_CCERRINT		PUMA_IRQ(7)
-#define TIMER1_INT_			PUMA_IRQ(12)
-#define IRQ_TINT0_TINT12		PUMA_IRQ(13)
-#define IRQ_TINT0_TINT34		PUMA_IRQ(14)
-#define IRQ_TINT1_TINT12		PUMA_IRQ(15)
-#define IRQ_TINT1_TINT34		PUMA_IRQ(16)
-#define UART0_INT			PUMA_IRQ(17)
-#define IRQ_I2C				PUMA_IRQ(18)
-#define IRQ_PUMA_C0_RX_THRESH_PULSE	PUMA_IRQ(53)
-#define IRQ_PUMA_C0_MISC_PULSE		PUMA_IRQ(54)
+/* we don't use CONFIG_SPARSE_IRQ so all irq_descs have to be allocated
+ * statically */
+#define CPINTC_IRQS 56
+#define TOP_IRQ_IRQS 32
+#define FREJA2_IRQ1_IRQS 16
+/* number of statically allocated irq_descs */
+#define NR_IRQS (PUMA_IRQ_SHIFT + CPINTC_IRQS + TOP_IRQ_IRQS + FREJA2_IRQ1_IRQS)
+
+#define IRQ_PUMA_C0_RX_PULSE            0
+#define IRQ_PUMA_C0_TX_PULSE            1
+#define IRQ_PUMA_CCINTG                 2
+#define IRQ_PUMA_CCERRINT               7
+#define TIMER1_INT_                     12
+#define IRQ_TINT0_TINT12                13
+#define IRQ_TINT0_TINT34                14
+#define IRQ_TINT1_TINT12                15
+#define IRQ_TINT1_TINT34                16
+#define UART0_INT                       17
+#define IRQ_I2C                         18
+#define IRQ_PUMA_C0_RX_THRESH_PULSE     53
+#define IRQ_PUMA_C0_MISC_PULSE          54
 
 #endif

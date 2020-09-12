@@ -62,30 +62,25 @@ static inline void cp_intc_write(uint value, size_t offset)
 
 static void cp_intc_ack(struct irq_data *d)
 {
-	irq_hw_number_t hwirq = d->hwirq - PUMA_IRQ_SHIFT;
-	cp_intc_write(hwirq, CP_INTC_SYS_STAT_IDX_CLR);
+	cp_intc_write(d->hwirq, CP_INTC_SYS_STAT_IDX_CLR);
 }
 
 static void cp_intc_mask(struct irq_data *d)
 {
-	irq_hw_number_t hwirq = d->hwirq - PUMA_IRQ_SHIFT;
-	cp_intc_write(hwirq, CP_INTC_SYS_ENABLE_IDX_CLR);
+	cp_intc_write(d->hwirq, CP_INTC_SYS_ENABLE_IDX_CLR);
 }
 
 static void cp_intc_unmask(struct irq_data *d)
 {
-	irq_hw_number_t hwirq = d->hwirq - PUMA_IRQ_SHIFT;
-	cp_intc_write(hwirq, CP_INTC_SYS_ENABLE_IDX_SET);
+	cp_intc_write(d->hwirq, CP_INTC_SYS_ENABLE_IDX_SET);
 }
 
 static int cp_intc_set_irq_type(struct irq_data *d, unsigned int flow_type)
 {
-	unsigned long reg, hwirq, mask, polarity, type;
+	unsigned long reg, mask, polarity, type;
 
-	hwirq = d->hwirq - PUMA_IRQ_SHIFT;
-
-	mask = BIT_MASK(hwirq);
-	reg = BIT_WORD(hwirq);
+	mask = BIT_MASK(d->hwirq);
+	reg = BIT_WORD(d->hwirq);
 
 	polarity	= cp_intc_read(CP_INTC_SYS_POLARITY(reg));
 	type		= cp_intc_read(CP_INTC_SYS_TYPE(reg));
@@ -113,6 +108,8 @@ static int cp_intc_set_irq_type(struct irq_data *d, unsigned int flow_type)
 
 	cp_intc_write(polarity, CP_INTC_SYS_POLARITY(reg));
 	cp_intc_write(type, CP_INTC_SYS_TYPE(reg));
+
+	cp_intc_ack(d);
 
 	switch (flow_type) {
 	case IRQ_TYPE_EDGE_RISING:
@@ -166,7 +163,7 @@ int __init cp_intc_init(void __iomem *base, unsigned short num_irq,
 					struct device_node *node)
 {
 	unsigned int num_reg	= BITS_TO_LONGS(num_irq);
-	int i, irq_base;
+	int i;
 
 	cp_intc_base = base;
 
@@ -203,15 +200,9 @@ int __init cp_intc_init(void __iomem *base, unsigned short num_irq,
 	 */
 	for (i = 0; i < num_reg; i++)
 		cp_intc_write(0x1, CP_INTC_HOST_MAP(i));
-	irq_base = irq_alloc_descs(-1, 0, num_irq, 0);
-	if (irq_base < 0) {
-		pr_warn("Couldn't allocate IRQ numbers\n");
-		irq_base = 0;
-	}
 
-	/* create a legacy host */
-	cp_intc_domain = irq_domain_add_legacy(node, num_irq,
-				irq_base, 0, &cp_intc_host_ops, NULL);
+	cp_intc_domain = irq_domain_add_legacy(node, num_irq, PUMA_IRQ_SHIFT, 0,
+					       &cp_intc_host_ops, NULL);
 	if (!cp_intc_domain) {
 		pr_err("cp_intc: failed to allocate irq host!\n");
 		return -EINVAL;
