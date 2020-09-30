@@ -32,73 +32,180 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/include/ "t102xsi-pre.dtsi"
+/dts-v1/;
 
 / {
-	model = "fsl,T1024RDB";
 	compatible = "fsl,T1024RDB";
-	#address-cells = <2>;
-	#size-cells = <2>;
-	interrupt-parent = <&mpic>;
+	#address-cells = <0x2>;
+	#size-cells = <0x2>;
+	interrupt-parent = <0x1>;
+	model = "fsl,T1024RDB";
 
-	chosen {
-		bootargs = "ubi.mtd=1 root=ubi0:rootfs rootflags=bulk_read rootfstype=ubifs console=ttyS0,115200";
+	cpus {
+		power-isa-version = "2.06";
+		power-isa-b;
+		power-isa-e;
+		power-isa-atb;
+		power-isa-cs;
+		power-isa-ds;
+		power-isa-e.ed;
+		power-isa-e.pd;
+		power-isa-e.hv;
+		power-isa-e.le;
+		power-isa-e.pm;
+		power-isa-e.pc;
+		power-isa-ecl;
+		power-isa-exp;
+		power-isa-fp;
+		power-isa-fp.r;
+		power-isa-mmc;
+		power-isa-scpm;
+		power-isa-wt;
+		power-isa-64;
+		fsl,eref-deo;
+		mmu-type = "power-embedded";
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+
+		PowerPC,e5500@0 {
+			device_type = "cpu";
+			reg = <0x0>;
+			clocks = <0x2 0x1 0x0>;
+			next-level-cache = <0x3>;
+			#cooling-cells = <0x2>;
+			linux,phandle = <0x6>;
+			phandle = <0x6>;
+
+			l2-cache {
+				next-level-cache = <0x4>;
+				linux,phandle = <0x3>;
+				phandle = <0x3>;
+			};
+		};
+	};
+
+	aliases {
+		ccsr = "/soc@ffe000000";
+		dcsr = "/dcsr@f00000000";
+		dma0 = "/soc@ffe000000/dma@100300";
+		dma1 = "/soc@ffe000000/dma@101300";
+		serial0 = "/soc@ffe000000/serial@11c500";
+		serial1 = "/soc@ffe000000/serial@11c600";
+		serial2 = "/soc@ffe000000/serial@11d500";
+		serial3 = "/soc@ffe000000/serial@11d600";
+		pci0 = "/pcie@ffe240000";
+		usb0 = "/soc@ffe000000/usb@210000";
+		crypto = "/soc@ffe000000/crypto@300000";
+		qman = "/soc@ffe000000/qman@318000";
+		bman = "/soc@ffe000000/bman@31a000";
+		fman0 = "/soc@ffe000000/fman@400000";
+		ethernet0 = "/soc@ffe000000/fman@400000/ethernet@e0000";
+		ethernet1 = "/soc@ffe000000/fman@400000/ethernet@e2000";
+		ethernet2 = "/soc@ffe000000/fman@400000/ethernet@e4000";
+		vga = "/soc@ffe000000/display@180000";
+		display = "/soc@ffe000000/display@180000";
 	};
 
 	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
+		#address-cells = <0x2>;
+		#size-cells = <0x2>;
 		ranges;
 
-		bman_fbpr: bman-fbpr {
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
+		bman-fbpr {
+			size = <0x0 0x1000000>;
+			alignment = <0x0 0x1000000>;
+			compatible = "fsl,bman-fbpr";
+			alloc-ranges = <0x0 0x0 0x10000 0x0>;
+			linux,phandle = <0x18>;
+			phandle = <0x18>;
 		};
 
-		qman_fqd: qman-fqd {
-			size = <0 0x400000>;
-			alignment = <0 0x400000>;
+		qman-fqd {
+			size = <0x0 0x800000>;
+			alignment = <0x0 0x800000>;
+			compatible = "fsl,qman-fqd";
+			alloc-ranges = <0x0 0x0 0x10000 0x0>;
+			linux,phandle = <0x15>;
+			phandle = <0x15>;
 		};
 
-		qman_pfdr: qman-pfdr {
-			size = <0 0x2000000>;
-			alignment = <0 0x2000000>;
+		qman-pfdr {
+			size = <0x0 0x2000000>;
+			alignment = <0x0 0x2000000>;
+			compatible = "fsl,qman-pfdr";
+			alloc-ranges = <0x0 0x0 0x10000 0x0>;
+			linux,phandle = <0x16>;
+			phandle = <0x16>;
 		};
 	};
 
-	ifc: localbus@ffe124000 {
-		reg = <0xf 0xfe124000 0 0x2000>;
-		ranges = <0 0 0xf 0xe8000000 0x08000000
-			  2 0 0xf 0xff800000 0x00010000
-			  3 0 0xf 0xffdf0000 0x00008000>;
+	localbus@ffe124000 {
+		reg = <0xf 0xfe124000 0x0 0x2000>;
+		ranges = <0x0 0x0 0xf 0xef000000 0x1000000 0x1 0x0 0xf 0xff800000 0x10000>;
+		#address-cells = <0x2>;
+		#size-cells = <0x1>;
+		compatible = "fsl,ifc", "simple-bus";
+		interrupts = <0x19 0x2 0x0 0x0>;
 
 		nor@0,0 {
-			#address-cells = <1>;
-			#size-cells = <1>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
 			compatible = "cfi-flash";
-			reg = <0x0 0x0 0x8000000>;
-			bank-width = <2>;
-			device-width = <1>;
-		};
+			reg = <0x0 0x0 0x1000000>;
+			bank-width = <0x2>;
+			device-width = <0x1>;
 
-		nand@1,0 {
-			#address-cells = <1>;
-			#size-cells = <1>;
-			compatible = "fsl,ifc-nand";
-			reg = <0x2 0x0 0x10000>;
-			partitions {
-				compatible = "ml66,npu-partitions";
+			partition@0 {
+				reg = <0x0 0x200000>;
+				label = "Boot/PBIST (R/O)";
+				read-only;
+			};
+
+			partition@400000 {
+				reg = <0x400000 0xa00000>;
+				label = "LanInit (R/O)";
+				read-only;
+			};
+
+			partition@e00000 {
+				label = "U-Boot/Env (R/O)";
+				reg = <0xe00000 0x200000>;
+				read-only;
+			};
+
+			partition@200000 {
+				reg = <0x200000 0x200000>;
+				label = "Crash (R/W)";
 			};
 		};
 
-		board-control@2,0 {
-			#address-cells = <1>;
-			#size-cells = <1>;
-			compatible = "fsl,t1024-cpld";
-			reg = <3 0 0x300>;
-			ranges = <0 3 0 0x300>;
-			bank-width = <1>;
-			device-width = <1>;
+		nand@1,0 {
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			compatible = "fsl,ifc-nand";
+			reg = <0x1 0x0 0x10000>;
+
+			partition@0 {
+				reg = <0x0 0x200000>;
+				label = "Bogus Kernel (R/O)";
+				read-only;
+			};
+
+			partition@200000 {
+				reg = <0x200000 0x3e00000>;
+				label = "Rootfs (R/O)";
+				read-only;
+			};
+
+			partition@4000000 {
+				reg = <0x4000000 0x4000000>;
+				label = "Passive Bank (R/W)";
+			};
+
+			partition@8000000 {
+				reg = <0x8000000 0x18000000>;
+				label = "Util (R/W)";
+			};
 		};
 	};
 
@@ -106,167 +213,1285 @@
 		device_type = "memory";
 	};
 
-	dcsr: dcsr@f00000000 {
-		ranges = <0x00000000 0xf 0x00000000 0x01072000>;
+	dcsr@f00000000 {
+		ranges = <0x0 0xf 0x0 0x1072000>;
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		compatible = "fsl,dcsr", "simple-bus";
+
+		dcsr-epu@0 {
+			compatible = "fsl,t1024-dcsr-epu", "fsl,dcsr-epu";
+			interrupts = <0x34 0x2 0x0 0x0 0x54 0x2 0x0 0x0 0x55 0x2 0x0 0x0>;
+			reg = <0x0 0x1000>;
+		};
+
+		dcsr-npc {
+			compatible = "fsl,t1024-dcsr-cnpc", "fsl,dcsr-cnpc";
+			reg = <0x1000 0x1000 0x1002000 0x10000>;
+		};
+
+		dcsr-nxc@2000 {
+			compatible = "fsl,dcsr-nxc";
+			reg = <0x2000 0x1000>;
+		};
+
+		dcsr-corenet {
+			compatible = "fsl,dcsr-corenet";
+			reg = <0x8000 0x1000 0x1a000 0x1000>;
+		};
+
+		dcsr-dpaa@9000 {
+			compatible = "fsl,t1024-dcsr-dpaa", "fsl,dcsr-dpaa";
+			reg = <0x9000 0x1000>;
+		};
+
+		dcsr-ocn@11000 {
+			compatible = "fsl,t1024-dcsr-ocn", "fsl,dcsr-ocn";
+			reg = <0x11000 0x1000>;
+		};
+
+		dcsr-ddr@12000 {
+			compatible = "fsl,dcsr-ddr";
+			dev-handle = <0x5>;
+			reg = <0x12000 0x1000>;
+		};
+
+		dcsr-nal@18000 {
+			compatible = "fsl,t1024-dcsr-nal", "fsl,dcsr-nal";
+			reg = <0x18000 0x1000>;
+		};
+
+		dcsr-rcpm@22000 {
+			compatible = "fsl,t1024-dcsr-rcpm", "fsl,dcsr-rcpm";
+			reg = <0x22000 0x1000>;
+		};
+
+		dcsr-snpc@30000 {
+			compatible = "fsl,t1024-dcsr-snpc", "fsl,dcsr-snpc";
+			reg = <0x30000 0x1000 0x1022000 0x10000>;
+		};
+
+		dcsr-snpc@31000 {
+			compatible = "fsl,t1024-dcsr-snpc", "fsl,dcsr-snpc";
+			reg = <0x31000 0x1000 0x1042000 0x10000>;
+		};
+
+		dcsr-cpu-sb-proxy@100000 {
+			compatible = "fsl,dcsr-e5500-sb-proxy", "fsl,dcsr-cpu-sb-proxy";
+			cpu-handle = <0x6>;
+			reg = <0x100000 0x1000 0x101000 0x1000>;
+		};
 	};
 
-	bportals: bman-portals@ff4000000 {
+	bman-portals@ff4000000 {
 		ranges = <0x0 0xf 0xf4000000 0x2000000>;
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		compatible = "simple-bus";
+		linux,phandle = <0x17>;
+		phandle = <0x17>;
+
+		bman-portal@0 {
+			cell-index = <0x0>;
+			compatible = "fsl,bman-portal";
+			reg = <0x0 0x4000 0x1000000 0x1000>;
+			interrupts = <0x69 0x2 0x0 0x0>;
+		};
+
+		bman-portal@4000 {
+			cell-index = <0x1>;
+			compatible = "fsl,bman-portal";
+			reg = <0x4000 0x4000 0x1001000 0x1000>;
+			interrupts = <0x6b 0x2 0x0 0x0>;
+		};
+
+		bman-portal@8000 {
+			cell-index = <0x2>;
+			compatible = "fsl,bman-portal";
+			reg = <0x8000 0x4000 0x1002000 0x1000>;
+			interrupts = <0x6d 0x2 0x0 0x0>;
+		};
+
+		bman-portal@c000 {
+			cell-index = <0x3>;
+			compatible = "fsl,bman-portal";
+			reg = <0xc000 0x4000 0x1003000 0x1000>;
+			interrupts = <0x6f 0x2 0x0 0x0>;
+		};
+
+		bman-portal@10000 {
+			cell-index = <0x4>;
+			compatible = "fsl,bman-portal";
+			reg = <0x10000 0x4000 0x1004000 0x1000>;
+			interrupts = <0x71 0x2 0x0 0x0>;
+		};
+
+		bman-portal@14000 {
+			cell-index = <0x5>;
+			compatible = "fsl,bman-portal";
+			reg = <0x14000 0x4000 0x1005000 0x1000>;
+			interrupts = <0x73 0x2 0x0 0x0>;
+		};
+
+		bman-portal@18000 {
+			cell-index = <0x6>;
+			compatible = "fsl,bman-portal";
+			reg = <0x18000 0x4000 0x1006000 0x1000>;
+			interrupts = <0x75 0x2 0x0 0x0>;
+		};
+
+		bman-portal@1c000 {
+			cell-index = <0x7>;
+			compatible = "fsl,bman-portal";
+			reg = <0x1c000 0x4000 0x1007000 0x1000>;
+			interrupts = <0x77 0x2 0x0 0x0>;
+		};
+
+		bman-portal@20000 {
+			cell-index = <0x8>;
+			compatible = "fsl,bman-portal";
+			reg = <0x20000 0x4000 0x1008000 0x1000>;
+			interrupts = <0x79 0x2 0x0 0x0>;
+		};
+
+		bman-portal@24000 {
+			cell-index = <0x9>;
+			compatible = "fsl,bman-portal";
+			reg = <0x24000 0x4000 0x1009000 0x1000>;
+			interrupts = <0x7b 0x2 0x0 0x0>;
+		};
+
+		bman-bpids@0 {
+			compatible = "fsl,bpid-range";
+			fsl,bpid-range = <0x20 0x20>;
+		};
 	};
 
-	qportals: qman-portals@ff6000000 {
+	qman-portals@ff6000000 {
 		ranges = <0x0 0xf 0xf6000000 0x2000000>;
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		compatible = "simple-bus";
+		linux,phandle = <0x14>;
+		phandle = <0x14>;
+
+		qman-portal@0 {
+			cell-index = <0x0>;
+			compatible = "fsl,qman-portal";
+			reg = <0x0 0x4000 0x1000000 0x1000>;
+			interrupts = <0x68 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x0>;
+		};
+
+		qman-portal@4000 {
+			cell-index = <0x1>;
+			compatible = "fsl,qman-portal";
+			reg = <0x4000 0x4000 0x1001000 0x1000>;
+			interrupts = <0x6a 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x1>;
+		};
+
+		qman-portal@8000 {
+			cell-index = <0x2>;
+			compatible = "fsl,qman-portal";
+			reg = <0x8000 0x4000 0x1002000 0x1000>;
+			interrupts = <0x6c 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x2>;
+		};
+
+		qman-portal@c000 {
+			cell-index = <0x3>;
+			compatible = "fsl,qman-portal";
+			reg = <0xc000 0x4000 0x1003000 0x1000>;
+			interrupts = <0x6e 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x3>;
+		};
+
+		qman-portal@10000 {
+			cell-index = <0x4>;
+			compatible = "fsl,qman-portal";
+			reg = <0x10000 0x4000 0x1004000 0x1000>;
+			interrupts = <0x70 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x4>;
+		};
+
+		qman-portal@14000 {
+			cell-index = <0x5>;
+			compatible = "fsl,qman-portal";
+			reg = <0x14000 0x4000 0x1005000 0x1000>;
+			interrupts = <0x72 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x5>;
+		};
+
+		qman-portal@18000 {
+			cell-index = <0x6>;
+			compatible = "fsl,qman-portal";
+			reg = <0x18000 0x4000 0x1006000 0x1000>;
+			interrupts = <0x74 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x6>;
+		};
+
+		qman-portal@1c000 {
+			cell-index = <0x7>;
+			compatible = "fsl,qman-portal";
+			reg = <0x1c000 0x4000 0x1007000 0x1000>;
+			interrupts = <0x76 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x7>;
+		};
+
+		qman-portal@20000 {
+			cell-index = <0x8>;
+			compatible = "fsl,qman-portal";
+			reg = <0x20000 0x4000 0x1008000 0x1000>;
+			interrupts = <0x78 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x8>;
+		};
+
+		qman-portal@24000 {
+			cell-index = <0x9>;
+			compatible = "fsl,qman-portal";
+			reg = <0x24000 0x4000 0x1009000 0x1000>;
+			interrupts = <0x7a 0x2 0x0 0x0>;
+			fsl,qman-channel-id = <0x9>;
+		};
+
+		qman-ceetm@0 {
+			compatible = "fsl,qman-ceetm";
+			fsl,ceetm-lfqid-range = <0xf00000 0x1000>;
+			fsl,ceetm-sp-range = <0x0 0x10>;
+			fsl,ceetm-lni-range = <0x0 0x8>;
+			fsl,ceetm-channel-range = <0x0 0x8>;
+		};
+
+		qman-fqids@0 {
+			compatible = "fsl,fqid-range";
+			fsl,fqid-range = <0x100 0x200>;
+		};
+
+		qman-fqids@1 {
+			compatible = "fsl,fqid-range";
+			fsl,fqid-range = <0x8000 0x8000>;
+		};
+
+		qman-pools@0 {
+			compatible = "fsl,pool-channel-range";
+			fsl,pool-channel-range = <0x401 0xf>;
+		};
+
+		qman-cgrids@0 {
+			compatible = "fsl,cgrid-range";
+			fsl,cgrid-range = <0x0 0x100>;
+		};
 	};
 
-	soc: soc@ffe000000 {
-		ranges = <0x00000000 0xf 0xfe000000 0x1000000>;
-		reg = <0xf 0xfe000000 0 0x00001000>;
+	soc@ffe000000 {
+		ranges = <0x0 0xf 0xfe000000 0x1000000>;
+		reg = <0xf 0xfe000000 0x0 0x1000>;
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		device_type = "soc";
+		compatible = "simple-bus";
+
 		spi@110000 {
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			compatible = "fsl,mpc8536-espi";
+			reg = <0x110000 0x1000>;
+			interrupts = <0x35 0x2 0x0 0x0>;
+			fsl,espi-num-chipselects = <0x4>;
+
 			flash@0 {
-				#address-cells = <1>;
-				#size-cells = <1>;
+				#address-cells = <0x1>;
+				#size-cells = <0x1>;
 				compatible = "micron,n25q512ax3", "jedec,spi-nor";
-				reg = <0>;
-				spi-max-frequency = <10000000>; /* input clk */
+				reg = <0x0>;
+				spi-max-frequency = <0x989680>;
 			};
 
 			slic@1 {
 				compatible = "maxim,ds26522";
-				reg = <1>;
-				spi-max-frequency = <2000000>;
+				reg = <0x1>;
+				spi-max-frequency = <0x1e8480>;
 			};
 
 			slic@2 {
 				compatible = "maxim,ds26522";
-				reg = <2>;
-				spi-max-frequency = <2000000>;
+				reg = <0x2>;
+				spi-max-frequency = <0x1e8480>;
 			};
 		};
 
 		i2c@118000 {
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			cell-index = <0x0>;
+			compatible = "fsl-i2c";
+			reg = <0x118000 0x100>;
+			interrupts = <0x26 0x2 0x0 0x0>;
+			dfsrr;
+
 			adt7461@4c {
-				/* Thermal Monitor */
 				compatible = "adi,adt7461";
 				reg = <0x4c>;
 			};
 
-			current-sensor@40 {
+			ina220@40 {
 				compatible = "ti,ina220";
 				reg = <0x40>;
-				shunt-resistor = <1000>;
+				shunt-resistor = <0x3e8>;
 			};
 
 			eeprom@50 {
-				compatible = "atmel,24c256";
+				compatible = "at24,24c256";
 				reg = <0x50>;
 			};
 
 			rtc@68 {
 				compatible = "dallas,ds1339";
 				reg = <0x68>;
-				interrupts = <0x1 0x1 0 0>;
+				interrupts = <0x1 0x1 0x0 0x0>;
 			};
 		};
 
 		i2c@118100 {
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			cell-index = <0x1>;
+			compatible = "fsl-i2c";
+			reg = <0x118100 0x100>;
+			interrupts = <0x26 0x2 0x0 0x0>;
+			dfsrr;
+
 			pca9546@77 {
 				compatible = "nxp,pca9546";
 				reg = <0x77>;
-				#address-cells = <1>;
-				#size-cells = <0>;
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
 			};
 		};
 
 		fman@400000 {
-			fm1mac1: ethernet@e0000 {
-				phy-handle = <&xg_aqr105_phy3>;
-				phy-connection-type = "xgmii";
-				sleep = <&rcpm 0x80000000>;
+			rcpm-wakeup = <0x7 0x8>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			cell-index = <0x0>;
+			compatible = "fsl,fman", "simple-bus";
+			ranges = <0x0 0x400000 0x100000>;
+			reg = <0x400000 0x100000>;
+			interrupts = <0x60 0x2 0x0 0x0 0x10 0x2 0x1 0x1>;
+			clocks = <0x2 0x3 0x0>;
+			clock-names = "fmanclk";
+			fsl,qman-channel-range = <0x800 0x10>;
+
+			ethernet@e0000 {
+				fixed-link = <0x0 0x1 0x3e8 0x0 0x0>;
+				mac-address = [00 77 66 24 57 72];
+				phy-connection-type = "1000x";
+				rcpm-wakeup = <0x7 0x80000000>;
+				cell-index = <0x0>;
+				compatible = "fsl,fman-memac";
+				reg = <0xe0000 0x1000>;
+				fsl,port-handles = <0x8 0x9>;
+				ptimer-handle = <0xa>;
+				autoneg-disable;
+				linux,phandle = <0x19>;
+				phandle = <0x19>;
 			};
 
-			fm1mac2: ethernet@e2000 {
-				sleep = <&rcpm 0x40000000>;
+			ethernet@e2000 {
+				fixed-link = <0x1 0x1 0x3e8 0x0 0x0>;
+				mac-address = [00 77 66 24 57 75];
+				phy-connection-type = "1000x";
+				rcpm-wakeup = <0x7 0x40000000>;
+				cell-index = <0x1>;
+				compatible = "fsl,fman-memac";
+				reg = <0xe2000 0x1000>;
+				fsl,port-handles = <0xb 0xc>;
+				ptimer-handle = <0xa>;
+				autoneg-disable;
+				linux,phandle = <0x1a>;
+				phandle = <0x1a>;
 			};
 
-			fm1mac3: ethernet@e4000 {
-				phy-handle = <&rgmii_phy2>;
-				phy-connection-type = "rgmii";
-				sleep = <&rcpm 0x20000000>;
+			ethernet@e4000 {
+				fixed-link = <0x2 0x1 0x3e8 0x0 0x0>;
+				mac-address = [00 77 66 24 56 71];
+				phy-connection-type = "1000x";
+				rcpm-wakeup = <0x7 0x20000000>;
+				cell-index = <0x2>;
+				compatible = "fsl,fman-memac";
+				reg = <0xe4000 0x1000>;
+				fsl,port-handles = <0xd 0xe>;
+				ptimer-handle = <0xa>;
+				autoneg-disable;
+				linux,phandle = <0x1b>;
+				phandle = <0x1b>;
 			};
 
-			fm1mac4: ethernet@e6000 {
-				phy-handle = <&rgmii_phy1>;
-				phy-connection-type = "rgmii";
-				sleep = <&rcpm 0x10000000>;
-			};
+			mdio@fc000 {
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				compatible = "fsl,fman-memac-mdio";
+				reg = <0xfc000 0x1000>;
 
-
-			mdio0: mdio@fc000 {
-				rgmii_phy1: ethernet-phy@2 {
-					reg = <0x2>;
-				};
-				rgmii_phy2: ethernet-phy@6 {
+				ethernet-phy@6 {
 					reg = <0x6>;
 				};
 			};
 
-			xmdio0: mdio@fd000 {
-				xg_aqr105_phy3: ethernet-phy@1 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x1>;
+			mdio@fd000 {
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				compatible = "fsl,fman-memac-mdio";
+				reg = <0xfd000 0x1000>;
+			};
+
+			cc {
+				compatible = "fsl,fman-cc";
+			};
+
+			muram@0 {
+				compatible = "fsl,fman-muram";
+				reg = <0x0 0x60000>;
+			};
+
+			bmi@80000 {
+				compatible = "fsl,fman-bmi";
+				reg = <0x80000 0x400>;
+			};
+
+			qmi@80400 {
+				compatible = "fsl,fman-qmi";
+				reg = <0x80400 0x400>;
+			};
+
+			port@82000 {
+				cell-index = <0x0>;
+				compatible = "fsl,fman-port-oh";
+				reg = <0x82000 0x1000>;
+				fsl,qman-channel-id = <0x809>;
+			};
+
+			port@83000 {
+				cell-index = <0x1>;
+				compatible = "fsl,fman-port-oh";
+				reg = <0x83000 0x1000>;
+				fsl,qman-channel-id = <0x80a>;
+			};
+
+			port@84000 {
+				cell-index = <0x2>;
+				compatible = "fsl,fman-port-oh";
+				reg = <0x84000 0x1000>;
+				fsl,qman-channel-id = <0x80b>;
+			};
+
+			port@85000 {
+				cell-index = <0x3>;
+				compatible = "fsl,fman-port-oh";
+				reg = <0x85000 0x1000>;
+				fsl,qman-channel-id = <0x80c>;
+			};
+
+			port@86000 {
+				cell-index = <0x4>;
+				compatible = "fsl,fman-port-oh";
+				reg = <0x86000 0x1000>;
+				status = "disabled";
+			};
+
+			port@87000 {
+				cell-index = <0x5>;
+				compatible = "fsl,fman-port-oh";
+				reg = <0x87000 0x1000>;
+				status = "disabled";
+			};
+
+			policer@c0000 {
+				compatible = "fsl,fman-policer";
+				reg = <0xc0000 0x1000>;
+			};
+
+			keygen@c1000 {
+				compatible = "fsl,fman-keygen";
+				reg = <0xc1000 0x1000>;
+			};
+
+			dma@c2000 {
+				compatible = "fsl,fman-dma";
+				reg = <0xc2000 0x1000>;
+			};
+
+			fpm@c3000 {
+				compatible = "fsl,fman-fpm";
+				reg = <0xc3000 0x1000>;
+			};
+
+			parser@c7000 {
+				compatible = "fsl,fman-parser";
+				reg = <0xc7000 0x1000>;
+			};
+
+			vsps@dc000 {
+				compatible = "fsl,fman-vsps";
+				reg = <0xdc000 0x1000>;
+			};
+
+			rtc@fe000 {
+				compatible = "fsl,fman-rtc";
+				reg = <0xfe000 0x1000>;
+				linux,phandle = <0xa>;
+				phandle = <0xa>;
+			};
+
+			port@88000 {
+				cell-index = <0x0>;
+				compatible = "fsl,fman-port-10g-rx";
+				reg = <0x88000 0x1000>;
+				linux,phandle = <0x8>;
+				phandle = <0x8>;
+			};
+
+			port@a8000 {
+				cell-index = <0x0>;
+				compatible = "fsl,fman-port-10g-tx";
+				reg = <0xa8000 0x1000>;
+				fsl,qman-channel-id = <0x800>;
+				linux,phandle = <0x9>;
+				phandle = <0x9>;
+			};
+
+			mdio@e1000 {
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				compatible = "fsl,fman-memac-mdio";
+				reg = <0xe1000 0x1000>;
+			};
+
+			port@89000 {
+				cell-index = <0x1>;
+				compatible = "fsl,fman-port-1g-rx";
+				reg = <0x89000 0x1000>;
+				linux,phandle = <0xb>;
+				phandle = <0xb>;
+			};
+
+			port@a9000 {
+				cell-index = <0x1>;
+				compatible = "fsl,fman-port-1g-tx";
+				reg = <0xa9000 0x1000>;
+				fsl,qman-channel-id = <0x803>;
+				linux,phandle = <0xc>;
+				phandle = <0xc>;
+			};
+
+			mdio@e3000 {
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				compatible = "fsl,fman-memac-mdio";
+				reg = <0xe3000 0x1000>;
+				fsl,erratum-a011043;
+			};
+
+			port@8a000 {
+				cell-index = <0x2>;
+				compatible = "fsl,fman-port-1g-rx";
+				reg = <0x8a000 0x1000>;
+				linux,phandle = <0xd>;
+				phandle = <0xd>;
+			};
+
+			port@aa000 {
+				cell-index = <0x2>;
+				compatible = "fsl,fman-port-1g-tx";
+				reg = <0xaa000 0x1000>;
+				fsl,qman-channel-id = <0x804>;
+				linux,phandle = <0xe>;
+				phandle = <0xe>;
+			};
+
+			mdio@e5000 {
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				compatible = "fsl,fman-memac-mdio";
+				reg = <0xe5000 0x1000>;
+				fsl,erratum-a011043;
+			};
+
+			port@8b000 {
+				cell-index = <0x3>;
+				compatible = "fsl,fman-port-1g-rx";
+				reg = <0x8b000 0x1000>;
+			};
+
+			port@ab000 {
+				cell-index = <0x3>;
+				compatible = "fsl,fman-port-1g-tx";
+				reg = <0xab000 0x1000>;
+				fsl,qman-channel-id = <0x805>;
+			};
+
+			mdio@e7000 {
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				compatible = "fsl,fman-memac-mdio";
+				reg = <0xe7000 0x1000>;
+				fsl,erratum-a011043;
+			};
+		};
+
+		soc-sram-error {
+			compatible = "fsl,soc-sram-error";
+			interrupts = <0x10 0x2 0x1 0x1d>;
+		};
+
+		corenet-law@0 {
+			compatible = "fsl,corenet-law";
+			reg = <0x0 0x1000>;
+			fsl,num-laws = <0x10>;
+		};
+
+		memory-controller@8000 {
+			compatible = "fsl,qoriq-memory-controller-v5.0", "fsl,qoriq-memory-controller";
+			reg = <0x8000 0x1000>;
+			interrupts = <0x10 0x2 0x1 0x17>;
+			linux,phandle = <0x5>;
+			phandle = <0x5>;
+		};
+
+		l3-cache-controller@10000 {
+			compatible = "fsl,t1024-l3-cache-controller", "cache";
+			reg = <0x10000 0x1000>;
+			interrupts = <0x10 0x2 0x1 0x1b>;
+			linux,phandle = <0x4>;
+			phandle = <0x4>;
+		};
+
+		corenet-cf@18000 {
+			compatible = "fsl,corenet2-cf";
+			reg = <0x18000 0x1000>;
+			interrupts = <0x10 0x2 0x1 0x1f>;
+			fsl,ccf-num-csdids = <0x20>;
+			fsl,ccf-num-snoopids = <0x20>;
+		};
+
+		iommu@20000 {
+			compatible = "fsl,pamu-v1.0", "fsl,pamu";
+			reg = <0x20000 0x1000>;
+			ranges = <0x0 0x20000 0x1000>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			interrupts = <0x18 0x2 0x0 0x0 0x10 0x2 0x1 0x1e>;
+
+			pamu@0 {
+				reg = <0x0 0x1000>;
+				fsl,primary-cache-geometry = <0x80 0x1>;
+				fsl,secondary-cache-geometry = <0x10 0x2>;
+				linux,phandle = <0x12>;
+				phandle = <0x12>;
+			};
+		};
+
+		pic@40000 {
+			interrupt-controller;
+			#address-cells = <0x0>;
+			#interrupt-cells = <0x4>;
+			reg = <0x40000 0x40000>;
+			compatible = "fsl,mpic", "chrp,open-pic";
+			device_type = "open-pic";
+			clock-frequency = <0x0>;
+			linux,phandle = <0x1>;
+			phandle = <0x1>;
+		};
+
+		timer@41100 {
+			compatible = "fsl,mpic-global-timer";
+			reg = <0x41100 0x100 0x41300 0x4>;
+			interrupts = <0x0 0x0 0x3 0x0 0x1 0x0 0x3 0x0 0x2 0x0 0x3 0x0 0x3 0x0 0x3 0x0>;
+		};
+
+		msi@41600 {
+			compatible = "fsl,mpic-msi";
+			reg = <0x41600 0x200 0x44140 0x4>;
+			msi-available-ranges = <0x0 0x100>;
+			interrupts = <0xe0 0x0 0x0 0x0 0xe1 0x0 0x0 0x0 0xe2 0x0 0x0 0x0 0xe3 0x0 0x0 0x0 0xe4 0x0 0x0 0x0 0xe5 0x0 0x0 0x0 0xe6 0x0 0x0 0x0 0xe7 0x0 0x0 0x0>;
+		};
+
+		msi@41800 {
+			compatible = "fsl,mpic-msi";
+			reg = <0x41800 0x200 0x45140 0x4>;
+			msi-available-ranges = <0x0 0x100>;
+			interrupts = <0xe8 0x0 0x0 0x0 0xe9 0x0 0x0 0x0 0xea 0x0 0x0 0x0 0xeb 0x0 0x0 0x0 0xec 0x0 0x0 0x0 0xed 0x0 0x0 0x0 0xee 0x0 0x0 0x0 0xef 0x0 0x0 0x0>;
+		};
+
+		msi@41a00 {
+			compatible = "fsl,mpic-msi";
+			reg = <0x41a00 0x200 0x46140 0x4>;
+			msi-available-ranges = <0x0 0x100>;
+			interrupts = <0xf0 0x0 0x0 0x0 0xf1 0x0 0x0 0x0 0xf2 0x0 0x0 0x0 0xf3 0x0 0x0 0x0 0xf4 0x0 0x0 0x0 0xf5 0x0 0x0 0x0 0xf6 0x0 0x0 0x0 0xf7 0x0 0x0 0x0>;
+		};
+
+		timer@42100 {
+			compatible = "fsl,mpic-global-timer";
+			reg = <0x42100 0x100 0x42300 0x4>;
+			interrupts = <0x4 0x0 0x3 0x0 0x5 0x0 0x3 0x0 0x6 0x0 0x3 0x0 0x7 0x0 0x3 0x0>;
+		};
+
+		global-utilities@e0000 {
+			compatible = "fsl,t1024-device-config", "fsl,qoriq-device-config-2.0";
+			reg = <0xe0000 0xe00>;
+			fsl,has-rstcr;
+			fsl,liodn-bits = <0xc>;
+			linux,phandle = <0x13>;
+			phandle = <0x13>;
+		};
+
+		global-utilities@e1000 {
+			compatible = "fsl,t1023-clockgen", "fsl,qoriq-clockgen-2.0";
+			ranges = <0x0 0xe1000 0x1000>;
+			reg = <0xe1000 0x1000>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			#clock-cells = <0x2>;
+			linux,phandle = <0x2>;
+			phandle = <0x2>;
+
+			sysclk {
+				#clock-cells = <0x0>;
+				compatible = "fsl,qoriq-sysclk-2.0", "fixed-clock";
+				clock-output-names = "sysclk";
+				linux,phandle = <0xf>;
+				phandle = <0xf>;
+			};
+
+			pll0@800 {
+				#clock-cells = <0x1>;
+				reg = <0x800 0x4>;
+				compatible = "fsl,qoriq-core-pll-2.0";
+				clocks = <0xf>;
+				clock-output-names = "pll0", "pll0-div2", "pll0-div4";
+			};
+
+			pll1@820 {
+				#clock-cells = <0x1>;
+				reg = <0x820 0x4>;
+				compatible = "fsl,qoriq-core-pll-2.0";
+				clocks = <0xf>;
+				clock-output-names = "pll1", "pll1-div2", "pll1-div4";
+			};
+
+			platform-pll@c00 {
+				#clock-cells = <0x1>;
+				reg = <0xc00 0x4>;
+				compatible = "fsl,qoriq-platform-pll-2.0";
+				clocks = <0xf>;
+				clock-output-names = "platform-pll", "platform-pll-div2";
+			};
+		};
+
+		global-utilities@e2000 {
+			compatible = "fsl,t1024-rcpm", "fsl,qoriq-rcpm-2.1";
+			reg = <0xe2000 0x1000>;
+			linux,phandle = <0x7>;
+			phandle = <0x7>;
+		};
+
+		sfp@e8000 {
+			compatible = "fsl,t1024-sfp";
+			reg = <0xe8000 0x1000>;
+		};
+
+		serdes@ea000 {
+			compatible = "fsl,t1024-serdes";
+			reg = <0xea000 0x4000>;
+		};
+
+		tmu@f0000 {
+			compatible = "fsl,qoriq-tmu", "fsl,t102x-tmu";
+			reg = <0xf0000 0x1000>;
+			interrupts = <0x12 0x2 0x0 0x0>;
+			fsl,tmu-range = <0xb0000 0xa0026 0x80048 0x30061>;
+			fsl,tmu-calibration = <0x0 0xf 0x1 0x17 0x2 0x1e 0x3 0x26 0x4 0x2e 0x5 0x35 0x6 0x3d 0x7 0x44 0x8 0x4c 0x9 0x53 0xa 0x5b 0xb 0x64 0x10000 0x11 0x10001 0x1c 0x10002 0x24 0x10003 0x2b 0x10004 0x34 0x10005 0x39 0x10006 0x42 0x10007 0x4c 0x10008 0x51 0x10009 0x5a 0x1000a 0x63 0x20000 0x13 0x20001 0x19 0x20002 0x24 0x20003 0x2c 0x20004 0x35 0x20005 0x3d 0x20006 0x46 0x20007 0x50 0x20008 0x59 0x30000 0x2 0x30001 0xd 0x30002 0x19 0x30003 0x24>;
+			little-endian;
+			#thermal-sensor-cells = <0x1>;
+			linux,phandle = <0x10>;
+			phandle = <0x10>;
+		};
+
+		thermal-zones {
+
+			cpu-thermal {
+				polling-delay-passive = <0x3e8>;
+				polling-delay = <0x1388>;
+				thermal-sensors = <0x10 0x0>;
+
+				trips {
+
+					cpu-alert {
+						temperature = <0x14c08>;
+						hysteresis = <0x7d0>;
+						type = "passive";
+						linux,phandle = <0x11>;
+						phandle = <0x11>;
+					};
+
+					cpu-crit {
+						temperature = <0x17318>;
+						hysteresis = <0x7d0>;
+						type = "critical";
+					};
 				};
-				sg_2500_aqr105_phy4: ethernet-phy@2 {
-					compatible = "ethernet-phy-ieee802.3-c45";
-					reg = <0x2>;
+
+				cooling-maps {
+
+					map0 {
+						trip = <0x11>;
+						cooling-device = <0x6 0xffffffff 0xffffffff>;
+					};
 				};
+			};
+		};
+
+		global-utilities@fc000 {
+			compatible = "fsl,t1024-scfg";
+			reg = <0xfc000 0x1000>;
+		};
+
+		dma@100300 {
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			compatible = "fsl,elo3-dma";
+			reg = <0x100300 0x4 0x100600 0x4>;
+			ranges = <0x0 0x100100 0x500>;
+
+			dma-channel@0 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x0 0x80>;
+				interrupts = <0x1c 0x2 0x0 0x0>;
+			};
+
+			dma-channel@80 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x80 0x80>;
+				interrupts = <0x1d 0x2 0x0 0x0>;
+			};
+
+			dma-channel@100 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x100 0x80>;
+				interrupts = <0x1e 0x2 0x0 0x0>;
+			};
+
+			dma-channel@180 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x180 0x80>;
+				interrupts = <0x1f 0x2 0x0 0x0>;
+			};
+
+			dma-channel@300 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x300 0x80>;
+				interrupts = <0x4c 0x2 0x0 0x0>;
+			};
+
+			dma-channel@380 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x380 0x80>;
+				interrupts = <0x4d 0x2 0x0 0x0>;
+			};
+
+			dma-channel@400 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x400 0x80>;
+				interrupts = <0x4e 0x2 0x0 0x0>;
+			};
+
+			dma-channel@480 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x480 0x80>;
+				interrupts = <0x4f 0x2 0x0 0x0>;
+			};
+		};
+
+		dma@101300 {
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			compatible = "fsl,elo3-dma";
+			reg = <0x101300 0x4 0x101600 0x4>;
+			ranges = <0x0 0x101100 0x500>;
+
+			dma-channel@0 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x0 0x80>;
+				interrupts = <0x20 0x2 0x0 0x0>;
+			};
+
+			dma-channel@80 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x80 0x80>;
+				interrupts = <0x21 0x2 0x0 0x0>;
+			};
+
+			dma-channel@100 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x100 0x80>;
+				interrupts = <0x22 0x2 0x0 0x0>;
+			};
+
+			dma-channel@180 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x180 0x80>;
+				interrupts = <0x23 0x2 0x0 0x0>;
+			};
+
+			dma-channel@300 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x300 0x80>;
+				interrupts = <0x50 0x2 0x0 0x0>;
+			};
+
+			dma-channel@380 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x380 0x80>;
+				interrupts = <0x51 0x2 0x0 0x0>;
+			};
+
+			dma-channel@400 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x400 0x80>;
+				interrupts = <0x52 0x2 0x0 0x0>;
+			};
+
+			dma-channel@480 {
+				compatible = "fsl,eloplus-dma-channel";
+				reg = <0x480 0x80>;
+				interrupts = <0x53 0x2 0x0 0x0>;
+			};
+		};
+
+		i2c@119000 {
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			cell-index = <0x2>;
+			compatible = "fsl-i2c";
+			reg = <0x119000 0x100>;
+			interrupts = <0x27 0x2 0x0 0x0>;
+			dfsrr;
+		};
+
+		i2c@119100 {
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			cell-index = <0x3>;
+			compatible = "fsl-i2c";
+			reg = <0x119100 0x100>;
+			interrupts = <0x27 0x2 0x0 0x0>;
+			dfsrr;
+		};
+
+		serial@11c500 {
+			cell-index = <0x0>;
+			device_type = "serial";
+			compatible = "fsl,ns16550", "ns16550";
+			reg = <0x11c500 0x100>;
+			clock-frequency = <0x0>;
+			interrupts = <0x24 0x2 0x0 0x0>;
+		};
+
+		serial@11c600 {
+			cell-index = <0x1>;
+			device_type = "serial";
+			compatible = "fsl,ns16550", "ns16550";
+			reg = <0x11c600 0x100>;
+			clock-frequency = <0x0>;
+			interrupts = <0x24 0x2 0x0 0x0>;
+		};
+
+		serial@11d500 {
+			cell-index = <0x2>;
+			device_type = "serial";
+			compatible = "fsl,ns16550", "ns16550";
+			reg = <0x11d500 0x100>;
+			clock-frequency = <0x0>;
+			interrupts = <0x25 0x2 0x0 0x0>;
+		};
+
+		serial@11d600 {
+			cell-index = <0x3>;
+			device_type = "serial";
+			compatible = "fsl,ns16550", "ns16550";
+			reg = <0x11d600 0x100>;
+			clock-frequency = <0x0>;
+			interrupts = <0x25 0x2 0x0 0x0>;
+		};
+
+		gpio@130000 {
+			compatible = "fsl,qoriq-gpio";
+			reg = <0x130000 0x1000>;
+			interrupts = <0x37 0x2 0x0 0x0>;
+			#gpio-cells = <0x2>;
+			gpio-controller;
+			rcpm-wakeup = <0x7 0x40>;
+		};
+
+		gpio@131000 {
+			compatible = "fsl,qoriq-gpio";
+			reg = <0x131000 0x1000>;
+			interrupts = <0x36 0x2 0x0 0x0>;
+			#gpio-cells = <0x2>;
+			gpio-controller;
+		};
+
+		gpio@132000 {
+			compatible = "fsl,qoriq-gpio";
+			reg = <0x132000 0x1000>;
+			interrupts = <0x56 0x2 0x0 0x0>;
+			#gpio-cells = <0x2>;
+			gpio-controller;
+		};
+
+		gpio@133000 {
+			compatible = "fsl,qoriq-gpio";
+			reg = <0x133000 0x1000>;
+			interrupts = <0x57 0x2 0x0 0x0>;
+			#gpio-cells = <0x2>;
+			gpio-controller;
+		};
+
+		usb@210000 {
+			compatible = "fsl-usb2-mph-v2.5", "fsl-usb2-mph";
+			reg = <0x210000 0x1000>;
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			interrupts = <0x2c 0x2 0x0 0x0>;
+			fsl,iommu-parent = <0x12>;
+			fsl,liodn-reg = <0x13 0x520>;
+			phy_type = "utmi";
+			dr_mode = "peripheral";
+			rcpm-wakeup = <0x7 0x20>;
+			port0;
+		};
+
+		sata@220000 {
+			compatible = "fsl,pq-sata-v2";
+			reg = <0x220000 0x1000>;
+			interrupts = <0x44 0x2 0x0 0x0>;
+			fsl,iommu-parent = <0x12>;
+			fsl,liodn-reg = <0x13 0x550>;
+		};
+
+		crypto@300000 {
+			compatible = "fsl,sec-v5.0", "fsl,sec-v4.0";
+			fsl,sec-era = <0x5>;
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			reg = <0x300000 0x10000>;
+			ranges = <0x0 0x300000 0x10000>;
+			interrupts = <0x5c 0x2 0x0 0x0>;
+
+			jr@1000 {
+				compatible = "fsl,sec-v5.0-job-ring", "fsl,sec-v4.0-job-ring";
+				reg = <0x1000 0x1000>;
+				interrupts = <0x58 0x2 0x0 0x0>;
+			};
+
+			jr@2000 {
+				compatible = "fsl,sec-v5.0-job-ring", "fsl,sec-v4.0-job-ring";
+				reg = <0x2000 0x1000>;
+				interrupts = <0x59 0x2 0x0 0x0>;
+			};
+
+			jr@3000 {
+				compatible = "fsl,sec-v5.0-job-ring", "fsl,sec-v4.0-job-ring";
+				reg = <0x3000 0x1000>;
+				interrupts = <0x5a 0x2 0x0 0x0>;
+			};
+
+			jr@4000 {
+				compatible = "fsl,sec-v5.0-job-ring", "fsl,sec-v4.0-job-ring";
+				reg = <0x4000 0x1000>;
+				interrupts = <0x5b 0x2 0x0 0x0>;
+			};
+
+			rtic@6000 {
+				compatible = "fsl,sec-v5.0-rtic", "fsl,sec-v4.0-rtic";
+				#address-cells = <0x1>;
+				#size-cells = <0x1>;
+				reg = <0x6000 0x100>;
+				ranges = <0x0 0x6100 0xe00>;
+
+				rtic-a@0 {
+					compatible = "fsl,sec-v5.0-rtic-memory", "fsl,sec-v4.0-rtic-memory";
+					reg = <0x0 0x20 0x100 0x80>;
+				};
+
+				rtic-b@20 {
+					compatible = "fsl,sec-v5.0-rtic-memory", "fsl,sec-v4.0-rtic-memory";
+					reg = <0x20 0x20 0x200 0x80>;
+				};
+
+				rtic-c@40 {
+					compatible = "fsl,sec-v5.0-rtic-memory", "fsl,sec-v4.0-rtic-memory";
+					reg = <0x40 0x20 0x300 0x80>;
+				};
+
+				rtic-d@60 {
+					compatible = "fsl,sec-v5.0-rtic-memory", "fsl,sec-v4.0-rtic-memory";
+					reg = <0x60 0x20 0x500 0x80>;
+				};
+			};
+		};
+
+		sec_mon@314000 {
+			compatible = "fsl,sec-v5.0-mon", "fsl,sec-v4.0-mon";
+			reg = <0x314000 0x1000>;
+			interrupts = <0x5d 0x2 0x0 0x0>;
+		};
+
+		qman@318000 {
+			compatible = "fsl,qman";
+			reg = <0x318000 0x2000>;
+			interrupts = <0x10 0x2 0x1 0x3>;
+			fsl,qman-portals = <0x14>;
+			memory-region = <0x15 0x16>;
+		};
+
+		bman@31a000 {
+			compatible = "fsl,bman";
+			reg = <0x31a000 0x1000>;
+			interrupts = <0x10 0x2 0x1 0x2>;
+			fsl,bman-portals = <0x17>;
+			memory-region = <0x18>;
+		};
+
+		display@180000 {
+			compatible = "fsl,t1024-diu", "fsl,diu";
+			reg = <0x180000 0x3e8>;
+			interrupts = <0x4a 0x2 0x0 0x0>;
+		};
+	};
+
+	fsl,dpaa {
+		compatible = "fsl,t1024-dpaa", "fsl,dpaa";
+
+		ethernet@0 {
+			compatible = "fsl,t1024-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <0x19>;
+		};
+
+		ethernet@1 {
+			compatible = "fsl,t1024-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <0x1a>;
+		};
+
+		ethernet@2 {
+			compatible = "fsl,t1024-dpa-ethernet", "fsl,dpa-ethernet";
+			fsl,fman-mac = <0x1b>;
+		};
+	};
+
+	qe@ffe139999 {
+		ranges = <0x0 0xf 0xfe140000 0x40000>;
+		reg = <0xf 0xfe140000 0x0 0x480>;
+		brg-frequency = <0x0>;
+		bus-frequency = <0x0>;
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		device_type = "qe";
+		compatible = "fsl,qe";
+		fsl,qe-num-riscs = <0x1>;
+		fsl,qe-num-snums = <0x1c>;
+
+		si@700 {
+			#address-cells = <0x1>;
+			#size-cells = <0x0>;
+			compatible = "fsl,qe-si";
+			reg = <0x700 0x80>;
+		};
+
+		siram@1000 {
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			compatible = "fsl,qe-siram";
+			reg = <0x1000 0x800>;
+		};
+
+		ucc@2000 {
+			compatible = "fsl,ucc_hdlc";
+			rx-clock-name = "clk8";
+			tx-clock-name = "clk9";
+			fsl,rx-sync-clock = "rsync_pin";
+			fsl,tx-sync-clock = "tsync_pin";
+			fsl,tx-timeslot = <0xfffffffe>;
+			fsl,rx-timeslot = <0xfffffffe>;
+			fsl,tdm-framer-type = "e1";
+			fsl,tdm-mode = "normal";
+			fsl,tdm-id = <0x0>;
+			fsl,siram-entry-id = <0x0>;
+			fsl,tdm-interface;
+			cell-index = <0x1>;
+			reg = <0x2000 0x200>;
+			interrupts = <0x20>;
+			interrupt-parent = <0x1c>;
+		};
+
+		ucc@2200 {
+			device_type = "serial";
+			compatible = "ucc_uart";
+			port-number = <0x0>;
+			rx-clock-name = "brg2";
+			tx-clock-name = "brg2";
+			cell-index = <0x3>;
+			reg = <0x2200 0x200>;
+			interrupts = <0x22>;
+			interrupt-parent = <0x1c>;
+		};
+
+		interrupt-controller@80 {
+			interrupt-controller;
+			compatible = "fsl,qe-ic";
+			#address-cells = <0x0>;
+			#interrupt-cells = <0x1>;
+			reg = <0x80 0x80>;
+			interrupts = <0x5f 0x2 0x0 0x0 0x5e 0x2 0x0 0x0>;
+			linux,phandle = <0x1c>;
+			phandle = <0x1c>;
+		};
+
+		muram@10000 {
+			#address-cells = <0x1>;
+			#size-cells = <0x1>;
+			compatible = "fsl,qe-muram", "fsl,cpm-muram";
+			ranges = <0x0 0x10000 0x6000>;
+
+			data-only@0 {
+				compatible = "fsl,qe-muram-data", "fsl,cpm-muram-data";
+				reg = <0x0 0x6000>;
 			};
 		};
 	};
 
-	pci0: pcie@ffe240000 {
-		reg = <0xf 0xfe240000 0 0x10000>;
-		ranges = <0x02000000 0 0xe0000000 0xc 0x00000000 0 0x10000000
-			  0x01000000 0 0x00000000 0xf 0xf8000000 0 0x00010000>;
+	pcie@ffe240000 {
+		reg = <0xf 0xfe240000 0x0 0x10000>;
+		ranges = <0x2000000 0x0 0xe0000000 0xc 0x0 0x0 0x10000000 0x1000000 0x0 0x0 0xf 0xf8000000 0x0 0x10000>;
+		compatible = "fsl,t1024-pcie", "fsl,qoriq-pcie-v2.4", "fsl,qoriq-pcie";
+		device_type = "pci";
+		#size-cells = <0x2>;
+		#address-cells = <0x3>;
+		bus-range = <0x0 0xff>;
+		interrupts = <0x14 0x2 0x0 0x0>;
+		fsl,iommu-parent = <0x12>;
+
 		pcie@0 {
-			ranges = <0x02000000 0 0xe0000000
-				  0x02000000 0 0xe0000000
-				  0 0x10000000
-
-				  0x01000000 0 0x00000000
-				  0x01000000 0 0x00000000
-				  0 0x00010000>;
-		};
-	};
-
-	pci1: pcie@ffe250000 {
-		reg = <0xf 0xfe250000 0 0x10000>;
-		ranges = <0x02000000 0 0xe0000000 0xc 0x10000000 0 0x10000000
-			  0x01000000 0 0x00000000 0xf 0xf8010000 0 0x00010000>;
-		pcie@0 {
-			ranges = <0x02000000 0 0xe0000000
-				  0x02000000 0 0xe0000000
-				  0 0x10000000
-
-				  0x01000000 0 0x00000000
-				  0x01000000 0 0x00000000
-				  0 0x00010000>;
-		};
-	};
-
-	pci2: pcie@ffe260000 {
-		reg = <0xf 0xfe260000 0 0x10000>;
-		ranges = <0x02000000 0 0xe0000000 0xc 0x20000000 0 0x10000000
-			  0x01000000 0 0x00000000 0xf 0xf8020000 0 0x00010000>;
-		pcie@0 {
-			ranges = <0x02000000 0 0xe0000000
-				  0x02000000 0 0xe0000000
-				  0 0x10000000
-
-				  0x01000000 0 0x00000000
-				  0x01000000 0 0x00000000
-				  0 0x00010000>;
+			ranges = <0x2000000 0x0 0xe0000000 0x2000000 0x0 0xe0000000 0x0 0x10000000 0x1000000 0x0 0x0 0x1000000 0x0 0x0 0x0 0x10000>;
+			reg = <0x0 0x0 0x0 0x0 0x0>;
+			#interrupt-cells = <0x1>;
+			#size-cells = <0x2>;
+			#address-cells = <0x3>;
+			device_type = "pci";
+			interrupts = <0x14 0x2 0x0 0x0>;
+			interrupt-map-mask = <0xf800 0x0 0x0 0x7>;
+			interrupt-map = <0x0 0x0 0x0 0x1 0x1 0x28 0x1 0x0 0x0 0x0 0x0 0x0 0x2 0x1 0x1 0x1 0x0 0x0 0x0 0x0 0x0 0x3 0x1 0x2 0x1 0x0 0x0 0x0 0x0 0x0 0x4 0x1 0x3 0x1 0x0 0x0>;
 		};
 	};
 };
-
-#include "t1024si-post.dtsi"
