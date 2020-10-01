@@ -230,7 +230,17 @@
 
 		partition@1 {
 			label = "u-boot-image";
-			reg = <0x800000 0x800000>;
+			reg = <0x800000 0x600000>;
+		};
+
+		partition@2 {
+			label = "boot certs";
+			reg = <0xe00000 0x100000>;
+		};
+
+		partition@3 {
+			label = "crtm creds";
+			reg = <0xf00000 0x100000>;
 		};
 	};
 };
