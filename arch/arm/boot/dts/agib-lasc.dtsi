@@ -1,0 +1,11 @@
+&i2c0 {
+	asc0@60 {
+               compatible = "asc";
+               reg = <0x60>;
+	};
+
+	asc1@61 {
+               compatible = "asc";
+               reg = <0x61>;
+	};
+};

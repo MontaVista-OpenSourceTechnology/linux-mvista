@@ -1,0 +1,6 @@
+&i2c0 {
+	bmu@31 {
+		compatible = "bmuqt";
+		reg = <0x31>;
+	};
+};

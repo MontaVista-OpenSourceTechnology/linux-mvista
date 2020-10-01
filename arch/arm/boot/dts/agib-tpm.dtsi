@@ -1,0 +1,9 @@
+&spi1 {
+	tpm@0 {
+		#address-cells = <0x1>;
+		#size-cells = <0x1>;
+		compatible = "infineon,slb9670";
+		spi-max-frequency = <18500000>;
+		reg = <0x0>;
+	};
+};

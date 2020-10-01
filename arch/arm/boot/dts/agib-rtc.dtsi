@@ -1,0 +1,6 @@
+&i2c1 {
+       rtc@68 {
+               compatible = "st,m41t62";
+               reg = <0x68>;
+       };
+};
