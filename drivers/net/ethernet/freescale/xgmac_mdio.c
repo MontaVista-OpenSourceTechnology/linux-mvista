@@ -248,6 +248,7 @@ static int xgmac_mdio_probe(struct platform_device *pdev)
 	struct resource res;
 	struct mdio_fsl_priv *priv;
 	int ret;
+	u32 div;
 
 	ret = of_address_to_resource(np, 0, &res);
 	if (ret) {
@@ -278,6 +279,23 @@ static int xgmac_mdio_probe(struct platform_device *pdev)
 
 	priv->has_a011043 = of_property_read_bool(pdev->dev.of_node,
 						  "fsl,erratum-a011043");
+
+	if (of_property_read_u32(pdev->dev.of_node, "clk-div", &div) == 0) {
+		struct tgec_mdio_controller __iomem *regs = priv->mdio_base;
+		u32 v;
+		#define MDIO_CLK_DIV_SHIFT 7
+		#define MDIO_CLK_DIV_MASK  0x1ff
+
+		if ((div % MDIO_CLK_DIV_MASK) != div)
+			goto err_ioremap;
+
+		v = xgmac_read32(&regs->mdio_stat, priv->is_little_endian);
+		v &= ~(MDIO_CLK_DIV_MASK << MDIO_CLK_DIV_SHIFT);
+		v |= div << MDIO_CLK_DIV_SHIFT;
+		xgmac_write32(v, &regs->mdio_stat, priv->is_little_endian);
+
+		dev_info(&pdev->dev, "stat %x\n", v);
+	}
 
 	ret = of_mdiobus_register(bus, np);
 	if (ret) {
