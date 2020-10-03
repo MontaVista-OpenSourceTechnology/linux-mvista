@@ -259,3 +259,12 @@
 		reg = <1>;
 	};
 };
+
+&netcp {
+       netcp-interfaces {
+               interface-0 {
+                       efuse-mac = <0>;
+                       local-mac-address = [00 00 00 00 00 00];
+               };
+       };
+};
