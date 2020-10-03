@@ -7,7 +7,7 @@
 /dts-v1/;
 
 #include "keystone.dtsi"
-#include "keystone-k2hk.dtsi"
+#include "keystone-agib.dtsi"
 #include <dt-bindings/net/ti-dp83867.h>
 #include "agib-rapidio.dtsi"
 #include "agib-bmuqt.dtsi"

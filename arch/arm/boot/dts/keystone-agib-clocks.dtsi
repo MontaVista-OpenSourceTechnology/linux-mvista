@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Keystone 2 Kepler/Hawking SoC clock nodes
+ *
+ * Copyright (C) 2013-2017 Texas Instruments Incorporated - http://www.ti.com/
+ */
+/*
+ * AGIB clocks. Based on keystone-k2hk-clocks.dtsi.
+ *
+ * Power domains 17 to 27 are removed since they are marked reserved in SoC datasheet.
+ *
+ * Hyperlinks and ddr3b domains are removed since they are not used on AGIB.
+ *
+ */
+
+clocks {
+	armpllclk: armpllclk@2620370 {
+		#clock-cells = <0>;
+		compatible = "ti,keystone,pll-clock";
+		clocks = <&refclkarm>;
+		clock-output-names = "arm-pll-clk";
+		reg = <0x02620370 4>;
+		reg-names = "control";
+	};
+
+	mainpllclk: mainpllclk@2310110 {
+		#clock-cells = <0>;
+		compatible = "ti,keystone,main-pll-clock";
+		clocks = <&refclksys>;
+		reg = <0x02620350 4>, <0x02310110 4>, <0x02310108 4>;
+		reg-names = "control", "multiplier", "post-divider";
+	};
+
+	papllclk: papllclk@2620358 {
+		#clock-cells = <0>;
+		compatible = "ti,keystone,pll-clock";
+		clocks = <&refclkpass>;
+		clock-output-names = "papllclk";
+		reg = <0x02620358 4>;
+		reg-names = "control";
+	};
+
+	ddr3apllclk: ddr3apllclk@2620360 {
+		#clock-cells = <0>;
+		compatible = "ti,keystone,pll-clock";
+		clocks = <&refclkddr3a>;
+		clock-output-names = "ddr-3a-pll-clk";
+		reg = <0x02620360 4>;
+		reg-names = "control";
+	};
+
+	clktsip: clktsip@2350000 {
+		#clock-cells = <0>;
+		compatible = "ti,keystone,psc-clock";
+		clocks = <&chipclk16>;
+		clock-output-names = "tsip";
+		reg = <0x02350000 0xb00>, <0x02350000 0x400>;
+		reg-names = "control", "domain";
+		domain-id = <0>;
+	};
+
+	clksrio: clksrio@235002c {
+		#clock-cells = <0>;
+		compatible = "ti,keystone,psc-clock";
+		clocks = <&chipclk1rstiso13>;
+		clock-output-names = "srio";
+		reg = <0x0235002c 0xb00>, <0x02350010 0x400>;
+		reg-names = "control", "domain";
+		domain-id = <4>;
+	};
+
+	clkxge: clkxge@23500c8 {
+		#clock-cells = <0>;
+		compatible = "ti,keystone,psc-clock";
+		clocks = <&chipclk13>;
+		clock-output-names = "xge";
+		reg = <0x023500c8 0xb00>, <0x02350074 0x400>;
+		reg-names = "control", "domain";
+		domain-id = <29>;
+	};
+};
