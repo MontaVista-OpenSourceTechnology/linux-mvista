@@ -21,3 +21,18 @@ obj-$(CONFIG_TI_KEYSTONE_NETCP) += keystone_netcp.o
 keystone_netcp-y := netcp_core.o
 obj-$(CONFIG_TI_KEYSTONE_NETCP_ETHSS) += keystone_netcp_ethss.o
 keystone_netcp_ethss-y := netcp_ethss.o netcp_sgmii.o netcp_xgbepcsr.o
+obj-$(CONFIG_TI_KEYSTONE_NET) += keystone_net.o
+obj-$(CONFIG_TI_KEYSTONE_PA) += keystone_pa.o keystone_pa2.o
+obj-$(CONFIG_TI_KEYSTONE_QOS) += keystone_qos.o
+obj-$(CONFIG_TI_KEYSTONE_NET_SA) += keystone_net_sa.o
+keystone_net-y += cpsw_ale.o		\
+		  keystone_ethss.o	\
+		  keystone_sgmii.o	\
+		  keystone_net_core.o	\
+		  keystone_serdes.o	\
+		  phy-keystone-serdes.o	\
+		  keystone_ethss2.o
+obj-$(CONFIG_TI_KEYSTONE_XGE) += keystone_xge.o
+obj-$(CONFIG_TI_KEYSTONE_XGE_MDIO) += keystone_xgemdio.o
+keystone_xge-y += keystone_xgess.o	\
+		  keystone_xgepcsr.o

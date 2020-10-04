@@ -76,7 +76,7 @@ config TI_CPSW
 
 config TI_CPTS
 	bool "TI Common Platform Time Sync (CPTS) Support"
-	depends on TI_CPSW || TI_KEYSTONE_NETCP || COMPILE_TEST
+	depends on TI_CPSW || TI_KEYSTONE_NETCP || TI_KEYSTONE_NET || COMPILE_TEST
 	depends on POSIX_TIMERS
 	---help---
 	  This driver supports the Common Platform Time Sync unit of
@@ -87,7 +87,7 @@ config TI_CPTS
 config TI_CPTS_MOD
 	tristate
 	depends on TI_CPTS
-	default y if TI_CPSW=y || TI_KEYSTONE_NETCP=y
+	default y if TI_CPSW=y || TI_KEYSTONE_NETCP=y || TI_KEYSTONE_NET=y
 	select NET_PTP_CLASSIFY
 	imply PTP_1588_CLOCK
 	default m
@@ -112,6 +112,44 @@ config TI_KEYSTONE_NETCP_ETHSS
 	  To compile this driver as a module, choose M here: the module
 	  will be called keystone_netcp_ethss.
 
+config TI_KEYSTONE_NET
+	tristate "TI Keystone Ethernet Support"
+	depends on ARCH_KEYSTONE
+	default y if ARCH_KEYSTONE
+	---help---
+	  This driver supports TI's Keystone Ethernet.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called keystone_net.
+
+config TI_KEYSTONE_PA
+	tristate "TI Keystone Packet Accelerator Support"
+	depends on ARCH_KEYSTONE
+	default y if ARCH_KEYSTONE
+	---help---
+	  This driver supports TI's Keystone Packet Accelerator.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called keystone_pa.
+
+config TI_KEYSTONE_QOS
+	tristate "TI Keystone Quality of Service Support"
+	depends on ARCH_KEYSTONE
+	default y if ARCH_KEYSTONE
+	---help---
+	  This driver supports TI's Keystone Quality of Service support.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called keystone_qos.
+
+config TI_KEYSTONE_NET_SA
+	tristate "TI Keystone inflow Security Accelerator mode Support"
+	depends on ARCH_KEYSTONE
+	default y if ARCH_KEYSTONE
+	---help---
+	  This driver supports TI's Keystone inflow Security Accelerator
+          mode.
+
 config TLAN
 	tristate "TI ThunderLAN support"
 	depends on (PCI || EISA)
@@ -134,5 +172,24 @@ config CPMAC
 	select PHYLIB
 	---help---
 	  TI AR7 CPMAC Ethernet support
+
+config TI_KEYSTONE_XGE
+	tristate "TI Keystone 10Gig Ethernet Support"
+	depends on ARCH_KEYSTONE && TI_KEYSTONE_NET
+	---help---
+	  This driver supports TI's Keystone 10Gig Ethernet.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called keystone_xge.
+
+config TI_KEYSTONE_XGE_MDIO
+	tristate "TI Keystone 10GE MDIO Support"
+	depends on ARM && ARCH_KEYSTONE
+	select PHYLIB
+	---help---
+	  This driver supports TI's Keystone 10GE MDIO module.
+
+	  To compile this driver as a module, choose M here: the module
+	  will be called keystone_xgemdio.  This is recommended.
 
 endif # NET_VENDOR_TI
