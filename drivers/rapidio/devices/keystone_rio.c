@@ -125,7 +125,8 @@ size_t keystone_rio_sync_buf_len_get(void)
  */
 static inline unsigned long krio_map_low(struct device *dev, void *p)
 {
-	return (unsigned long)virt_to_dma(dev, p);
+	unsigned long offset = (unsigned long)p & ~PAGE_MASK;
+	return (unsigned long)virt_to_dma(dev, p) | offset;
 }
 
 static u64 keystone_op_map_virt(struct rio_mem_map *map,
