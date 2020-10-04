@@ -2171,7 +2171,7 @@ static int riocm_add_mport(struct device *dev,
 	/* Add self as a peer for loopback operations */
 	peer = kmalloc(sizeof(struct cm_peer), GFP_KERNEL);
 	if (peer) {
-		riocm_debug(DBG_MPORT, "add loopback for mport%d", mport->id);
+		riocm_debug(MPORT, "add loopback for mport%d", mport->id);
 		cm->rdev.destid = (u16)mport->host_deviceid;
 		dev_set_name(&cm->rdev.dev, "loc_mport%d", mport->id);
 		device_initialize(&cm->rdev.dev);
