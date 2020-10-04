@@ -279,8 +279,6 @@ static struct irq_domain_ops keystone_gpio_irq_ops = {
 
 static void keystone_gpio_setup(struct gpio_bank *bank)
 {
-	int i;
-
 	bank->chip.label = GPIO_NAME;
 	bank->chip.direction_input = keystone_direction_in;
 	bank->chip.get = keystone_gpio_get;
@@ -291,10 +289,6 @@ static void keystone_gpio_setup(struct gpio_bank *bank)
 	spin_lock_init(&bank->lock);
 	bank->chip.to_irq = keystone_gpio_to_irq;
 	gpiochip_add(&bank->chip);
-
-	/* Set up all GPIO lines to be input */
-	for (i = 0; i < GPIOS_PER_BANK; i++)
-		keystone_direction_in(&bank->chip, i);
 
 	/* setup IRQ chip controller */
 	keystone_setup_irq(bank);
