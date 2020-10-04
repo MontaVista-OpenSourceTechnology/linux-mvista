@@ -1,0 +1,29 @@
+#
+# Generic HWQUEUE framework
+#
+
+# HWQUEUE always gets selected by whoever wants it.
+config HWQUEUE
+	tristate
+
+menu "Hardware Queue drivers"
+
+config HWQUEUE_TEST
+	tristate "Hardware Queue test driver"
+	depends on HWQUEUE
+	help
+	  Say y here to enable test code for the hardware queue subsystem
+
+	  If unsure, say N.
+
+config HWQUEUE_KEYSTONE
+	tristate "Keystone Hardware Queue device"
+	depends on TI_KEYSTONE
+	default y if TI_KEYSTONE
+	select HWQUEUE
+	help
+	  Say y here to support the Keystone Hardware queue device
+
+	  If unsure, say N.
+
+endmenu

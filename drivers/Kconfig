@@ -145,6 +145,8 @@ source "drivers/clk/Kconfig"
 
 source "drivers/hwspinlock/Kconfig"
 
+source "drivers/hwqueue/Kconfig"
+
 source "drivers/clocksource/Kconfig"
 
 source "drivers/mailbox/Kconfig"
