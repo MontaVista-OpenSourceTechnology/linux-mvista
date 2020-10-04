@@ -29,6 +29,7 @@
 #include <linux/io.h>
 #include <linux/stat.h>
 #include <linux/moduleparam.h>
+#include <linux/sched/signal.h>
 #include "knav_qmss_monitor.h"
 
 static char *knav_qmssm_name;
