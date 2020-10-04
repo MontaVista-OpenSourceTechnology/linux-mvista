@@ -34,7 +34,6 @@
 #include <linux/of_address.h>
 #include <linux/firmware.h>
 #include <linux/interrupt.h>
-#include <linux/timer.h>
 #include <asm/div64.h>
 
 #include "hwqueue_internal.h"
@@ -3083,10 +3082,8 @@ int khwq_qos_start(struct khwq_qos_info *info)
 	if (error)
 		dev_err(kdev->dev, "failed to enable drop scheduler\n");
 
-	info->timer.expires		= jiffies +
-						KHWQ_QOS_TIMER_INTERVAL;
 	timer_setup(&info->timer, khwq_qos_timer, 0);
-	add_timer(&info->timer);
+	mod_timer(&info->timer, jiffies + KHWQ_QOS_TIMER_INTERVAL);
 
 	return error;
 }

@@ -131,7 +131,7 @@ static irqreturn_t khwq_acc_int_handler(int irq, void *_instdata)
 	list_dma = acc->list_dma[acc->list_index];
 	list_cpu = acc->list_cpu[acc->list_index];
 
-	dev_dbg(kdev->dev, "acc-irq: channel %d, list %d, virt %p, phys %x\n",
+	dev_dbg(kdev->dev, "acc-irq: channel %d, list %d, virt %p, phys %08llx\n",
 		channel, acc->list_index, list_cpu, list_dma);
 
 	if (atomic_read(&acc->retrigger_count)) {
@@ -585,7 +585,7 @@ int khwq_init_acc_range(struct khwq_device *kdev, struct device_node *node,
 		acc->list_dma[0] = list_dma;
 		acc->list_dma[1] = list_dma + list_size;
 
-		dev_dbg(kdev->dev, "%s: channel %d, phys %08x, virt %8p\n",
+		dev_dbg(kdev->dev, "%s: channel %d, phys %08llx, virt %8p\n",
 			acc->name, acc->channel, list_dma, list_mem);
 	}
 

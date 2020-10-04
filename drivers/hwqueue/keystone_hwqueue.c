@@ -471,7 +471,7 @@ static int khwq_setup_region(struct khwq_device *kdev,
 	region->dma_end  = region->dma_start + size;
 
 	dev_info(kdev->dev,
-		"region %s (%d): size:%d, link:%d@%d, phys:%08x-%08x, virt:%p-%p\n",
+		"region %s (%d): size:%d, link:%d@%d, phys:%08llx-%08llx, virt:%p-%p\n",
 		region->name, id, region->desc_size, region->num_desc,
 		region->link_index, region->dma_start, region->dma_end,
 		region->virt_start, region->virt_end);
@@ -660,7 +660,7 @@ static int khwq_setup_link_ram(struct khwq_device *kdev)
 
 	for_each_qmgr(kdev, qmgr) {
 		block = &kdev->link_rams[0];
-		dev_dbg(kdev->dev, "linkram0: phys:%x, virt:%p, size:%x\n",
+		dev_dbg(kdev->dev, "linkram0: phys:%08llx, virt:%p, size:%x\n",
 			block->phys, block->virt, block->size);
 		__raw_writel(block->phys, &qmgr->reg_config->link_ram_base0);
 		__raw_writel(block->size - 1, &qmgr->reg_config->link_ram_size0);
@@ -669,7 +669,7 @@ static int khwq_setup_link_ram(struct khwq_device *kdev)
 		if (!block->size)
 			continue;
 
-		dev_dbg(kdev->dev, "linkram1: phys:%x, virt:%p, size:%x\n",
+		dev_dbg(kdev->dev, "linkram1: phys:%08llx, virt:%p, size:%x\n",
 			block->phys, block->virt, block->size);
 		__raw_writel(block->phys, &qmgr->reg_config->link_ram_base1);
 	}

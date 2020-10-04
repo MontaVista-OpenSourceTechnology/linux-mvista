@@ -5,6 +5,7 @@
 # HWQUEUE always gets selected by whoever wants it.
 config HWQUEUE
 	tristate
+	select RING_BUFFER
 
 menu "Hardware Queue drivers"
 
@@ -18,8 +19,8 @@ config HWQUEUE_TEST
 
 config HWQUEUE_KEYSTONE
 	tristate "Keystone Hardware Queue device"
-	depends on TI_KEYSTONE
-	default y if TI_KEYSTONE
+	depends on ARCH_KEYSTONE
+	default y if ARCH_KEYSTONE
 	select HWQUEUE
 	help
 	  Say y here to support the Keystone Hardware queue device
