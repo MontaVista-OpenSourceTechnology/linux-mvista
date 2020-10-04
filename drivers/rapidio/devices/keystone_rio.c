@@ -194,21 +194,21 @@ size_t keystone_rio_sync_buf_len_get(void)
  * Example: 0xc1001234 is the lower memory area equivalent of
  *          0x841001234.
  */
-static inline unsigned long krio_map_low(void *p)
+static inline unsigned long krio_map_low(struct device *dev, void *p)
 {
-	return (unsigned long)p;
+	return (unsigned long)virt_to_dma(dev, p);
 }
 
 static u64 keystone_op_map_virt(struct rio_mem_map *map,
 		void *addr, size_t size)
 {
-	return krio_map_low(addr);
+	return krio_map_low(map->dev, addr);
 }
 
 static u64 keystone_op_map_phys(struct rio_mem_map *map,
 		phys_addr_t addr, size_t size)
 {
-	return krio_map_low(phys_to_virt(addr));
+	return krio_map_low(map->dev, phys_to_virt(addr));
 }
 
 static const struct rio_mem_map_ops keystone_rio_mem_map_ops = {
@@ -1837,7 +1837,7 @@ static int keystone_rio_hw_init(u32 baud, struct keystone_rio_data *krio_priv)
 #endif
 	if (krio_priv->mem_map) {
 		unsigned long paddr =
-			krio_map_low(krio_priv->mem_map->block) >> 12;
+			krio_map_low(krio_priv->dev, krio_priv->mem_map->block) >> 12;
 		assembly_id |= paddr & 0xffff0000;
 		assembly_info |= paddr << 16;
 	}
@@ -5022,7 +5022,7 @@ static int keystone_rio_probe(struct platform_device *pdev)
 
 #ifdef CONFIG_RAPIDIO_MEM_MAP
 	keystone_rio_sync_buf_alloc(krio_priv);
-	krio_priv->mem_map = rio_mem_map_alloc(&keystone_rio_mem_map_ops);
+	krio_priv->mem_map = rio_mem_map_alloc(&pdev->dev, &keystone_rio_mem_map_ops);
 	if(krio_priv->mem_map) {
 		krio_priv->mem_map->region[RIO_MEM_MAP_REGION_SYNC].get_addr = keystone_rio_sync_buf_addr_get;
 		krio_priv->mem_map->region[RIO_MEM_MAP_REGION_SYNC].get_size = keystone_rio_sync_buf_len_get;
@@ -5036,8 +5036,10 @@ static int keystone_rio_probe(struct platform_device *pdev)
 	if (krio_priv->mem_map) {
 		phys_addr_t paddr =
 			virt_to_phys(krio_priv->mem_map->block);
-		dev_info(&pdev->dev, "RIO memory map at 0x%p (%pa)\n",
-				krio_priv->mem_map->block, &paddr);
+		dev_info(&pdev->dev, "RIO memory map at 0x%p (%pa - 0x%lx)\n",
+				krio_priv->mem_map->block, &paddr,
+				krio_map_low(krio_priv->dev,
+					krio_priv->mem_map->block));
 		krio_priv->mem_map->priv = krio_priv;
 	}
 #endif

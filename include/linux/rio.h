@@ -668,6 +668,8 @@ struct rio_mem_map {
 	struct  mutex lock;
 	const	struct rio_mem_map_ops *ops;
 	void	*priv;
+	struct device *dev;
+	dma_addr_t phys_addr;
 	region_ops_t region;
 };
 
@@ -693,7 +695,7 @@ struct rio_mem_map {
 #define RIO_MEM_MAP_NAMED_DESC_SIZE	(RIO_MEM_MAP_DESC_SIZE + RIO_MEM_MAP_NAME_LEN)
 
 
-struct rio_mem_map *rio_mem_map_alloc(const struct rio_mem_map_ops *ops);
+struct rio_mem_map *rio_mem_map_alloc(struct device *dev, const struct rio_mem_map_ops *ops);
 int rio_mem_map_init(struct rio_mem_map *map);
 void rio_mem_map_free(struct rio_mem_map *map);
 

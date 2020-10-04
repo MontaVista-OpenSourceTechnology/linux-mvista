@@ -17,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/of_fdt.h>
 #include <linux/libfdt.h>
+#include <linux/dma-mapping.h>
 #include <asm/byteorder.h>
 
 #ifdef __BIG_ENDIAN
@@ -186,7 +187,7 @@ out_clean:
 }
 #endif
 
-struct rio_mem_map *rio_mem_map_alloc(const struct rio_mem_map_ops *ops)
+struct rio_mem_map *rio_mem_map_alloc(struct device *dev, const struct rio_mem_map_ops *ops)
 {
 	struct rio_mem_map *map;
 
@@ -196,6 +197,8 @@ struct rio_mem_map *rio_mem_map_alloc(const struct rio_mem_map_ops *ops)
 	map = kzalloc(sizeof(struct rio_mem_map), GFP_KERNEL);
 	if (!map)
 		return NULL;
+
+	map->dev = dev;
 
 	if (ops->alloc_block(map)) {
 		kfree(map);
@@ -274,11 +277,14 @@ int rio_mem_map_op_alloc_block(struct rio_mem_map *map)
 	if (map->block)
 		return -EINVAL;
 
-	map->block = (void *)get_zeroed_page(GFP_KERNEL);
+	map->block = dma_alloc_coherent(map->dev, PAGE_SIZE,
+			&map->phys_addr, GFP_DMA32);
 	if (!map->block)
 		return -ENOMEM;
 
+	memset(map->block, 0, PAGE_SIZE);
 	map->size = PAGE_SIZE;
+
 	return 0;
 }
 
@@ -287,7 +293,7 @@ void rio_mem_map_op_free_block(struct rio_mem_map *map)
 	if (!map->block)
 		return;
 
-	free_page((unsigned long)map->block);
+	dma_free_coherent(map->dev, PAGE_SIZE, map->block, map->phys_addr);
 }
 
 int rio_mem_map_add_named_region(struct rio_mem_map *map,
