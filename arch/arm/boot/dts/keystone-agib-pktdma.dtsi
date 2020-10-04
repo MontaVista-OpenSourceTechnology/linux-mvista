@@ -71,15 +71,14 @@ hwqueue0: hwqueue@2a40000 {
 		};
 		accumulator-low-0 {
 			values = <8192 32>;
-			reserved;
 			// pdsp-id, channel, entries, pacing mode, latency
-			//accumulator = <6 32 16 2 50>;
-			//interrupts = <0 261 0xf01>;
-			//multi-queue;
+			accumulator = <6 32 16 2 50>;
+			interrupts = <0 261 0xf01>;
+			multi-queue;
 		};
 		riotx-garbage {
 			values = <8288 1>;
-			//pdsp-acc-reclamation = <6>;
+			pdsp-acc-reclamation = <6>;
 			reserved;
 		};
 	};
@@ -120,14 +119,14 @@ hwqueue0: hwqueue@2a40000 {
 		#address-cells = <1>;
 		#size-cells = <1>;
 		ranges;
-//		pdsp6@0x2a16000 {
-//			firmware = "qmss_pdsp_acc48_k2_le.fw"; /* accumulator firmware */
-//			reg = <0x2a16000 0x1000    /* iram */
-//			       0x2a0f600 0x100     /* reg */
-//			       0x2a0d000 0x3c8	   /* intd */
-//			       0x2a38000 0x4000>;  /* cmd */
-//			id = <6>;
-//		};
+		pdsp6@0x2a16000 {
+			firmware = "ks2_qmss_pdsp_acc48.bin"; /* accumulator firmware */
+			reg = <0x2a16000 0x1000    /* iram */
+			       0x2a0f600 0x100     /* reg */
+			       0x2a0d000 0x3c8	   /* intd */
+			       0x2a38000 0x4000>;  /* cmd */
+			id = <6>;
+		};
 	};
 }; /* hwqueue0 */
 
