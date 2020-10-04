@@ -2447,7 +2447,7 @@ static int keystone_rio_port_status(int port, struct keystone_rio_data *krio_pri
 			}
 		}
 	} else {
-		dev_err(krio_priv->dev,
+		dev_err_once(krio_priv->dev,
 			"port %d is not initialized - PORT_OK not set\n",
 			port);
 		return -EIO;
