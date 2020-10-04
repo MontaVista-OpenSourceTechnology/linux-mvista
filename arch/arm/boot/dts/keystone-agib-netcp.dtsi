@@ -216,7 +216,29 @@ netcpx: netcp@2f00000 {
 				link-rate-kbps = <0x9d5b34>;
 				phy-type = "xge";
 				max-lanes = <0x2>;
-				debug;
+				/* debug; */
+
+				/*rx-force-enable;*/
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+
+				lane@0 {
+					status = "ok";
+					reg = <0x0>;
+					rx-start = <0xf 0x9>;
+					tx-coeff = <0x0 0x3 0x2 0x8 0x11>;
+					control-rate = <0x0>;
+					rx-force = <0x7 0x8>;
+				};
+
+				lane@1 {
+					status = "ok";
+					reg = <0x1>;
+					rx-start = <0xf 0x9>;
+					tx-coeff = <0x0 0x3 0x2 0x8 0x11>;
+					control-rate = <0x0>;
+					rx-force = <0x3 0x5>;
+				};
 			};
 		};
 	};
