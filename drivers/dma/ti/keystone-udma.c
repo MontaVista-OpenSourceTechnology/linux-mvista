@@ -801,7 +801,7 @@ static struct udma_map *udma_map_create(struct udma_user *user,
 
 	count = map->size >> PAGE_SHIFT;
 	order = get_order(map->size);
-	map->page = dma_alloc_from_contiguous(udma->dev, count, order);
+	map->page = dma_alloc_from_contiguous(udma->dev, count, order, false);
 	if (!map->page) {
 		dev_err(udma_map_dev(map), "failed to allocate dma memory\n");
 		kfree(map);
