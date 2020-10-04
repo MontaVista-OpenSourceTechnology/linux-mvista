@@ -1921,6 +1921,10 @@ config SENSORS_XGENE
 	  If you say yes here you get support for the temperature
 	  and power sensors for APM X-Gene SoC.
 
+config SENSORS_LASC10
+	tristate "Lattice Hardware Management Expander L-ASC10"
+	depends on I2C
+
 if ACPI
 
 comment "ACPI drivers"
