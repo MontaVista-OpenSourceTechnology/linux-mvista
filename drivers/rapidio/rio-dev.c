@@ -26,7 +26,8 @@
 #include <linux/slab.h>
 #include <linux/interrupt.h>
 #include <linux/sched.h>
-#include <asm/uaccess.h>
+#include <linux/sched/signal.h>
+#include <linux/uaccess.h>
 
 #include "rio.h"
 
