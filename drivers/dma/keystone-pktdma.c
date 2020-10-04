@@ -90,7 +90,7 @@ static int pktdma_log_enable = 0;
 
 DEFINE_SPINLOCK(stats_lock);
 
-static void stat_timer_handler(struct timer_list *unused);
+static void stat_timer_handler(struct timer_list *);
 int stat_time_interval = 60000;
 DEFINE_TIMER(stat_timer, stat_timer_handler);
 
@@ -298,6 +298,8 @@ static struct list_head chan_stats_list;
 
 bool keystone_dma_name_flt(struct dma_chan *chan, void *name)
 {
+	if (!chan || !chan->private || !name)
+		return 0;
 	return !strcmp(chan->private, name);
 }
 EXPORT_SYMBOL_GPL(keystone_dma_name_flt);
@@ -645,7 +647,7 @@ static struct keystone_dma_desc *chan_complete_one(
 			 * the problem and skip to the next packet in the queue.
 			 */
 			dev_warn(chan_dev(chan),
-				 "failed to unmap descriptor 0x%08x\n",
+				 "failed to unmap descriptor 0x%08llx\n",
 				 dma);
 		} else
 			break;
@@ -742,7 +744,7 @@ static struct keystone_dma_desc *chan_complete_one(
 		hwdesc = hwqueue_unmap(queue, dma, DESC_MIN_SIZE);
 		if (!hwdesc) {
 			dev_warn(chan_dev(chan),
-				 "unable to unmap descriptor 0x%08x\n",
+				 "unable to unmap descriptor 0x%08llx\n",
 				 dma);
 			break;
 		}
@@ -2637,8 +2639,12 @@ static int keystone_dma_probe(struct platform_device *pdev)
 
 	atomic_set(&dma->in_use, 0);
 
+#ifdef CONFIG_KEYSTONE_DMA_INIT_HACK
 	/* NSN: initialize HW for use by DSPs and userspace */
+	dev_info(&pdev->dev, "Forcing initialization. If the underlying peripheral "
+			"is not initialized, CPU will raise an exception.\n");
 	keystone_dma_hw_init(dma);
+#endif
 
 	INIT_LIST_HEAD(&engine->channels);
 
@@ -2798,7 +2804,6 @@ static int __init keystone_dma_init(void)
 
 	return platform_driver_register(&keystone_dma_driver);
 }
-
 device_initcall_sync(keystone_dma_init);
 
 static void __exit keystone_dma_exit(void)

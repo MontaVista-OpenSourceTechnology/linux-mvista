@@ -312,6 +312,31 @@ config K3_DMA
 	  Support the DMA engine for Hisilicon K3 platform
 	  devices.
 
+config KEYSTONE_DMA
+	bool "TI Keystone platform Packet DMA support"
+	depends on ARCH_KEYSTONE
+	default y if ARCH_KEYSTONE
+	select DMA_ENGINE
+	help
+	  Enable support for the Packet DMA engine on Texas Instruments'
+	  Keystone family of devices.
+
+config KEYSTONE_DMA_INIT_HACK
+	bool "Force initialization of all present DMA engines"
+	depends on KEYSTONE_DMA
+	default y if KEYSTONE_DMA
+	help
+	  This option initializes all DMA engines as part of DMA subsystem
+	  initialization instead of doing it when the underlying peripheral
+	  is opened. This is useful if one wants to initialize DMA for HW,
+	  which is not used by the kernel and is too lazy to provide some
+	  kind of open call.
+	  If this option is enabled and the underlying peripheral is not
+	  initialized before DMA initialization, the CPU will raise an
+	  asynchronous external abort 0x211. This happen if one of the drivers
+	  for underlying peripheral is disabled or compiled as a module. Or
+	  if the order of initialization changes in the kernel...
+
 config LPC18XX_DMAMUX
 	bool "NXP LPC18xx/43xx DMA MUX for PL080"
 	depends on ARCH_LPC18XX || COMPILE_TEST
@@ -320,6 +345,17 @@ config LPC18XX_DMAMUX
 	help
 	  Enable support for DMA on NXP LPC18xx/43xx platforms
 	  with PL080 and multiplexed DMA request lines.
+
+config LSI_DMA
+	tristate "LSI General Purpose DMA support"
+	depends on ARCH_AXXIA
+	default y
+	select DMA_ENGINE
+	select DMA_VIRTUAL_CHANNELS
+	select ASYNC_TX_ENABLE_CHANNEL_SWITCH
+	help
+	  Enable support for the LSI General Purpose DMA controller found
+	  on ACP34xx, AXM25xx, AXM55xx and AXM56xx devices.
 
 config MMP_PDMA
 	bool "MMP PDMA support"
@@ -660,5 +696,13 @@ config DMATEST
 
 config DMA_ENGINE_RAID
 	bool
+
+config KEYSTONE_UDMA
+	tristate "Zero Copy User Mode DMA client"
+	depends on KEYSTONE_DMA && VIRTIO
+	default y if KEYSTONE_DMA
+	help
+	  Simple user mode DMA client with zero copy semantics.  Say N unless
+	  you really know what you're doing.
 
 endif
