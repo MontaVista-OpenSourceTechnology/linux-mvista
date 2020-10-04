@@ -34,6 +34,7 @@
 #include <linux/of_address.h>
 #include <linux/firmware.h>
 #include <linux/interrupt.h>
+#include <linux/timer.h>
 #include <asm/div64.h>
 
 #include "hwqueue_internal.h"
@@ -241,9 +242,9 @@ static int khwq_qos_update_stats(struct khwq_qos_info *info)
 	return 0;
 }
 
-static void khwq_qos_timer(unsigned long arg)
+static void khwq_qos_timer(struct timer_list *t)
 {
-	struct khwq_qos_info *info = (struct khwq_qos_info *)arg;
+	struct khwq_qos_info *info = from_timer(info, t, timer);
 	struct khwq_device *kdev = info->kdev;
 	int error;
 
@@ -3082,11 +3083,9 @@ int khwq_qos_start(struct khwq_qos_info *info)
 	if (error)
 		dev_err(kdev->dev, "failed to enable drop scheduler\n");
 
-	init_timer(&info->timer);
-	info->timer.data		= (unsigned long)info;
-	info->timer.function		= khwq_qos_timer;
 	info->timer.expires		= jiffies +
 						KHWQ_QOS_TIMER_INTERVAL;
+	timer_setup(&info->timer, khwq_qos_timer, 0);
 	add_timer(&info->timer);
 
 	return error;

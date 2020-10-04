@@ -19,6 +19,7 @@
 #include <linux/kernel.h>
 #include <linux/list.h>
 #include <linux/module.h>
+#include <linux/timer.h>
 #include <linux/types.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
@@ -44,7 +45,7 @@ static DEFINE_MUTEX(hwqueue_devices_lock);
 	     id < (hdev)->num_queues;			\
 	     id++, inst = hwqueue_id_to_inst(hdev, id))
 
-static void __hwqueue_poll(unsigned long data);
+static void __hwqueue_poll(struct timer_list *t);
 
 static int hwqueue_poll_interval = 100;
 
@@ -133,8 +134,7 @@ int hwqueue_device_register(struct hwqueue_device *hdev)
 	for_each_instance(id, inst, hdev) {
 		inst->hdev = hdev;
 		INIT_LIST_HEAD(&inst->handles);
-		setup_timer(&inst->poll_timer, __hwqueue_poll,
-			    (unsigned long)inst);
+		timer_setup(&inst->poll_timer, __hwqueue_poll, 0);
 		init_waitqueue_head(&inst->wait);
 		spin_lock_init(&inst->lock);
 	}
@@ -788,9 +788,9 @@ void hwqueue_notify(struct hwqueue_instance *inst)
 }
 EXPORT_SYMBOL(hwqueue_notify);
 
-static void __hwqueue_poll(unsigned long data)
+static void __hwqueue_poll(struct timer_list *t)
 {
-	struct hwqueue_instance *inst = (struct hwqueue_instance *)data;
+	struct hwqueue_instance *inst = from_timer(inst, t, poll_timer);
 	struct hwqueue *qh;
 
 	rcu_read_lock();
