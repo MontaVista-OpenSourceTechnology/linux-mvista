@@ -1,0 +1,3 @@
+config AGIB_BMUQT
+	tristate "Support for AGIB BMUQt"
+	depends on I2C
