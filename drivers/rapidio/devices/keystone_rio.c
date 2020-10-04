@@ -5152,51 +5152,18 @@ static void keystone_rio_shutdown_controller(struct keystone_rio_data *krio_priv
 	keystone_rio_serdes_shutdown(krio_priv);
 }
 
-static __be32 clocks_val = cpu_to_be32(0x16);
-static struct property new_clocks = {
-	.name = "clocks",
-	.length = sizeof(__be32),
-	.value = &clocks_val,
-};
-
 static int keystone_rio_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
 	struct keystone_rio_data *krio_priv;
 	int res = 0;
 	unsigned int i = 0;
-	uint32_t value;
-	struct property *clock;
 
 	dev_info(&pdev->dev, "KeyStone RapidIO driver %s\n", DRIVER_VER);
 
 	if (!node) {
 		dev_err(&pdev->dev, "could not find device info\n");
 		return -EINVAL;
-	}
-
-	pr_err("%s: ~~~~~~~~ WARNING: Correcting malformed clocks ~~~~~~~~\n", __func__);
-	clock = of_find_property(node, "clocks", NULL);
-	res = of_property_read_u32(node, "clocks", &value);
-	if (!res)
-		pr_err("%s: Current value of clocks = 0x%x\n", __func__, value);
-	else
-		pr_err("%s: FAILED to read clocks\n", __func__);
-
-	if (clock) {
-		pr_err("%s: Clocks: name = %s, len = %d, value = 0x%x\n",
-				__func__, clock->name, clock->length,
-				be32_to_cpu(*(__be32*)clock->value));
-		of_update_property(node, &new_clocks);
-	} else {
-		pr_err("%s: Failed to get property for clocks\n", __func__);
-	}
-
-	res = of_property_read_u32(node, "clocks", &value);
-	if (!res) {
-		pr_err("%s: New value of clocks = 0x%x\n", __func__, value);
-	} else {
-		pr_err("%s: Failed to read clocks property\n", __func__);
 	}
 
 	krio_priv = kzalloc(sizeof(struct keystone_rio_data), GFP_KERNEL);

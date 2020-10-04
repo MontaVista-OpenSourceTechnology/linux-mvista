@@ -1,0 +1,436 @@
+hwqueue0: hwqueue@2a40000 {
+	compatible = "ti,keystone-hwqueue";
+	dma-coherent;
+	#address-cells = <1>;
+	#size-cells = <1>;
+	clocks = <&chipclk13>;
+	clock-names = "clk_hwqueue";
+	ranges;
+	range		= <0 0x4000>;
+	linkram0	= <0x100000 0x8000>;
+
+	/* Queue managers configuration */
+	qmgrs {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+		qmgr0 {
+			managed-queues = <0 0x2000>;	/* managed queues */
+			reg = <0x2a40000 0x20000	/* 0 - peek	*/
+			       0x2a06000 0x400		/* 1 - status	*/
+			       0x2a02000 0x1000		/* 2 - config	*/
+			       0x2a03000 0x1000		/* 3 - region	*/
+			       0x2a80000 0x20000	/* 4 - push	*/
+			       0x2a80000 0x20000>;	/* 5 - pop	*/
+		};
+
+		qmgr1 {
+			managed-queues = <0x2000 0x2000>;	/* managed queues */
+			reg = <0x2a60000 0x20000	/* 0 - peek	*/
+			       0x2a06400 0x400		/* 1 - status	*/
+			       0x2a04000 0x1000		/* 2 - config	*/
+			       0x2a05000 0x1000		/* 3 - region	*/
+			       0x2aa0000 0x20000	/* 4 - push	*/
+			       0x2aa0000 0x20000>;	/* 5 - pop	*/
+		};
+	};
+
+	/* queues definition */
+	queues {
+		qpend-arm-hi {
+			values = <8704 32>;
+			interrupts = <0 48 0x104 0 49 0x204 0 50 0xf04 0 51 0xf04
+				      0 52 0xf04 0 53 0xf04 0 54 0xf04 0 55 0xf04
+				      0 56 0xf04 0 57 0xf04 0 58 0xf04 0 59 0xf04
+				      0 60 0x104 0 61 0x204 0 62 0x404 0 63 0x804
+				      0 64 0x404 0 65 0x804 0 66 0xf04 0 59 0xf04
+				      0 68 0xf04 0 69 0xf04 0 70 0xf04 0 71 0xf04
+				      0 72 0xf04 0 73 0xf04 0 74 0xf04 0 75 0xf04
+				      0 76 0xf04 0 77 0xf04 0 78 0xf04 0 79 0xf04>;
+			reserved;
+		};
+		general {
+			values = <4000 57>;
+		};
+
+		pa {
+			values = <648 1>;
+			reserved;
+		};
+		xge {
+			values = <8752 8>;
+			reserved;
+		};
+		riotx {
+			values = <672 4>; /* ref: KS Arch Multicore Navi */
+			reserved;
+		};
+		k2mr {
+			values = <800 2>;
+			reserved;
+		};
+		accumulator-low-0 {
+			values = <8192 32>;
+			reserved;
+			// pdsp-id, channel, entries, pacing mode, latency
+			//accumulator = <6 32 16 2 50>;
+			//interrupts = <0 261 0xf01>;
+			//multi-queue;
+		};
+		riotx-garbage {
+			values = <8288 1>;
+			//pdsp-acc-reclamation = <6>;
+			reserved;
+		};
+	};
+	regions {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+		region-12 {
+			id = <12>;
+			values	= <2048 128>;	/* num_desc desc_size */
+			link-index = <0x3000>;
+		};
+		region-13 {
+			id = <13>;
+			values	= <4096 128>;	/* num_desc desc_size */
+			link-index = <0x3800>;
+		};
+	};
+	descriptors {
+		pool-net {
+			values = <768 128>;	/* num_desc desc_size */
+			region-id = <12>;
+		};
+		pool-xge {
+			values = <1280 128>;
+			region-id = <12>;
+		};
+		pool-rio {
+			values = <2560 128>;
+			region-id = <13>;
+		};
+		pool-k2mr {
+			values = <512 128>;
+			region-id = <13>;
+		};
+	};
+	pdsps {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+//		pdsp6@0x2a16000 {
+//			firmware = "qmss_pdsp_acc48_k2_le.fw"; /* accumulator firmware */
+//			reg = <0x2a16000 0x1000    /* iram */
+//			       0x2a0f600 0x100     /* reg */
+//			       0x2a0d000 0x3c8	   /* intd */
+//			       0x2a38000 0x4000>;  /* cmd */
+//			id = <6>;
+//		};
+	};
+}; /* hwqueue0 */
+
+/* pktdma configuration for packet accelerator */
+padma: pktdma@2004000 {
+	compatible = "ti,keystone-pktdma";
+	clocks = <&papllclk>;
+	reg = <0x2004000 0x100		/* 0 - global  */
+	       0x2004400 0x120		/* 1 - txchan  */
+	       0x2004800 0x300		/* 2 - rxchan  */
+	       0x2004c00 0x120		/* 3 - txsched */
+	       0x2005000 0x400>;	/* 4 - rxflow  */
+	/* loop-back;  */
+	/* bigendian; */
+	dma-coherent;
+	enable-all;
+	/* debug; */
+	/* rx-priority = <0>; */
+	/* tx-priority = <0>; */
+	rx-retry-timeout = <3500>; /* Number of pktdma cycles to wait
+				before retry on buffer starvation */
+	logical-queue-managers	= <4>;
+	queues-per-queue-manager = <4096>;
+	qm-base-address = <0x23a80000 0x23a90000
+			   0x23aa0000 0x23ab0000>;
+
+	channels {
+		nettx0 {
+			transmit;
+			label		= "nettx0";
+			pool		= "pool-net";
+			submit-queue	= <648>;
+			/* complete-queue = <xx>; */
+			/* debug; */
+			/* channel = <0>; */
+			/* priority = <1>; */
+		};
+		nettx1 {
+			transmit;
+			label		= "nettx1";
+			pool		= "pool-net";
+			submit-queue	= <648>;
+			/* complete-queue = <xx>; */
+			/* debug; */
+			/* channel = <0>; */
+			/* priority = <1>; */
+		};
+		netrx0 {
+			receive;
+			label		= "netrx0";
+			pool		= "pool-net";
+			/* submit-queue   = <xx>; */
+			complete-queue = <8704>;
+			/* debug; */
+			/* channel = <0>; */
+			flow		= <22>;
+		};
+		netrx1 {
+			receive;
+			label		= "netrx1";
+			pool		= "pool-net";
+			/* submit-queue   = <xx>; */
+			complete-queue = <8705>;
+			/* debug; */
+			/* channel = <0>; */
+			flow		= <23>;
+		};
+	};
+};
+
+xgedma: pktdma@2fa1000 {
+	compatible = "ti,keystone-pktdma";
+	reg = <0x2fa1000 0x100		/* 0 - global  */
+	       0x2fa1400 0x200		/* 1 - txchan  */
+	       0x2fa1800 0x200		/* 2 - rxchan  */
+	       0x2fa1c00 0x200		/* 3 - txsched */
+	       0x2fa2000 0x400>;	/* 4 - rxflow  */
+	/* loop-back;  */
+	/* bigendian; */
+	enable-all;
+	/* debug */
+	dma-coherent;
+	/* rx-priority = <0>; */
+	/* tx-priority = <0>; */
+	logical-queue-managers	= <4>;
+	queues-per-queue-manager = <4096>;
+	qm-base-address = <0x23a80000 0x23a90000
+			   0x23aa0000 0x23ab0000>;
+
+	channels {
+		xgetx0 {
+			transmit;
+			label		= "xgetx0";
+			pool		= "pool-xge";
+			submit-queue	= <8752>;
+			/* complete-queue = <8714>; */
+			/* debug; */
+			/* channel = <0>; */
+			/* priority = <1>; */
+		};
+		xgetx1 {
+			transmit;
+			label		= "xgetx1";
+			pool		= "pool-xge";
+			submit-queue	= <8753>;
+			/* complete-queue = <8715>; */
+			/* debug; */
+			/* channel = <0>; */
+			/* priority = <1>; */
+		};
+		xgerx0 {
+			receive;
+			label		= "xgerx0";
+			pool		= "pool-xge";
+			/* submit-queue   = <xx>; */
+			complete-queue	= <8710>;
+			/* debug; */
+			channel		= <0>;
+			flow		= <0>;
+		};
+		xgerx1 {
+			receive;
+			label		= "xgerx1";
+			pool		= "pool-xge";
+			/* submit-queue   = <xx>; */
+			complete-queue	= <8711>;
+			/* debug; */
+			channel		= <8>;
+			flow		= <8>;
+		};
+	};
+};
+
+riodma: pktdma@2901000 {
+	compatible = "ti,keystone-pktdma";
+	reg = <0x2901000 0x020		/* 0 - global  */
+	       0x2901400 0x200		/* 1 - txchan  */
+	       0x2901800 0x200		/* 2 - rxchan  */
+	       0x2901c00 0x200		/* 3 - txsched */
+	       0x2902000 0x280>;	/* 4 - rxflow  */
+	/* clocks = <&clkpktproc>; */
+	enable-all;
+	/* debug; */
+	dma-coherent;
+
+	logical-queue-managers	= <4>;
+	queues-per-queue-manager = <4096>;
+	qm-base-address = <0x23a80000 0x23a90000
+			   0x23aa0000 0x23ab0000>;
+
+	channels {
+		riotx0 {
+			transmit;
+			channel		= <0>;
+			label		= "riotx0";
+			pool		= "pool-rio";
+			submit-queue	= <672>;
+			priority	= <3>;
+			/*debug;*/
+		};
+		riotx1 {
+			transmit;
+			channel		= <1>;
+			label		= "riotx1";
+			pool		= "pool-rio";
+			submit-queue	= <673>;
+			priority	= <2>;
+			/*debug;*/
+		};
+		riotx2 {
+			transmit;
+			channel		= <2>;
+			label		= "riotx2";
+			pool		= "pool-rio";
+			submit-queue	= <674>;
+			priority	= <3>;
+			/*debug;*/
+		};
+		riotx3 {
+			transmit;
+			channel		= <3>;
+			label		= "riotx3";
+			pool		= "pool-rio";
+			submit-queue	= <675>;
+			priority	= <3>;
+			/*debug;*/
+		};
+		riorx0-0 {
+			receive;
+			label		= "riorx0-0";
+			pool		= "pool-rio";
+			/*debug;*/
+			complete-queue	= <8714>;
+			flow		= <16>;
+		};
+		riorx1-3 {
+			receive;
+			rx-error-retry;
+			label		= "riorx1-3";
+			pool		= "pool-rio";
+			/*debug;*/
+			complete-queue	= <8716>;
+			flow		= <17>;
+		};
+		riorx2-1 {
+			receive;
+			label		= "riorx2-1";
+			pool		= "pool-rio";
+			/*debug;*/
+			complete-queue	= <8717>;
+			flow		= <18>;
+		};
+		riorx2-3 {
+			receive;
+			label		= "riorx2-3";
+			pool		= "pool-rio";
+			/*debug;*/
+			complete-queue	= <8718>;
+			flow		= <18>;
+		};
+		riorx3-0 {
+			receive;
+			label		= "riorx3-0";
+			pool		= "pool-rio";
+			/*debug;*/
+			complete-queue	= <8719>;
+			flow		= <19>;
+		};
+	};
+};
+
+infradma: pktdma@2a08000 {
+	compatible = "ti,keystone-pktdma";
+	reg = <0x2a08000 0x100		/* 0 - global  */
+	       0x2a08400 0x400		/* 1 - txchan  */
+	       0x2a08800 0x400		/* 2 - rxchan  */
+	       0x2a08c00 0x080		/* 3 - txsched */
+	       0x2a09000 0x400>;	/* 4 - rxflow  */
+	loop-back;
+	/* big-endian; */
+	/* enable-all; */
+	/* debug; */
+	/* rx-priority = <0>; */
+	/* tx-priority = <0>; */
+	logical-queue-managers	= <4>;
+	queues-per-queue-manager = <4096>;
+	qm-base-address = <0x23a80000 0x23a90000
+			  0x23aa0000 0x23ab0000>;
+
+	channels {
+		k2mrtx0 {
+			transmit;
+			channel		= <0>;
+			label		= "k2mrtx0";
+			pool		= "pool-k2mr";
+			submit-queue	= <800>;
+		};
+		k2mrtx1 {
+			transmit;
+			channel		= <1>;
+			label		= "k2mrtx1";
+			pool		= "pool-k2mr";
+			submit-queue	= <801>;
+		};
+		k2mrrx0 {
+			receive;
+			channel		= <0>;
+			label		= "k2mrrx0";
+			pool		= "pool-k2mr";
+			complete-queue	= <8734>;
+			flow		= <0>;
+		};
+		k2mrrx1 {
+			receive;
+			channel		= <1>;
+			label		= "k2mrrx1";
+			pool		= "pool-k2mr";
+			complete-queue	= <8735>;
+			flow		= <1>;
+		};
+	};
+};
+
+infradma2: pktdma@2a0a000 {
+	status = "disabled";
+	compatible = "ti,keystone-pktdma";
+	reg = <0x2a0a000 0x100		/* 0 - global  */
+	       0x2a0a400 0x400		/* 1 - txchan  */
+	       0x2a0a800 0x400		/* 2 - rxchan  */
+	       0x2a0ac00 0x080		/* 3 - txsched */
+	       0x2a0b000 0x400>;	/* 4 - rxflow  */
+	loop-back;
+	/* big-endian; */
+	dma-coherent;
+	enable-all;
+	/* debug; */
+	/* rx-priority = <0>; */
+	/* tx-priority = <0>; */
+	logical-queue-managers	= <4>;
+	queues-per-queue-manager = <4096>;
+	qm-base-address = <0x23a80000 0x23a90000
+			   0x23aa0000 0x23ab0000>;
+
+	channels {
+	};
+};

@@ -152,5 +152,6 @@
 			clock-names = "fck";
 			bus_freq	= <2500000>;
 		};
+		/include/ "keystone-agib-pktdma.dtsi"
 		/include/ "keystone-agib-netcp.dtsi"
 };
