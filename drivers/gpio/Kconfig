@@ -160,6 +160,14 @@ config GPIO_BRCMSTB
 	help
 	  Say yes here to enable GPIO support for Broadcom STB (BCM7XXX) SoCs.
 
+config GPIO_KEYSTONE_IPC
+	bool "Keystone IPC GPIO support"
+	default y if ARCH_KEYSTONE
+	help
+	  Say yes here to support the GPIO driver for Keystone IPC. This defines
+	  upto 28 GPIOs per Remote DSP core. This is used to interrupt the remote
+	  DSP core.
+
 config GPIO_CLPS711X
 	tristate "CLPS711X GPIO support"
 	depends on ARCH_CLPS711X || COMPILE_TEST
@@ -287,6 +295,13 @@ config GPIO_IOP
 	  IOP32X or IOP33X.
 
 	  If unsure, say N.
+
+config GPIO_KEYSTONE
+	bool "Keystone GPIO support"
+	default y if ARCH_KEYSTONE
+	help
+	  Say yes here to support the GPIO interface available on
+	  Keystone devices.
 
 config GPIO_LOONGSON
 	bool "Loongson-2/3 GPIO support"
