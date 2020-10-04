@@ -90,9 +90,9 @@ static int pktdma_log_enable = 0;
 
 DEFINE_SPINLOCK(stats_lock);
 
-static void stat_timer_handler(unsigned long data);
+static void stat_timer_handler(struct timer_list *unused);
 int stat_time_interval = 60000;
-DEFINE_TIMER(stat_timer, stat_timer_handler, 0 ,0);
+DEFINE_TIMER(stat_timer, stat_timer_handler);
 
 enum keystone_dma_tx_priority {
 	DMA_PRIO_HIGH	= 0,
@@ -302,7 +302,7 @@ bool keystone_dma_name_flt(struct dma_chan *chan, void *name)
 }
 EXPORT_SYMBOL_GPL(keystone_dma_name_flt);
 
-static void stat_timer_handler(unsigned long data)
+static void stat_timer_handler(struct timer_list *unused)
 {
 	if (pktdma_log_enable) {
 		pr_info("PKTDMA_LOG -> pushed desc %p min (ns) = %u max (ns) = %u queue_id = %u \n",
