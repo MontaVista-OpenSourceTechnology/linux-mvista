@@ -2,6 +2,15 @@
 # Texas Instruments DMA drivers
 #
 
+config KEYSTONE_DMA
+	bool "TI Keystone platform Packet DMA support"
+	depends on TI_KEYSTONE
+	default y if TI_KEYSTONE
+	select DMA_ENGINE
+	help
+	  Enable support for the Packet DMA engine on Texas Instruments'
+	  Keystone family of devices.
+
 config TI_CPPI41
 	tristate "Texas Instruments CPPI 4.1 DMA support"
 	depends on (ARCH_OMAP || ARCH_DAVINCI_DA8XX)
@@ -35,3 +44,11 @@ config DMA_OMAP
 
 config TI_DMA_CROSSBAR
 	bool
+
+config KEYSTONE_UDMA
+	tristate "Zero Copy User Mode DMA client"
+	depends on KEYSTONE_DMA && VIRTIO
+	default y if KEYSTONE_DMA
+	help
+	  Simple user mode DMA client with zero copy semantics.  Say N unless
+	  you really know what you're doing.
