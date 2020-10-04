@@ -278,6 +278,163 @@ config RIONET_RX_SIZE
 	depends on RIONET
 	default "128"
 
+menuconfig RIONET_NSN
+	tristate "Custom RapidIO Ethernet over messaging driver support"
+	depends on RAPIDIO || RAPIDIO_NSN
+
+if RIONET_NSN
+
+menuconfig RIONET_MBOX_0_ENABLE
+	default y
+	bool "Rionet MBox0 Interface Parameters"
+
+if RIONET_MBOX_0_ENABLE
+
+config RIONET_MB0_ETHERNET_ENCAPSULATION
+	bool "Enable ethernet encapsulation on MBox0"
+	default y
+
+config RIONET_MB0_TX_LETTER_ID
+	int "Rionet TX letter ID"
+	default 0
+	range 0 3
+
+config RIONET_MB0_RX_LETTER0
+	default y
+	bool "Enable RX on Letter 0"
+
+config RIONET_MB0_RX_LETTER1
+	default n
+	bool "Enable RX on Letter 1"
+
+config RIONET_MB0_RX_LETTER2
+	default n
+	bool "Enable RX on Letter 2"
+
+config RIONET_MB0_RX_LETTER3
+	default n
+	bool "Enable RX on Letter 3"
+endif
+
+menuconfig RIONET_MBOX_1_ENABLE
+	default y
+	bool "Rionet Mbox1 Interface Parameters"
+
+if RIONET_MBOX_1_ENABLE
+
+config RIONET_MB1_ETHERNET_ENCAPSULATION
+	bool "Enable ethernet encapsulation on MBox1"
+	default n
+
+config RIONET_MB1_TX_LETTER_ID
+	int "Rionet TX letter ID"
+	default 3
+	range 0 3
+
+config RIONET_MB1_RX_LETTER0
+	default n
+	bool "Enable RX on Letter 0"
+
+config RIONET_MB1_RX_LETTER1
+	default y
+	bool "Enable RX on Letter 1"
+
+config RIONET_MB1_RX_LETTER2
+	default n
+	bool "Enable RX on Letter 2"
+
+config RIONET_MB1_RX_LETTER3
+	default y
+	bool "Enable RX on Letter 3"
+endif
+
+menuconfig RIONET_MBOX_2_ENABLE
+	default y
+	bool "Rionet MBox2 Interface Parameters"
+
+if RIONET_MBOX_2_ENABLE
+
+config RIONET_MB2_ETHERNET_ENCAPSULATION
+	bool "Enable ethernet encapsulation on MBox2"
+	default n
+
+config RIONET_MB2_TX_LETTER_ID
+	int "Rionet TX letter ID"
+	default 3
+	range 0 3
+
+config RIONET_MB2_RX_LETTER0
+	default n
+	bool "Enable RX on Letter 0"
+
+config RIONET_MB2_RX_LETTER1
+	default y
+	bool "Enable RX on Letter 1"
+
+config RIONET_MB2_RX_LETTER2
+	default n
+	bool "Enable RX on Letter 2"
+
+config RIONET_MB2_RX_LETTER3
+	default y
+	bool "Enable RX on Letter 3"
+endif
+
+menuconfig RIONET_MBOX_3_ENABLE
+	default y
+	bool "Rionet MBox3 Interface Parameters"
+
+if RIONET_MBOX_3_ENABLE
+
+config RIONET_MB3_ETHERNET_ENCAPSULATION
+	bool "Enable ethernet encapsulation on MBox3"
+	default y
+
+config RIONET_MB3_TX_LETTER_ID
+	int "Rionet TX letter ID"
+	default 0
+	range 0 3
+
+config RIONET_MB3_RX_LETTER0
+	default y
+	bool "Enable RX on Letter 0"
+
+config RIONET_MB3_RX_LETTER1
+	default n
+	bool "Enable RX on Letter 1"
+
+config RIONET_MB3_RX_LETTER2
+	default n
+	bool "Enable RX on Letter 2"
+
+config RIONET_MB3_RX_LETTER3
+	default n
+	bool "Enable RX on Letter 3"
+endif
+
+
+
+config RIONET_NSN_TX_SIZE
+	int "Number of outbound queue entries"
+	depends on RIONET_NSN
+	default "128"
+
+config RIONET_NSN_RX_SIZE
+	int "Number of inbound queue entries"
+	depends on RIONET_NSN
+	default "128"
+
+config RIONET_SKB_HEADROOM
+	int "Size of free space before data in skb"
+	default "0"
+	range 0 4082
+
+config RIONET_SCATTER_GATHER_SUPPORT
+	default n
+	bool "Enable support for SG in driver"
+
+endif
+
 config TUN
 	tristate "Universal TUN/TAP device driver support"
 	depends on INET

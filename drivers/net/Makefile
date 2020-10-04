@@ -21,6 +21,7 @@ obj-$(CONFIG_NET) += Space.o loopback.o
 obj-$(CONFIG_NETCONSOLE) += netconsole.o
 obj-y += phy/
 obj-$(CONFIG_RIONET) += rionet.o
+obj-$(CONFIG_RIONET_NSN) += rionet_nsn.o
 obj-$(CONFIG_NET_TEAM) += team/
 obj-$(CONFIG_TUN) += tun.o
 obj-$(CONFIG_TAP) += tap.o
