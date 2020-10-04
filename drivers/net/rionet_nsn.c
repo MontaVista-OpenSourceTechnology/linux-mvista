@@ -827,6 +827,8 @@ static int rionet_add_mport_ifaces(struct device *dev,
 			goto out;
 		}
 
+		netdev_info(ndev, "RION: add iface %d\n", i);
+
 		if (rionet_config[i].eth) {
 			ndev->mtu = RIONET_MSG_SIZE - ETH_HLEN;
 			ndev->needed_headroom = ETH_HLEN + CONFIG_RIONET_SKB_HEADROOM;
@@ -844,6 +846,7 @@ static int rionet_add_mport_ifaces(struct device *dev,
 		srio_build_mac(1, ndev->dev_addr, i, rionet_config[i].eth);
 		ndev->netdev_ops = &rionet_netdev_ops;
 		sprintf(ndev->name, "rio%dm%d", mport->id, i);
+		netdev_info(ndev, "RION: add iface %s\n", ndev->name);
 		ndev->features = NETIF_F_LLTX;
 #ifdef CONFIG_RIONET_SCATTER_GATHER_SUPPORT
 		ndev->features |=  NETIF_F_SG;
