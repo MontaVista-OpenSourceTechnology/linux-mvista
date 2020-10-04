@@ -48,7 +48,7 @@
 /*
  * mport.host_deviceid is calculated as base_id + node_id_offset
  */
-static unsigned int node_id_offset = 0xc;
+static unsigned int node_id_offset = 0x0;
 module_param(node_id_offset, uint, 0644);
 MODULE_PARM_DESC(node_id_offset,
 		"Offset from base id used in the calculation of host_deviceid");
