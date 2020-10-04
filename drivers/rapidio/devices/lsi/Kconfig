@@ -1,0 +1,57 @@
+
+config AXXIA_RIO
+       bool "LSI Embedded SRIO Controller support"
+       depends on RAPIDIO && (ACP || ARCH_AXXIA)
+       select SG_SPLIT
+       default "n"
+       ---help---
+         Include support for RapidIO controllers for LSI Axxia
+         devices. The Axxia devices with arm (AXM55xx) and
+         powerpc (AXM35xx) cores has the serial RapidIO
+         controllers.
+
+config RIO_MAINT_WIN_SIZE
+       hex "RIO mport maintenance window size"
+       depends on RAPIDIO
+       default "0x400000"
+       ---help---
+         Size of RAPIDIO maintenance transaction window.
+         If RapidIO LAW size in your platform is less than 0x400000,
+         you may use this option to adjust the maintenance transaction
+         window accordingly.
+
+config AXXIA_RIO_STAT
+       bool "AXXIA RIO driver statistics"
+       depends on AXXIA_RIO
+       default n
+       ---help---
+         If you say Y here, you will be able to measure and view
+         state and interrupt counters for the Axxia RapidIO
+         controller via sysfs. It provides the counters for mbox
+         messages. May add a slght cpu overhead.
+
+config AXXIA_RIO_BURST_STAT
+       bool "AXXIA RIO driver burst statistics"
+       depends on AXXIA_RIO_STAT
+       default n
+       ---help---
+         If you say Y here, the driver will monitor incoming
+         bursts of traffic.
+
+config AXXIA_RIO_16B_ID
+       bool "RapidIO large common transport system"
+       depends on AXXIA_RIO && (ACP && PPC)
+       default n
+       ---help---
+         Say yes here to enable use of 16 bit transport ID otherwise
+         transport ID has 8 bits. This is required only for older
+         Axxia devices (34xx). And not required for the newer AXM55xx
+         devices.
+
+config OB_DME_ENTRY_SIZE
+       int "Number of Descriptors per DME for Static allocation"
+       depends on AXXIA_RIO
+       default "8192"
+       ---help---
+         Number of Descriptors to allocate for each outbound DME.
+

@@ -1675,10 +1675,11 @@ tsi721_omsg_interrupt_disable(struct tsi721_device *priv, int ch,
  * @mbox: Outbound mailbox
  * @buffer: Message to add to outbound queue
  * @len: Length of message
+ * @cookie: Opaque pointer, must be passed to completion callback
  */
 static int
 tsi721_add_outb_message(struct rio_mport *mport, struct rio_dev *rdev, int mbox,
-			void *buffer, size_t len)
+			void *buffer, size_t len, void *cookie)
 {
 	struct tsi721_device *priv = mport->priv;
 	struct tsi721_omsg_desc *desc;
@@ -1873,7 +1874,7 @@ no_sts_update:
 	spin_unlock(&priv->omsg_ring[ch].lock);
 
 	if (mport->outb_msg[ch].mcback && do_callback)
-		mport->outb_msg[ch].mcback(mport, dev_id, ch, tx_slot);
+		mport->outb_msg[ch].mcback(mport, dev_id, ch, 0, NULL /* todo */);
 }
 
 /**
@@ -2687,6 +2688,7 @@ static int tsi721_setup_mport(struct tsi721_device *priv)
 	mport->dev.release = tsi721_mport_release;
 
 	INIT_LIST_HEAD(&mport->dbells);
+	INIT_LIST_HEAD(&mport->pwrites);
 
 	rio_init_dbell_res(&mport->riores[RIO_DOORBELL_RESOURCE], 0, 0xffff);
 	rio_init_mbox_res(&mport->riores[RIO_INB_MBOX_RESOURCE], 0, 3);

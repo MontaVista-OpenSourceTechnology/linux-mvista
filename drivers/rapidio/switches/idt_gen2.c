@@ -10,6 +10,7 @@
  * option) any later version.
  */
 
+#include <asm/page.h>
 #include <linux/stat.h>
 #include <linux/module.h>
 #include <linux/rio.h>
@@ -458,6 +459,23 @@ static void idtg2_remove(struct rio_dev *rdev)
 	idtg2_sysfs(rdev, false);
 }
 
+static void idtg2_shutdown(struct rio_dev *rdev)
+{
+	pr_debug("RIO: %s for %s\n", __func__, rio_name(rdev));
+
+	/*
+	 * TODO: Check if port-writes from the switch are directed to an mport
+	 * that will be shut down. If YES, disable port-write generation by
+	 * the switch.
+	 *
+	 * Correct handling requires indication that an mport to be
+	 * shut down acts as port-write handler (probably flag in rio_mport)
+	 * because simple comparison with destID set in switch's "EM Port-Write
+	 * Destination ID" register can create a problem when shutting down
+	 * a board that has a switch on it.
+	 */
+}
+
 static const struct rio_device_id idtg2_id_table[] = {
 	{RIO_DEVICE(RIO_DID_IDTCPS1848, RIO_VID_IDT)},
 	{RIO_DEVICE(RIO_DID_IDTCPS1616, RIO_VID_IDT)},
@@ -472,6 +490,7 @@ static struct rio_driver idtg2_driver = {
 	.id_table = idtg2_id_table,
 	.probe = idtg2_probe,
 	.remove = idtg2_remove,
+	.shutdown = idtg2_shutdown,
 };
 
 static int __init idtg2_init(void)

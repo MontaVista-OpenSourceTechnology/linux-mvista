@@ -66,6 +66,7 @@
  * LSU defines
  */
 #define KEYSTONE_RIO_LSU_PRIO             0
+#define KEYSTONE_RIO_LSU_NUM              8
 
 #define KEYSTONE_RIO_LSU_BUSY_MASK        BIT(31)
 #define KEYSTONE_RIO_LSU_FULL_MASK        BIT(30)
@@ -78,6 +79,18 @@
 #define KEYSTONE_RIO_LSU_CC_DMA           0x05
 #define KEYSTONE_RIO_LSU_CC_RETRY         0x06
 #define KEYSTONE_RIO_LSU_CC_CANCELED      0x07
+
+/*
+ * DMA engine definition
+ */
+#define KEYSTONE_RIO_DMA_MAX_CHANNEL    8    /* Num of (virtual) DMA channel */
+
+/* Max number of virtual DMA descriptors */
+#ifdef ARCH_HAS_SG_CHAIN
+#define KEYSTONE_RIO_DMA_MAX_DESC       1024
+#else
+#define KEYSTONE_RIO_DMA_MAX_DESC       SG_MAX_SINGLE_ALLOC
+#endif
 
 /* Mask for receiving both error and good completion LSU interrupts */
 #define KEYSTONE_RIO_ICSR_LSU0(src_id)    ((0x10001) << (src_id))
@@ -328,6 +341,8 @@ enum keystone_rio_blk {
 #define KEYSTONE_RIO_ID_TI		(0x00000030)
 #define KEYSTONE_RIO_EXT_FEAT_PTR	(0x00000100)
 
+#define KEYSTONE_RIO_MAX_DIO_PKT_SIZE   0x100000 /* hw support up to 1MB */
+#define KEYSTONE_RIO_DIO_ALIGNMENT      8        /* hw required alignment */
 
 #define KEYSTONE_RIO_RETRY_CNT          4
 #define KEYSTONE_RIO_MAX_DIO_PKT_SIZE   0x100000 /* hardware support up to 1MB */
@@ -368,6 +383,17 @@ enum keystone_rio_blk {
  */
 #define RIO_PACKET_TYPE_STREAM          9  /* Data Streaming */
 #define RIO_PACKET_TYPE_MESSAGE         11 /* Message */
+
+/* Mask for error and good completion LSU interrupts */
+#define KEYSTONE_RIO_ICSR_LSU0_ERROR_MASK     0xffff0000
+#define KEYSTONE_RIO_ICSR_LSU0_COMPLETE_MASK  0x0000ffff
+#define KEYSTONE_RIO_ICSR_LSU1_COMPLETE_MASK  0x000000ff
+
+
+struct keystone_lane_config {
+	int start; /* lane start number of the port */
+	int end;   /* lane end number of the port */
+};
 
 /*
  * SerDes configurations
@@ -413,6 +439,8 @@ struct keystone_rio_board_controller_info {
 	int		rio_starvation_irq;
 
 	u32		comp_tag;
+
+	u32             dma_channel_num; /* DMA channels for DIO transfers */
 
 	u32		tx_garbage_queues[6];
 	u32		free_fdq;
@@ -953,5 +981,182 @@ struct keystone_rio_fabric_regs {
 
 	u32	sp_fabric_status[4];	/* 1be40 - 1be4c */
 };
+
+/*
+ * Main KeyStone RapidIO driver data
+ */
+struct keystone_rio_data {
+	struct device	       *dev;
+	struct rio_mport       *mport[KEYSTONE_RIO_MAX_PORT];
+	struct clk	       *clk;
+	struct completion	lsu_completion;
+	struct mutex		lsu_lock;
+	u8                      lsu_start;
+	u8                      lsu_end;
+	u8                      lsu_free;
+	u8                      lsu_dio;
+	u8                      lsu_maint;
+	u32			rio_pe_feat;
+
+	struct port_write_msg	port_write_msg;
+
+	struct work_struct	pe_work;
+	u32			pe_ports;
+
+	struct work_struct	reset_work;
+
+	u32			ports_registering;
+	struct delayed_work	port_chk_task;
+	struct delayed_work	garbage_monitor_task;
+	struct tasklet_struct	task;
+
+	unsigned long		rxu_map_start;
+	unsigned long		rxu_map_end;
+	unsigned long		rxu_map_bitmap[2];
+
+	u32                     num_mboxes;
+
+	struct keystone_rio_rx_chan_info rx_channels[KEYSTONE_RIO_MAX_MBOX][KEYSTONE_RIO_MAX_LETTER];
+	struct keystone_rio_tx_chan_info tx_channels[KEYSTONE_RIO_MAX_MBOX];
+
+	u32 *__iomem gq_pop_push_reg[KEYSTONE_RIO_MAX_GARBAGE_QUEUES];
+	u32 *__iomem gq_peek_reg[KEYSTONE_RIO_MAX_GARBAGE_QUEUES];
+
+	u32 *__iomem qmss_mem_region;
+
+	struct keystone_rio_regs __iomem	*regs;
+	u32 __iomem				*jtagid_reg;
+	u32 __iomem				*serdes_sts_reg;
+	union {
+		struct keystone_srio_serdes_regs __iomem	*serdes_regs;
+		struct keystone2_srio_serdes_regs __iomem	*k2_serdes_regs;
+	};
+
+	struct keystone_rio_car_csr_regs __iomem	*car_csr_regs;
+	struct keystone_rio_serial_port_regs __iomem	*serial_port_regs;
+	struct keystone_rio_err_mgmt_regs __iomem	*err_mgmt_regs;
+	struct keystone_rio_phy_layer_regs __iomem	*phy_regs;
+	struct keystone_rio_transport_layer_regs __iomem *transport_regs;
+	struct keystone_rio_pkt_buf_regs __iomem	*pkt_buf_regs;
+	struct keystone_rio_evt_mgmt_regs __iomem	*evt_mgmt_regs;
+	struct keystone_rio_port_write_regs __iomem	*port_write_regs;
+	struct keystone_rio_link_layer_regs __iomem	*link_regs;
+	struct keystone_rio_fabric_regs __iomem		*fabric_regs;
+
+	struct keystone_rio_board_controller_info	 board_rio_cfg;
+	u8						 isolate;
+	struct serdes_reg_value				*serdes_values;
+	int						 serdes_val_len;
+
+#ifdef CONFIG_RAPIDIO_MEM_MAP
+	struct rio_mem_map *mem_map;
+#endif
+
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+	struct list_head        dma_channels[KEYSTONE_RIO_LSU_NUM];
+	struct dma_chan        *dma_chan[KEYSTONE_RIO_MAX_PORT];
+#endif
+};
+
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+
+struct keystone_rio_data;
+enum k2_dma_ctrl_cmd {
+	DMA_TERMINATE_ALL = 0,
+	DMA_PAUSE,
+	DMA_RESUME,
+	DMA_KEYSTONE_RIO_PREP_RAW_PACKET
+};
+
+enum keystone_rio_chan_state {
+	RIO_CHAN_STATE_UNUSED,
+	RIO_CHAN_STATE_ACTIVE,
+	RIO_CHAN_STATE_RUNNING,
+	RIO_CHAN_STATE_WAITING,
+};
+
+/*
+ * DMA engine data
+ */
+struct keystone_rio_dma_desc {
+	struct list_head	        node;
+	struct list_head	        tx_list;
+	bool			        last;
+	struct dma_async_tx_descriptor  adesc;
+	enum dma_status		        status;
+	u32                             retry_count;
+	dma_addr_t                      buff_addr;
+	u32                             size;
+	u16                             port_id;
+	u16			        dest_id;
+	u64			        rio_addr;
+	u8			        rio_addr_u;
+	u8                              sys_size;
+	u32                             lsu_context;
+	u32                             packet_type;
+} ____cacheline_aligned;
+
+struct keystone_rio_dma_chan {
+	struct list_head                node;
+	enum dma_transfer_direction     direction;
+	atomic_t		        state;
+	struct dma_chan		        dchan;
+	u8                              lsu;
+	struct list_head	        active_list;
+	struct list_head	        queue;
+	struct keystone_rio_dma_desc   *current_transfer;
+	dma_cookie_t		        completed_cookie;
+	spinlock_t		        lock;
+	struct tasklet_struct	        tasklet;
+	struct keystone_rio_data       *krio;
+	struct scatterlist	       *sgl;
+	unsigned int			sgl_nents;
+	u32			       *bounce_buffer;
+	u32			        tran_len;
+};
+
+struct keystone_rio_dma_packet_raw {
+	u16                             port_id;
+	u16			        dest_id;
+	u64			        rio_addr;
+	u8			        rio_addr_u;
+	dma_addr_t                      buff_addr;
+	u32                             size;
+	u8                              sys_size;
+	u32                             packet_type;
+	struct dma_async_tx_descriptor *tx;
+};
+
+#define from_dma_chan(ch) container_of(ch, struct keystone_rio_dma_chan, dchan)
+#define to_dma_chan(ch)	  (&(ch)->dchan)
+#define chan_dev(ch)	  (&to_dma_chan(ch)->dev->device)
+#define chan_id(ch)	  (to_dma_chan(ch)->chan_id)
+#define chan_name(ch)	  ((ch)->dchan.name)
+
+extern int keystone_rio_dma_device_control(struct dma_chan *dchan, enum k2_dma_ctrl_cmd cmd, unsigned long arg);
+extern void keystone_rio_dma_interrupt_handler(
+	struct keystone_rio_data *krio_priv,
+	u32 lsu,
+	u32 error);
+extern int keystone_rio_dma_register(struct rio_mport *mport, int channel_num);
+void keystone_rio_dma_unregister(struct rio_mport *mport);
+
+extern u8 keystone_rio_lsu_alloc(struct keystone_rio_data *krio_priv);
+extern int keystone_rio_lsu_complete_transfer(
+	int lsu,
+	u32 lsu_context,
+	struct keystone_rio_data *krio_priv);
+extern int keystone_rio_lsu_start_transfer(int lsu,
+					   int port_id,
+					   u16 dest_id,
+					   dma_addr_t src_addr,
+					   u64 tgt_addr,
+					   u32 size_bytes,
+					   int size,
+					   u32 packet_type,
+					   u32 *lsu_context,
+					   int interrupt_req,
+					   struct keystone_rio_data *krio_priv);
+#endif /* CONFIG_RAPIDIO_DMA_ENGINE */
 
 #endif /* KEYSTONE_RIO_H */

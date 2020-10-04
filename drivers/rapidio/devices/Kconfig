@@ -11,8 +11,9 @@ config RAPIDIO_TSI721
 
 config TI_KEYSTONE_RAPIDIO
        tristate "TI Keystone RapidIO support"
-       depends on (RAPIDIO || RAPIDIO_NSN) && TI_KEYSTONE
+       depends on RAPIDIO && ARCH_KEYSTONE
        default "n"
        ---help---
          This driver supports TI's Keystone RapidIO.
 
+source "drivers/rapidio/devices/lsi/Kconfig"

@@ -60,74 +60,6 @@ struct serdes_reg_value {
 	unsigned int value;
 };
 
-/*
- * Main KeyStone RapidIO driver data
- */
-struct keystone_rio_data {
-	struct device	       *dev;
-	struct rio_mport       *mport[KEYSTONE_RIO_MAX_PORT];
-	struct clk	       *clk;
-	struct completion	lsu_completion;
-	struct mutex		lsu_lock;
-	u8                      lsu_dio;
-	u8                      lsu_maint;
-	u32			rio_pe_feat;
-
-	struct port_write_msg	port_write_msg;
-
-	struct work_struct	pe_work;
-	u32			pe_ports;
-
-	struct work_struct	reset_work;
-
-	u32			ports_registering;
-	struct delayed_work	port_chk_task;
-	struct delayed_work	garbage_monitor_task;
-	struct tasklet_struct	task;
-
-	unsigned long		rxu_map_start;
-	unsigned long		rxu_map_end;
-	unsigned long		rxu_map_bitmap[2];
-
-	u32                     num_mboxes;
-
-	struct keystone_rio_rx_chan_info rx_channels[KEYSTONE_RIO_MAX_MBOX][KEYSTONE_RIO_MAX_LETTER];
-	struct keystone_rio_tx_chan_info tx_channels[KEYSTONE_RIO_MAX_MBOX];
-
-	u32 *__iomem gq_pop_push_reg[KEYSTONE_RIO_MAX_GARBAGE_QUEUES];
-	u32 *__iomem gq_peek_reg[KEYSTONE_RIO_MAX_GARBAGE_QUEUES];
-
-	u32 *__iomem qmss_mem_region;
-
-	struct keystone_rio_regs __iomem	*regs;
-	u32 __iomem				*jtagid_reg;
-	u32 __iomem				*serdes_sts_reg;
-	union {
-		struct keystone_srio_serdes_regs __iomem	*serdes_regs;
-		struct keystone2_srio_serdes_regs __iomem	*k2_serdes_regs;
-	};
-
-	struct keystone_rio_car_csr_regs __iomem	*car_csr_regs;
-	struct keystone_rio_serial_port_regs __iomem	*serial_port_regs;
-	struct keystone_rio_err_mgmt_regs __iomem	*err_mgmt_regs;
-	struct keystone_rio_phy_layer_regs __iomem	*phy_regs;
-	struct keystone_rio_transport_layer_regs __iomem *transport_regs;
-	struct keystone_rio_pkt_buf_regs __iomem	*pkt_buf_regs;
-	struct keystone_rio_evt_mgmt_regs __iomem	*evt_mgmt_regs;
-	struct keystone_rio_port_write_regs __iomem	*port_write_regs;
-	struct keystone_rio_link_layer_regs __iomem	*link_regs;
-	struct keystone_rio_fabric_regs __iomem		*fabric_regs;
-
-	struct keystone_rio_board_controller_info	 board_rio_cfg;
-	u8						 isolate;
-	struct serdes_reg_value				*serdes_values;
-	int						 serdes_val_len;
-
-#ifdef CONFIG_RAPIDIO_MEM_MAP
-	struct rio_mem_map *mem_map;
-#endif
-};
-
 static int keystone_rio_setup_controller(struct keystone_rio_data *krio_priv);
 static void keystone_rio_shutdown_controller(struct keystone_rio_data *krio_priv);
 static void keystone_rio_serdes_lane_disable(u32 lane, struct keystone_rio_data *krio_priv);
@@ -137,12 +69,8 @@ static void keystone_rio_llerr_evt_handler(struct keystone_rio_data *krio_priv);
 static void keystone_rio_mcast_evt_handler(struct keystone_rio_data *krio_priv);
 static void keystone_rio_plerr_evt_handler(struct keystone_rio_data *krio_priv,
 		u32 port);
-
-struct keystone_lane_config {
-	int start; /* lane start number of the port */
-	int end;   /* lane end number of the port */
-};
-
+static int keystone_rio_lsu_raw_async_transfer(struct rio_mport *mport, struct keystone_rio_dma_packet_raw *pkt,
+					       enum dma_transfer_direction dir);
 static struct keystone_lane_config keystone_lane_configs[5][KEYSTONE_RIO_MAX_PORT] = {
 	{ {0, 1}, {1, 2},   {2, 3},   {3, 4}   }, /* path mode 0: 4 ports in 1x    */
 	{ {0, 2}, {-1, -1}, {2, 3},   {3, 4}   }, /* path mode 1: 3 ports in 2x/1x */
@@ -151,6 +79,7 @@ static struct keystone_lane_config keystone_lane_configs[5][KEYSTONE_RIO_MAX_POR
 	{ {0, 4}, {-1, -1}, {-1, -1}, {-1, -1} }, /* path mode 4: 1 ports in 4x    */
 };
 
+static int keystone_rio_query_mport(struct rio_mport *mport, struct rio_mport_attr *attr);
 #ifdef CONFIG_RAPIDIO_MEM_MAP
 
 #define KEYSTONE_RIO_SYNC_BUF_LEN (0x8)
@@ -224,16 +153,33 @@ static const struct rio_mem_map_ops keystone_rio_mem_map_ops = {
 static irqreturn_t lsu_interrupt_handler(int irq, void *data)
 {
 	struct keystone_rio_data *krio_priv = data;
-	u32 pending_lsu_int =
-		__raw_readl(&(krio_priv->regs->lsu_int[0].status));
+	u32 pending_err_int = __raw_readl(
+		&(krio_priv->regs->lsu_int[0].status));
 
-	if (pending_lsu_int & KEYSTONE_RIO_ICSR_LSU0(0))
-		complete(&krio_priv->lsu_completion);
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+	u32 pending_lsu_int;
 
-	/* ACK the interrupt. ICS0-ICS7, ICS16-ICS23 SRCID for DSP cores, do not ack it  */
-	pending_lsu_int &= 0xff00ff00;
-	__raw_writel(pending_lsu_int,
-		     &(krio_priv->regs->lsu_int[0].clear));
+	/* Call DMA interrupt handling */
+	while ((pending_lsu_int = __raw_readl(
+			&(krio_priv->regs->lsu_int[1].status))
+		& KEYSTONE_RIO_ICSR_LSU1_COMPLETE_MASK)) {
+		u32 lsu = __ffs(pending_lsu_int);
+
+		keystone_rio_dma_interrupt_handler(krio_priv, lsu, 0);
+
+		__raw_writel(1 << lsu, &(krio_priv->regs->lsu_int[1].clear));
+	}
+
+	/* In case of LSU completion with error */
+	if (pending_err_int & KEYSTONE_RIO_ICSR_LSU0_ERROR_MASK) {
+
+		keystone_rio_dma_interrupt_handler(krio_priv, 0, 1);
+
+		__raw_writel(
+			pending_err_int & KEYSTONE_RIO_ICSR_LSU0_ERROR_MASK,
+			&(krio_priv->regs->lsu_int[0].clear));
+	}
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -933,132 +879,34 @@ static int keystone_rio_dbell_send(struct rio_mport *mport,
 				   u16 dest_id,
 				   u16 num)
 {
-	struct keystone_rio_data *krio_priv = mport->priv;
-	unsigned int count;
-	unsigned int status = 0;
-	unsigned int res    = 0;
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+
+	struct keystone_rio_dma_packet_raw pkt;
+
 	/* Transform doorbell number into info field */
-	u16          info   = (num & 0xf) | (((num >> 4) & 0x3) << 5);
-	u8           port_id = mport->index;
-	u8           context;
-	u8           ltid;
-	u8           lsu = krio_priv->lsu_dio;
+	u16 info   = (num & 0xf) | (((num >> 4) & 0x3) << 5);
 
-	dev_dbg(krio_priv->dev, "DBELL: sending doorbell (info = %d) to %x\n",
-		info & KEYSTONE_RIO_DBELL_MASK, dest_id);
+	/* Create a doorbell raw packet */
+	pkt.port_id     = mport->index;
+	pkt.dest_id     = dest_id;
+	pkt.rio_addr    = 0;
+	pkt.rio_addr_u  = 0;
+	pkt.buff_addr   = 0;
+	pkt.size        = 0;
+	pkt.sys_size    = mport->sys_size;
+	pkt.packet_type =
+		((info & 0xffff) << 16) | KEYSTONE_RIO_PACKET_TYPE_DBELL;
+	pkt.tx          = NULL;
 
-	mutex_lock(&krio_priv->lsu_lock);
+	return keystone_rio_lsu_raw_async_transfer(mport,
+						   &pkt,
+						   DMA_MEM_TO_DEV);
 
-	reinit_completion(&krio_priv->lsu_completion);
+#else /* CONFIG_RAPIDIO_DMA_ENGINE */
 
-	/* Check is there is space in the LSU shadow reg and that it is free */
-	count = 0;
-	while(1)
-        {
-		status = __raw_readl(&(krio_priv->regs->lsu_reg[lsu].busy_full));
-		if (((status & KEYSTONE_RIO_LSU_FULL_MASK) == 0x0)
-		    && ((status & KEYSTONE_RIO_LSU_BUSY_MASK) == 0x0))
-			break;
-		count++;
-		if (count >= KEYSTONE_RIO_TIMEOUT_CNT) {
-			res = -EIO;
-			goto out;
-		}
-		ndelay(KEYSTONE_RIO_TIMEOUT_NSEC);
-        }
+	return -ENOTSUPP;
 
-	/* Get LCB and LTID, LSU reg 6 is already read */
-	context = (status >> 4) & 0x1;
-	ltid    = status & 0xf;
-
-	/* LSU Reg 0 - MSB of destination */
-	__raw_writel(0, &(krio_priv->regs->lsu_reg[lsu].addr_msb));
-
-	/* LSU Reg 1 - LSB of destination */
-	__raw_writel(0, &(krio_priv->regs->lsu_reg[lsu].addr_lsb_cfg_ofs));
-
-	/* LSU Reg 2 - source address */
-	__raw_writel(0, &(krio_priv->regs->lsu_reg[lsu].phys_addr));
-
-	/* LSU Reg 3 - byte count */
-	__raw_writel(0, &(krio_priv->regs->lsu_reg[lsu].dbell_val_byte_cnt));
-
-	/* LSU Reg 4 - */
-	__raw_writel(((port_id << 8)
-		      | (KEYSTONE_RIO_LSU_PRIO << 4)
-		      | ((mport->sys_size) ? (1 << 10) : 0)
-		      | ((u32) dest_id << 16)
-		      | 1),
-		     &(krio_priv->regs->lsu_reg[lsu].destid));
-
-	/* LSU Reg 5
-	 * doorbell info = info
-	 * hop count = 0
-	 * Packet type = 0xa0 ftype = 10, ttype = 0 */
-	__raw_writel(((info & 0xffff) << 16) | (KEYSTONE_RIO_PACKET_TYPE_DBELL & 0xff),
-		     &(krio_priv->regs->lsu_reg[lsu].dbell_info_fttype));
-
-        /* Wait for transfer to complete */
-	res = wait_for_completion_timeout(&krio_priv->lsu_completion,
-					  msecs_to_jiffies(KEYSTONE_RIO_TIMEOUT_MSEC));
-	if (res == 0) {
-		/* Timeout expired */
-		res = -EIO;
-		dev_warn_ratelimited(krio_priv->dev, "DBELL: LSU interrupt timeout expired\n");
-		goto out;
-	}
-
-	dev_dbg(krio_priv->dev, "DBELL: LSU interrupt received\n");
-
-	/* Retrieve our completion code */
-   	count = 0;
-	res   = 0;
-	while(1) {
-		u8 lcb;
-		status = keystone_rio_dio_get_lsu_cc(lsu, ltid, &lcb, krio_priv);
-		if (lcb == context)
-			break;
-		count++;
-		if (count >= KEYSTONE_RIO_TIMEOUT_CNT) {
-			res = -EIO;
-			break;
-		}
-		ndelay(KEYSTONE_RIO_TIMEOUT_NSEC);
-	}
-out:
-	mutex_unlock(&krio_priv->lsu_lock);
-
-	if (res) {
-		dev_dbg(krio_priv->dev, "DBELL: LSU error = %d\n", res);
-		return res;
-	}
-
-	dev_dbg(krio_priv->dev, "DBELL: status = 0x%x\n", status);
-
-	switch (status & KEYSTONE_RIO_LSU_CC_MASK) {
-	case KEYSTONE_RIO_LSU_CC_TIMEOUT:
-	case KEYSTONE_RIO_LSU_CC_XOFF:
-	case KEYSTONE_RIO_LSU_CC_ERROR:
-	case KEYSTONE_RIO_LSU_CC_INVALID:
-	case KEYSTONE_RIO_LSU_CC_DMA:
-		res = -EIO;
-		/* LSU Reg 6 - Flush this transaction */
-		__raw_writel(1, &(krio_priv->regs->lsu_reg[lsu].busy_full));
-		break;
-	case KEYSTONE_RIO_LSU_CC_RETRY:
-	case KEYSTONE_RIO_LSU_CC_CANCELED:
-		res = -EAGAIN;
-		break;
-	default:
-		dev_dbg(krio_priv->dev, "DBELL: doorbell sent\n");
-		break;
-	}
-
-	if (status & KEYSTONE_RIO_LSU_CC_MASK)
-		dev_warn_ratelimited(krio_priv->dev, "Doorbell CC %s dest_id=0x%x\n",
-				keystone_rio_lsu_status_str(status), dest_id);
-
-	return res;
+#endif /* CONFIG_RAPIDIO_DMA_ENGINE */
 }
 
 /*---------------------- Maintenance Request Management  ---------------------*/
@@ -1083,111 +931,402 @@ static inline int keystone_rio_maint_request(int port_id,
 					     dma_addr_t buff,
 					     int buff_len,
 					     u16 size,
-					     u16 type,
+					     u16 packet_type,
 					     struct keystone_rio_data *krio_priv)
 {
-	unsigned int count;
-	unsigned int status = 0;
-	unsigned int res    = 0;
-	u8           context;
-	u8           ltid;
-	u8           lsu = krio_priv->lsu_maint;
+	int res;
+	u32 lsu_context;
+	u32 count = 0;
+	u32 type = ((hopcount & 0xff) << 8) | (packet_type & 0xff);
 
 	mutex_lock(&krio_priv->lsu_lock);
 
-	/* Check is there is space in the LSU shadow reg and that it is free */
-	count = 0;
+	res = keystone_rio_lsu_start_transfer(krio_priv->lsu_maint,
+					      port_id,
+					      dest_id,
+					      buff,
+					      offset,
+					      buff_len,
+					      size,
+					      type,
+					      &lsu_context,
+					      0,
+					      krio_priv);
+	if (res) {
+		mutex_unlock(&krio_priv->lsu_lock);
+		dev_err(krio_priv->dev, "maintenance packet transfer error\n");
+		return res;
+	}
+
 	while (1) {
-		status = __raw_readl(&(krio_priv->regs->lsu_reg[lsu].busy_full));
+		res = keystone_rio_lsu_complete_transfer(krio_priv->lsu_maint,
+							 lsu_context,
+							 krio_priv);
+		if (res != -EAGAIN)
+			break;
+
+		count++;
+		if (count >= KEYSTONE_RIO_TIMEOUT_CNT) {
+			res = -EIO;
+			break;
+		}
+
+		ndelay(KEYSTONE_RIO_TIMEOUT_NSEC);
+	}
+
+	mutex_unlock(&krio_priv->lsu_lock);
+
+	return res;
+}
+
+/*---------------------------- LSU management -------------------------------*/
+
+u8 keystone_rio_lsu_alloc(struct keystone_rio_data *krio_priv)
+{
+	u8 lsu_id = krio_priv->lsu_free++;
+	if (krio_priv->lsu_free > krio_priv->lsu_end)
+		krio_priv->lsu_free = krio_priv->lsu_start;
+
+	return lsu_id;
+}
+
+static u32 keystone_rio_lsu_get_cc(u32 lsu_id, u8 ltid, u8 *lcb,
+				   struct keystone_rio_data *krio_priv)
+{
+	u32 idx;
+	u32 shift;
+	u32 value;
+	u32 cc;
+	/*  LSU shadow register status mapping */
+	u32 lsu_index[8] = { 0, 9, 15, 20, 24, 33, 39, 44 };
+
+	/* Compute LSU stat index from LSU id and LTID */
+	idx   = (lsu_index[lsu_id] + ltid) >> 3;
+	shift = ((lsu_index[lsu_id] + ltid) & 0x7) << 2;
+
+	/* Get completion code and context */
+	value  = __raw_readl(&(krio_priv->regs->lsu_stat_reg[idx]));
+	cc     = (value >> (shift + 1)) & 0x7;
+	*lcb   = (value >> shift) & 0x1;
+
+	return cc;
+}
+
+/*
+ * Initiate a LSU transfer
+ */
+int keystone_rio_lsu_start_transfer(int lsu,
+				    int port_id,
+				    u16 dest_id,
+				    dma_addr_t src_addr,
+				    u64 tgt_addr,
+				    u32 size_bytes,
+				    int size,
+				    u32 packet_type,
+				    u32 *lsu_context,
+				    int interrupt_req,
+				    struct keystone_rio_data *krio_priv)
+{
+	u32 count;
+	u32 status = 0;
+	u32 res = 0;
+	u8  lcb;
+	u8  ltid;
+
+	if (size_bytes > KEYSTONE_RIO_MAX_DIO_PKT_SIZE)
+		return -EINVAL;
+
+	size_bytes &= (KEYSTONE_RIO_MAX_DIO_PKT_SIZE - 1);
+
+	/* If interrupt mode, do not spin */
+	if (interrupt_req)
+		count = KEYSTONE_RIO_TIMEOUT_CNT;
+	else
+		count = 0;
+
+	/* Check if there is space in the LSU shadow reg and that it is free */
+	while (1) {
+		status = __raw_readl(
+			&(krio_priv->regs->lsu_reg[lsu].busy_full));
+
 		if (((status & KEYSTONE_RIO_LSU_FULL_MASK) == 0x0)
 		    && ((status & KEYSTONE_RIO_LSU_BUSY_MASK) == 0x0))
 			break;
-		count++;
 
+		count++;
 		if (count >= KEYSTONE_RIO_TIMEOUT_CNT) {
-			dev_warn_ratelimited(krio_priv->dev,
-				"no LSU available, status = 0x%x\n", status);
-			res = -EIO;
+			dev_err(krio_priv->dev,
+				"no LSU%d shadow register available, status = 0x%x\n",
+				lsu, status);
+			res = -EBUSY;
 			goto out;
 		}
-		ndelay(1000);
+		ndelay(KEYSTONE_RIO_TIMEOUT_NSEC);
 	}
 
 	/* Get LCB and LTID, LSU reg 6 is already read */
-	context = (status >> 4) & 0x1;
-	ltid    = status & 0xf;
+	lcb  = (status >> 4) & 0x1;
+	ltid = status & 0xf;
+	*lsu_context = status;
 
-	/* LSU Reg 0 - MSB of RapidIO address */
-	__raw_writel(0, &(krio_priv->regs->lsu_reg[lsu].addr_msb));
+	/* LSU Reg 0 - MSB of destination */
+	__raw_writel((u32) (tgt_addr >> 32),
+		     &(krio_priv->regs->lsu_reg[lsu].addr_msb));
 
 	/* LSU Reg 1 - LSB of destination */
-	__raw_writel(offset, &(krio_priv->regs->lsu_reg[lsu].addr_lsb_cfg_ofs));
+	__raw_writel((u32) (tgt_addr),
+		     &(krio_priv->regs->lsu_reg[lsu].addr_lsb_cfg_ofs));
 
 	/* LSU Reg 2 - source address */
-	__raw_writel(buff, &(krio_priv->regs->lsu_reg[lsu].phys_addr));
+	__raw_writel(src_addr, &(krio_priv->regs->lsu_reg[lsu].phys_addr));
 
 	/* LSU Reg 3 - byte count */
-	__raw_writel(buff_len, &(krio_priv->regs->lsu_reg[lsu].dbell_val_byte_cnt));
+	__raw_writel(size_bytes,
+		     &(krio_priv->regs->lsu_reg[lsu].dbell_val_byte_cnt));
 
-	/* LSU Reg 4 - */
+	/*
+	 * LSU Reg 4 -
+	 * out port ID = rio.port
+	 * priority = LSU_PRIO
+	 * Xambs = 0
+	 * ID size = 8 or 16 bit
+	 * Dest ID specified as arg
+	 * interrupt request
+	 */
 	__raw_writel(((port_id << 8)
 		      | (KEYSTONE_RIO_LSU_PRIO << 4)
-		      | (size ? (1 << 10) : 0)
-		      | ((u32) dest_id << 16)),
+		      | (size ? BIT(10) : 0)
+		      | ((u32) dest_id << 16)
+		      | (interrupt_req & 0x1)),
 		     &(krio_priv->regs->lsu_reg[lsu].destid));
 
-	/* LSU Reg 5 */
-	__raw_writel(((hopcount & 0xff) << 8) | (type & 0xff),
+	/*
+	 * LSU Reg 5 -
+	 * doorbell info = packet_type[16-31],
+	 * hop count = packet_type [8-15]
+	 * FType = packet_type[4-7], TType = packet_type[0-3]
+	 * Writing this register will initiate the transfer
+	 */
+	__raw_writel(packet_type,
 		     &(krio_priv->regs->lsu_reg[lsu].dbell_info_fttype));
 
-	/* Retrieve our completion code */
-	count = 0;
-	res   = 0;
+out:
+	return res;
+}
+
+/*
+ * Cancel a LSU transfer
+ */
+static inline void keystone_rio_lsu_cancel_transfer(
+	int lsu,
+	struct keystone_rio_data *krio_priv)
+{
+	u32 status;
+	u32 count = 0;
+
 	while (1) {
-		u8 lcb;
-		status = keystone_rio_dio_get_lsu_cc(lsu, ltid, &lcb, krio_priv);
-		if (lcb == context)
-			break;
-		count++;
-		if (count >= KEYSTONE_RIO_TIMEOUT_CNT) {
-			dev_dbg(krio_priv->dev,
-				"timeout %d, ltid = %d, context = %d, "
-				"lcb = %d, cc = %d\n",
-				count, ltid, context, lcb, status);
-			res = -EIO;
+		/* Read register 6 to get the lock */
+		status = __raw_readl(
+			&(krio_priv->regs->lsu_reg[lsu].busy_full));
+
+		/* If not busy or if full, we can flush */
+		if (((status & KEYSTONE_RIO_LSU_FULL_MASK) == 0x0)
+		    || (status & KEYSTONE_RIO_LSU_BUSY_MASK)) {
 			break;
 		}
-		ndelay(1000);
+
+		count++;
+		if (count >= KEYSTONE_RIO_TIMEOUT_CNT) {
+			dev_err(krio_priv->dev,
+				"no LSU%d shadow register available for flushing\n",
+				lsu);
+			return;
+		}
+
+		ndelay(KEYSTONE_RIO_TIMEOUT_NSEC);
 	}
-out:
-	mutex_unlock(&krio_priv->lsu_lock);
 
-	if (res)
-		return res;
+	if (status & KEYSTONE_RIO_LSU_FULL_MASK) {
+		/* Flush the transaction with our privID */
+		__raw_writel(BIT(0) | (8 << 28),
+			     &(krio_priv->regs->lsu_reg[lsu].busy_full));
+	} else {
+		/* Flush the transaction with our privID and CBusy bit */
+		__raw_writel(BIT(0) | BIT(27) | (8 << 28),
+			     &(krio_priv->regs->lsu_reg[lsu].busy_full));
+	}
+}
 
-	if (status & KEYSTONE_RIO_LSU_CC_MASK)
-		dev_warn_ratelimited(krio_priv->dev, "Maint CC %s dest_id=0x%x\n",
-				keystone_rio_lsu_status_str(status), dest_id);
+/*
+ * Complete a LSU transfer
+ */
+int keystone_rio_lsu_complete_transfer(int lsu,
+				       u32 lsu_context,
+				       struct keystone_rio_data *krio_priv)
+{
+	u32 status = 0;
+	u32 res = 0;
+	u8  lcb = (lsu_context >> 4) & 0x1;
+	u8  ltid = (lsu_context) & 0xf;
+	u8  n_lcb;
 
-	switch (status) {
+	/* Retrieve our completion code */
+	status = keystone_rio_lsu_get_cc(lsu, ltid, &n_lcb, krio_priv);
+	if (n_lcb != lcb)
+		return -EAGAIN;
+
+	if (unlikely(status))
+		dev_dbg(krio_priv->dev, "LSU%d status 0x%x\n", lsu, status);
+
+	switch (status & KEYSTONE_RIO_LSU_CC_MASK) {
 	case KEYSTONE_RIO_LSU_CC_TIMEOUT:
+		res = -ETIMEDOUT;
+		keystone_rio_lsu_cancel_transfer(lsu, krio_priv);
+		break;
 	case KEYSTONE_RIO_LSU_CC_XOFF:
 	case KEYSTONE_RIO_LSU_CC_ERROR:
 	case KEYSTONE_RIO_LSU_CC_INVALID:
 	case KEYSTONE_RIO_LSU_CC_DMA:
-		return -EIO;
+		res = -EIO;
+		keystone_rio_lsu_cancel_transfer(lsu, krio_priv);
 		break;
 	case KEYSTONE_RIO_LSU_CC_RETRY:
-		return -EBUSY;
+		res = -EBUSY;
 		break;
 	case KEYSTONE_RIO_LSU_CC_CANCELED:
-		return -EAGAIN;
+		res = -EIO;
 		break;
 	default:
 		break;
 	}
+
+	return res;
+}
+
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+/*
+ * DMA callback
+ */
+static void keystone_rio_lsu_dma_callback(void *data)
+{
+	struct completion *lsu_completion = (struct completion *) data;
+
+	complete(lsu_completion);
+}
+
+static int keystone_rio_lsu_dma_allocate_channel(struct rio_mport *mport)
+{
+	struct keystone_rio_data *krio_priv = mport->priv;
+	struct dma_chan *dchan;
+
+	dchan = rio_request_mport_dma(mport);
+	if (!dchan) {
+		dev_err(krio_priv->dev,
+			"cannot find DMA channel for port %d\n",
+			mport->index);
+		return -ENODEV;
+	}
+
+	dev_dbg(krio_priv->dev, "get channel 0x%x for port %d\n",
+		(u32) dchan, mport->index);
+
+	krio_priv->dma_chan[mport->index] = dchan;
+
 	return 0;
 }
+
+static void keystone_rio_lsu_dma_free_channel(struct rio_mport *mport)
+{
+	struct keystone_rio_data *krio_priv = mport->priv;
+	struct dma_chan *dchan = krio_priv->dma_chan[mport->index];
+
+	if (dchan) {
+		struct keystone_rio_dma_chan *chan = from_dma_chan(dchan);
+
+		/* Remove from global list */
+		list_del_init(&chan->node);
+
+		rio_release_dma(dchan);
+		krio_priv->dma_chan[mport->index] = NULL;
+	}
+}
+
+/*
+ * Perform a raw LSU transfer using DMA engine (used for doorbells)
+ */
+static int keystone_rio_lsu_raw_async_transfer(
+	struct rio_mport *mport,
+	struct keystone_rio_dma_packet_raw *pkt,
+	enum dma_transfer_direction dir)
+{
+	struct keystone_rio_data *krio_priv = mport->priv;
+	struct dma_chan *dma_chan;
+	struct completion lsu_completion;
+	enum dma_status	status;
+	dma_cookie_t cookie;
+	struct dma_async_tx_descriptor *tx = NULL;
+	int res = 0;
+	int ret;
+
+	/* We reserved a channel for raw transfers */
+	dma_chan = krio_priv->dma_chan[mport->index];
+
+	res = keystone_rio_dma_device_control(dma_chan,
+				       DMA_KEYSTONE_RIO_PREP_RAW_PACKET,
+				       (u32) pkt);
+	if ((res) || (pkt->tx == NULL)) {
+		dev_err(krio_priv->dev,
+			"cannot prepare DMA (raw) transfer\n");
+		return -EIO;
+	}
+
+	tx = pkt->tx;
+
+	init_completion(&lsu_completion);
+
+	tx->callback = keystone_rio_lsu_dma_callback;
+	tx->callback_param = &lsu_completion;
+
+	cookie = dmaengine_submit(tx);
+
+	if (dma_submit_error(cookie)) {
+		dev_warn(krio_priv->dev,
+			 "failed to submit LSU transfer for dma: %d\n",
+			 cookie);
+		return -EBUSY;
+	}
+
+	/* Wait for transfer to complete */
+	ret = wait_for_completion_interruptible_timeout(
+		&lsu_completion,
+		msecs_to_jiffies(KEYSTONE_RIO_TIMEOUT_MSEC));
+
+	status = dma_async_is_tx_complete(dma_chan, cookie, NULL, NULL);
+	if (status != DMA_COMPLETE)
+		res = -EIO;
+
+	/* case of transfer timeout */
+	if (ret == 0) {
+		dev_dbg(krio_priv->dev,
+			"transfer incomplete (timeout) for dma channel 0x%x\n",
+			(u32) dma_chan);
+		res = -ETIMEDOUT;
+	}
+
+	/* Interrupted transfer */
+	if (ret == -ERESTARTSYS)
+		res = -ERESTARTSYS;
+
+	if (ret <= 0) {
+		/* Need to cancel current pending transfers in case of error */
+		keystone_rio_dma_device_control(dma_chan,
+					 DMA_TERMINATE_ALL,
+					 0);
+	}
+
+	return res;
+}
+#endif /* CONFIG_RAPIDIO_DMA_ENGINE */
 
 static int keystone_rio_maint_read(struct keystone_rio_data *krio_priv,
 				   int port_id,
@@ -1794,6 +1933,7 @@ static int keystone_rio_hw_init(u32 baud, struct keystone_rio_data *krio_priv)
 	int i;
 	u32 assembly_id = KEYSTONE_RIO_ID_TI;
 	u32 assembly_info = KEYSTONE_RIO_EXT_FEAT_PTR;
+	u32 lsu_mask = 0;
 
 	/* Reset blocks */
 	keystone_rio_blocks_disable(krio_priv);
@@ -1974,6 +2114,25 @@ static int keystone_rio_hw_init(u32 baud, struct keystone_rio_data *krio_priv)
 		val |= BIT(24 - (baud << 1));
 		__raw_writel(val, &krio_priv->serial_port_regs->sp[port].ctl2);
 	}
+
+
+        /* Disable LSU to perform LSU configuration */
+        __raw_writel(0, &(krio_priv->regs->blk[KEYSTONE_RIO_BLK1_LSU].enable));
+        while (__raw_readl(&(krio_priv->regs->blk[KEYSTONE_RIO_BLK1_LSU].status)) & 0x1)
+		usleep_range(10, 50);
+
+	/* Set the SRIO shadow registers configuration
+	 * to 4/4/4/4 */
+        __raw_writel(0x00000000, &krio_priv->regs->lsu_setup_reg[0]);
+
+        /* Use LSU completion interrupt per LSU
+	 * (not per SRCID) */
+	 for (i = krio_priv->lsu_start; i <= krio_priv->lsu_end; i++)
+		lsu_mask |= (1 << i);
+         __raw_writel(lsu_mask, &krio_priv->regs->lsu_setup_reg[1]);
+
+	 /* Enable LSU */
+	 __raw_writel(1, &(krio_priv->regs->blk[KEYSTONE_RIO_BLK1_LSU].enable));
 
 	/* Set packet forwarding */
 	for (i = 0; i < KEYSTONE_RIO_MAX_PKT_FW_ENTRIES; i++) {
@@ -3223,7 +3382,7 @@ static int keystone_rio_map_mbox(int mbox, int letter,
 		/* Set packet type 9 rx mapping */
 		__raw_writel(mapping_t9_reg[0],
 			     &(krio_priv->regs->rxu_type9_map[i].cos_src));
-      		__raw_writel(mapping_t9_reg[1],
+		__raw_writel(mapping_t9_reg[1],
 			     &(krio_priv->regs->rxu_type9_map[i].dest_prom));
 		__raw_writel(mapping_t9_reg[2],
 			     &(krio_priv->regs->rxu_type9_map[i].stream));
@@ -3879,6 +4038,17 @@ static int keystone_rio_mp_outb_init(u8 port_id, struct keystone_rio_data *krio_
 
 	/* FIXME: Maybe a check is needed if the current channel is already intialized */
 
+	/* If already initialized, return without error */
+	if (ktx_chan->tx_channel)
+		return 0;
+
+	if (!ktx_chan->name) {
+		dev_err(krio_priv->dev,
+			"Tx channel name for mbox %d is not defined!\n",
+			mbox);
+		return err;
+	}
+
 	/* DMA TX channel */
 	name = ktx_chan->name;
 	ktx_chan->tx_channel = dma_request_channel_by_name(mask, name);
@@ -4115,13 +4285,9 @@ int keystone_rio_hw_add_outb_message_dst(struct rio_mport *mport,
 		p_info->psdata[1] = keystone_rio_mbox_to_strmid(mbox, letter, krio_priv) << 16;
 	}
 
-#ifdef CONFIG_RAPIDIO_NSN
-	p_info->psdata[1] |= KEYSTONE_RIO_DESC_FLAG_TT_16; /* tt */
-#else
 /*	if (rdev->net->hport->sys_size)*/
 	if (mport->sys_size)
 		p_info->psdata[1] |= KEYSTONE_RIO_DESC_FLAG_TT_16; /* tt */
-#endif
 
 	dev_dbg(krio_priv->dev,
 		"packet type %d: psdata[0] = %08x, psdata[1] = %08x\n",
@@ -4209,33 +4375,6 @@ static int keystone_rio_hw_add_outb_message(struct rio_mport *mport,
 
 /*------------------------ Main Linux driver functions -----------------------*/
 
-static int keystone_rio_query_mport(struct rio_mport *mport,
-				    struct rio_mport_attr *attr)
-{
-	struct keystone_rio_data *krio_priv = mport->priv;
-	u32 port = mport->index;
-	u32 rval;
-
-	if (!attr)
-		return -EINVAL;
-
-	rval = __raw_readl(&krio_priv->serial_port_regs->sp[port].err_stat);
-	if (rval & RIO_PORT_N_ERR_STS_PORT_OK) {
-		rval = __raw_readl(&krio_priv->serial_port_regs->sp[port].ctl2);
-		attr->link_speed = (rval & RIO_PORT_N_CTL2_SEL_BAUD) >> 28;
-		rval = __raw_readl(&krio_priv->serial_port_regs->sp[port].ctl);
-		attr->link_width = (rval & RIO_PORT_N_CTL_IPW) >> 27;
-	} else
-		attr->link_speed = RIO_LINK_DOWN;
-
-	attr->flags        = 0;
-	attr->dma_max_sge  = 0;
-	attr->dma_max_size = 0;
-	attr->dma_align    = 0;
-
-	return 0;
-}
-
 static struct rio_ops keystone_rio_ops = {
 	.lcread			= keystone_local_config_read,
 	.lcwrite		= keystone_local_config_write,
@@ -4253,6 +4392,7 @@ static struct rio_ops keystone_rio_ops = {
 	.add_outb_message	= keystone_rio_hw_add_outb_message,
 	.add_inb_buffer		= keystone_rio_hw_add_inb_buffer,
 	.get_inb_message	= keystone_rio_hw_get_inb_message,
+	.query_mport		= keystone_rio_query_mport
 };
 
 static struct rio_msg_ops keystone_rio_msg_ops = {
@@ -4275,6 +4415,41 @@ static void keystone_rio_release_mport(struct device *dev)
 	struct rio_mport *mport = to_rio_mport(dev);
 
 	dev_dbg(dev, "RIO: %s %s id=%d\n", __func__, mport->name, mport->id);
+}
+
+static int keystone_rio_query_mport(struct rio_mport *mport,
+				    struct rio_mport_attr *attr)
+{
+	struct keystone_rio_data *krio_priv = mport->priv;
+	u32 port = mport->index;
+	u32 rval;
+
+	if (!attr)
+		return -EINVAL;
+
+	rval = __raw_readl(&krio_priv->serial_port_regs->sp[port].err_stat);
+	if (rval & RIO_PORT_N_ERR_STS_PORT_OK) {
+		rval = __raw_readl(&krio_priv->serial_port_regs->sp[port].ctl2);
+		attr->link_speed = (rval & RIO_PORT_N_CTL2_SEL_BAUD) >> 28;
+		rval = __raw_readl(&krio_priv->serial_port_regs->sp[port].ctl);
+		attr->link_width = (rval & RIO_PORT_N_CTL_IPW) >> 27;
+	} else
+		attr->link_speed = RIO_LINK_DOWN;
+
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+	/* Supporting DMA but not HW SG mode */
+	attr->flags        = RIO_MPORT_DMA;
+	attr->dma_max_sge  = KEYSTONE_RIO_DMA_MAX_DESC - 1;
+	attr->dma_max_size = KEYSTONE_RIO_MAX_DIO_PKT_SIZE;
+	attr->dma_align    = KEYSTONE_RIO_DIO_ALIGNMENT;
+#else
+	attr->flags        = 0;
+	attr->dma_max_sge  = 0;
+	attr->dma_max_size = 0;
+	attr->dma_align    = 0;
+#endif
+
+	return 0;
 }
 
 struct rio_mport *keystone_rio_register_mport(u32 port_id, u32 size,
@@ -4341,6 +4516,17 @@ struct rio_mport *keystone_rio_register_mport(u32 port_id, u32 size,
 	rio_register_mport(port);
 
 	krio_priv->mport[port_id] = port;
+
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+	/*
+	 * Register the DMA engine for DirectIO transfers
+	 */
+	keystone_rio_dma_register(port, krio_priv->board_rio_cfg.dma_channel_num);
+	/*
+	 * Reserve one channel for doorbells
+	 */
+	keystone_rio_lsu_dma_allocate_channel(port);
+#endif
 
 	return port;
 }
@@ -4714,6 +4900,10 @@ static int keystone_rio_get_controller_defaults(struct device_node *node,
 		c->comp_tag = 0;
 	}
 
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+	c->dma_channel_num = 2;
+#endif
+
 	/* old garbage queues 8288 for pdsp recycling, remove after integration*/
 	if (of_property_read_u32_array(node, "tx-garbage-queues",
 				       c->tx_garbage_queues,
@@ -4962,17 +5152,53 @@ static void keystone_rio_shutdown_controller(struct keystone_rio_data *krio_priv
 	keystone_rio_serdes_shutdown(krio_priv);
 }
 
+static __be32 clocks_val = cpu_to_be32(0x16);
+static struct property new_clocks = {
+	.name = "clocks",
+	.length = sizeof(__be32),
+	.value = &clocks_val,
+};
+
 static int keystone_rio_probe(struct platform_device *pdev)
 {
 	struct device_node *node = pdev->dev.of_node;
 	struct keystone_rio_data *krio_priv;
 	int res = 0;
+	unsigned int i = 0;
+	uint32_t value;
+	struct property *clock;
+
 	dev_info(&pdev->dev, "KeyStone RapidIO driver %s\n", DRIVER_VER);
 
 	if (!node) {
 		dev_err(&pdev->dev, "could not find device info\n");
 		return -EINVAL;
 	}
+
+	pr_err("%s: ~~~~~~~~ WARNING: Correcting malformed clocks ~~~~~~~~\n", __func__);
+	clock = of_find_property(node, "clocks", NULL);
+	res = of_property_read_u32(node, "clocks", &value);
+	if (!res)
+		pr_err("%s: Current value of clocks = 0x%x\n", __func__, value);
+	else
+		pr_err("%s: FAILED to read clocks\n", __func__);
+
+	if (clock) {
+		pr_err("%s: Clocks: name = %s, len = %d, value = 0x%x\n",
+				__func__, clock->name, clock->length,
+				be32_to_cpu(*(__be32*)clock->value));
+		of_update_property(node, &new_clocks);
+	} else {
+		pr_err("%s: Failed to get property for clocks\n", __func__);
+	}
+
+	res = of_property_read_u32(node, "clocks", &value);
+	if (!res) {
+		pr_err("%s: New value of clocks = 0x%x\n", __func__, value);
+	} else {
+		pr_err("%s: Failed to read clocks property\n", __func__);
+	}
+
 	krio_priv = kzalloc(sizeof(struct keystone_rio_data), GFP_KERNEL);
 	if (!krio_priv) {
 		dev_err(&pdev->dev, "memory allocation failed\n");
@@ -5012,6 +5238,11 @@ static int keystone_rio_probe(struct platform_device *pdev)
 		ndelay(100);
 		clk_prepare_enable(krio_priv->clk);
 	}
+
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+	for (i = 0; i < KEYSTONE_RIO_LSU_NUM; i++)
+		INIT_LIST_HEAD(&krio_priv->dma_channels[i]);
+#endif
 
 #ifdef CONFIG_RAPIDIO_DEV
 	/* Register userspace interface */
@@ -5094,7 +5325,40 @@ static void keystone_rio_shutdown(struct platform_device *pdev)
 
 static int keystone_rio_remove(struct platform_device *pdev)
 {
+	struct keystone_rio_data *krio_priv = platform_get_drvdata(pdev);
+	u32 ports = krio_priv->board_rio_cfg.ports;
+
+	/* Shutdown the hw controller */
 	keystone_rio_shutdown(pdev);
+
+	/* Retrieve all registered mports */
+	ports = krio_priv->board_rio_cfg.ports;
+	while (ports) {
+		struct rio_mport *mport;
+		u32 port = __ffs(ports);
+		ports &= ~BIT(port);
+
+		mport = krio_priv->mport[port];
+
+		if (mport) {
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+			keystone_rio_lsu_dma_free_channel(mport);
+			keystone_rio_dma_unregister(mport);
+#endif
+			/* Unregister the mport from the RIO framework */
+			rio_unregister_mport(mport);
+		}
+	}
+
+	/* Remove io mapping */
+	iounmap(krio_priv->jtagid_reg);
+	iounmap(krio_priv->serdes_regs);
+	iounmap(krio_priv->regs);
+
+	/* Unregister sysfs and free mport private structures */
+	platform_set_drvdata(pdev, NULL);
+	kfree(krio_priv);
+
 	return 0;
 }
 
