@@ -1642,7 +1642,6 @@ static int rio_mport_remove_pw_filter(struct mport_cdev_priv *priv,
 
 	if (copy_from_user(&filter, arg, sizeof(filter)))
 		return -EFAULT;
-	dev_info.name[sizeof(dev_info.name) - 1] = '\0';
 
 	spin_lock_irqsave(&md->pw_lock, flags);
 	list_for_each_entry(pw_filter, &priv->pw_filters, priv_node) {
@@ -1908,7 +1907,6 @@ static int rio_mport_mem_region_add(struct mport_cdev_priv *priv, void __user *a
 
 	if (copy_from_user(&map_info, arg, sizeof(map_info)))
 		return -EFAULT;
-	dev_info.name[sizeof(dev_info.name) - 1] = '\0';
 
 	mutex_lock(&map->lock);
 
