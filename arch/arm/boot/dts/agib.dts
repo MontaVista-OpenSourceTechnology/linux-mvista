@@ -14,6 +14,7 @@
 #include "agib-lasc.dtsi"
 #include "agib-tpm.dtsi"
 #include "agib-rtc.dtsi"
+#include "agib-reset.dtsi"
 
 / {
 	compatible =  "ti,k2hk-evm", "ti,k2hk", "ti,keystone";

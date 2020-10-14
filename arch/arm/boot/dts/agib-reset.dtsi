@@ -1,0 +1,12 @@
+/ {
+	aliases {
+		gpio0 = &gpio0;
+	};
+
+	fsp_reset {
+		compatible = "nsn,fsp_reset";
+		interrupt-parent = <&gpio0>;
+		interrupts = <0x16 0x2>;
+	};
+
+};
