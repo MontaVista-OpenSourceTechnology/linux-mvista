@@ -8,3 +8,11 @@ config RAPIDIO_TSI721
 	default "n"
 	---help---
 	  Include support for IDT Tsi721 PCI Express Serial RapidIO controller.
+
+config TI_KEYSTONE_RAPIDIO
+       tristate "TI Keystone RapidIO support"
+       depends on (RAPIDIO || RAPIDIO_NSN) && TI_KEYSTONE
+       default "n"
+       ---help---
+         This driver supports TI's Keystone RapidIO.
+

@@ -425,9 +425,9 @@ static struct rio_dev *rio_setup_device(struct rio_net *net,
 		rswitch = rdev->rswitch;
 		rswitch->port_ok = 0;
 		spin_lock_init(&rswitch->lock);
-		rswitch->route_table =
-			kzalloc(RIO_MAX_ROUTE_ENTRIES(port->sys_size),
-				GFP_KERNEL);
+		rswitch->route_table = kzalloc(sizeof(u8)*
+					RIO_MAX_ROUTE_ENTRIES(port->sys_size),
+					GFP_KERNEL);
 		if (!rswitch->route_table)
 			goto cleanup;
 		/* Initialize switch route table */
@@ -464,6 +464,11 @@ static struct rio_dev *rio_setup_device(struct rio_net *net,
 		goto cleanup;
 
 	rio_dev_get(rdev);
+
+#ifdef CONFIG_RAPIDIO_DEV
+	if (!rio_is_switch(rdev))
+		rio_dev_add(rdev);
+#endif
 
 	return rdev;
 
@@ -763,7 +768,7 @@ rio_disc_peer(struct rio_net *net, struct rio_mport *port, u16 destid,
 				    "RIO: scanning device on port %d\n",
 				    port_num);
 
-				rio_lock_device(port, destid, hopcount, 1000);
+				rio_lock_device(port, 0, destid, hopcount, 1000);
 
 				for (ndestid = 0;
 				     ndestid < RIO_ANY_DESTID(port->sys_size);
@@ -778,7 +783,7 @@ rio_disc_peer(struct rio_net *net, struct rio_mport *port, u16 destid,
 
 				if (ndestid == RIO_ANY_DESTID(port->sys_size))
 					continue;
-				rio_unlock_device(port, destid, hopcount);
+				rio_unlock_device(port, 0, destid, hopcount);
 				if (rio_disc_peer(net, port, ndestid,
 					hopcount + 1, rdev, port_num) < 0)
 					return -1;
@@ -983,7 +988,7 @@ static int rio_enum_mport(struct rio_mport *mport, u32 flags)
 		/* reserve mport destID in new net */
 		rio_destid_reserve(net, mport->host_deviceid);
 
-		/* Enable Input Output Port (transmitter receiver) */
+		/* Enable Input Output Port (transmitter reciever) */
 		rio_enable_rx_tx_port(mport, 1, 0, 0, 0);
 
 		/* Set component tag for host */
@@ -1033,7 +1038,7 @@ static void rio_build_route_tables(struct rio_net *net)
 	list_for_each_entry(rswitch, &net->switches, node) {
 		rdev = sw_to_rio_dev(rswitch);
 
-		rio_lock_device(net->hport, rdev->destid,
+		rio_lock_device(net->hport, 0, rdev->destid,
 				rdev->hopcount, 1000);
 		for (i = 0;
 		     i < RIO_MAX_ROUTE_ENTRIES(net->hport->sys_size);
@@ -1044,7 +1049,7 @@ static void rio_build_route_tables(struct rio_net *net)
 			rswitch->route_table[i] = sport;
 		}
 
-		rio_unlock_device(net->hport, rdev->destid, rdev->hopcount);
+		rio_unlock_device(net->hport, 0, rdev->destid, rdev->hopcount);
 	}
 }
 

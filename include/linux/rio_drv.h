@@ -298,7 +298,7 @@ static inline void rio_init_dbell_res(struct resource *res, u16 start, u16 end)
 
 /* Mailbox management */
 extern int rio_request_outb_mbox(struct rio_mport *, void *, int, int,
-				 void (*)(struct rio_mport *, void *,int, int));
+				 void (*)(struct rio_mport *, void *, int, int, void *));
 extern int rio_release_outb_mbox(struct rio_mport *, int);
 
 /**
@@ -308,20 +308,21 @@ extern int rio_release_outb_mbox(struct rio_mport *, int);
  * @mbox: The outbound mailbox queue
  * @buffer: Pointer to the message buffer
  * @len: Length of the message buffer
+ * @cookie: Opaque pointer, must be passed to completion callback
  *
  * Adds a RIO message buffer to an outbound mailbox queue for
  * transmission. Returns 0 on success.
  */
 static inline int rio_add_outb_message(struct rio_mport *mport,
 				       struct rio_dev *rdev, int mbox,
-				       void *buffer, size_t len)
+				       void *buffer, size_t len, void *cookie)
 {
 	return mport->ops->add_outb_message(mport, rdev, mbox,
-						   buffer, len);
+						   buffer, len, cookie);
 }
 
 extern int rio_request_inb_mbox(struct rio_mport *, void *, int, int,
-				void (*)(struct rio_mport *, void *, int, int));
+				void (*)(struct rio_mport *, void *, int));
 extern int rio_release_inb_mbox(struct rio_mport *, int);
 
 /**
@@ -329,26 +330,29 @@ extern int rio_release_inb_mbox(struct rio_mport *, int);
  * @mport: Master port containing the inbound mailbox
  * @mbox: The inbound mailbox number
  * @buffer: Pointer to the message buffer
+ * @cookie: Opaque pointer, must be passed to completion callback
  *
  * Adds a buffer to an inbound mailbox queue for reception. Returns
  * 0 on success.
  */
 static inline int rio_add_inb_buffer(struct rio_mport *mport, int mbox,
-				     void *buffer)
+				     void *buffer, void *cookie)
 {
-	return mport->ops->add_inb_buffer(mport, mbox, buffer);
+	return mport->ops->add_inb_buffer(mport, mbox, buffer, cookie);
 }
 
 /**
  * rio_get_inb_message - Get A RIO message from an inbound mailbox queue
  * @mport: Master port containing the inbound mailbox
  * @mbox: The inbound mailbox number
+ * @cookie: Opaque pointer, must be passed to completion callback
  *
  * Get a RIO message from an inbound mailbox queue. Returns 0 on success.
  */
-static inline void *rio_get_inb_message(struct rio_mport *mport, int mbox)
+static inline void *rio_get_inb_message(struct rio_mport *mport, int mbox,
+					void **cookie)
 {
-	return mport->ops->get_inb_message(mport, mbox);
+	return mport->ops->get_inb_message(mport, mbox, cookie);
 }
 
 /* Doorbell management */
@@ -364,6 +368,9 @@ int rio_request_regions(struct rio_dev *, char *);
 void rio_release_regions(struct rio_dev *);
 int rio_request_region(struct rio_dev *, int, char *);
 void rio_release_region(struct rio_dev *, int);
+
+void *rio_map_memory(struct rio_dev *rdev, u64 offset, u64 length);
+void rio_unmap_memory(struct rio_dev *rdev, u64 offset, u64 length, void *map);
 
 /* Memory mapping functions */
 extern int rio_map_inb_region(struct rio_mport *mport, dma_addr_t local,

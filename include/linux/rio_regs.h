@@ -235,8 +235,11 @@
 #define RIO_PORT_N_ACK_STS_CSR(n)	(0x48 + (n) * 0x20) /* Only in RM-I */
 #define  RIO_PORT_N_ACK_CLEAR		0x80000000
 #define  RIO_PORT_N_ACK_INBOUND		0x3f000000
-#define  RIO_PORT_N_ACK_OUTSTAND	0x00003f00
+#define  RIO_PORT_N_ACK_INBOUND_SHIFT	24
 #define  RIO_PORT_N_ACK_OUTBOUND	0x0000003f
+#define  RIO_PORT_N_ACK_OUTBOUND_SHIFT	0
+#define  RIO_PORT_N_ACK_OUTSTAND	0x00003f00
+#define  RIO_PORT_N_ACK_OUTSTAND_SHIFT	8
 #define RIO_PORT_N_CTL2_CSR(n, m)	(0x54 + (n) * (0x20 * (m)))
 #define  RIO_PORT_N_CTL2_SEL_BAUD	0xf0000000
 #define RIO_PORT_N_ERR_STS_CSR(n, m)	(0x58 + (n) * (0x20 * (m)))
@@ -247,6 +250,8 @@
 #define  RIO_PORT_N_ERR_STS_PORT_ERR	0x00000004
 #define  RIO_PORT_N_ERR_STS_PORT_OK	0x00000002
 #define  RIO_PORT_N_ERR_STS_PORT_UNINIT	0x00000001
+#define  RIO_PORT_N_ERR_STS_PORT_RETRY	0x00100000 /* Output Port retry */
+#define  RIO_PORT_N_ERR_STS_SETTINGS	0x40000000 /* To unmask non settings -> Errata */
 #define RIO_PORT_N_CTL_CSR(n, m)	(0x5c + (n) * (0x20 * (m)))
 #define  RIO_PORT_N_CTL_PWIDTH		0xc0000000
 #define  RIO_PORT_N_CTL_PWIDTH_1	0x00000000
@@ -254,6 +259,7 @@
 #define  RIO_PORT_N_CTL_IPW		0x38000000 /* Initialized Port Width */
 #define  RIO_PORT_N_CTL_P_TYP_SER	0x00000001
 #define  RIO_PORT_N_CTL_LOCKOUT		0x00000002
+#define RIO_PORT_N_CTL_ENUM_BOUNDARY    0x00020000
 #define  RIO_PORT_N_CTL_EN_RX		0x00200000
 #define  RIO_PORT_N_CTL_EN_TX		0x00400000
 #define RIO_PORT_N_OB_ACK_CSR(n)	(0x60 + (n) * 0x40) /* Only in RM-II */

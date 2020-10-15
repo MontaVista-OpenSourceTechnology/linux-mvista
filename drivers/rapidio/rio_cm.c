@@ -169,6 +169,7 @@ struct cm_dev {
 	u32			npeers;
 	struct workqueue_struct *rx_wq;
 	struct work_struct	rx_work;
+	struct rio_dev		rdev; /* fake rio_dev object for msg loopback */
 };
 
 struct chan_rx_ring {
@@ -311,7 +312,7 @@ static void *riocm_rx_get_msg(struct cm_dev *cm)
 	void *msg;
 	int i;
 
-	msg = rio_get_inb_message(cm->mport, cmbox);
+	msg = rio_get_inb_message(cm->mport, cmbox, NULL);
 	if (msg) {
 		for (i = 0; i < RIOCM_RX_RING_SIZE; i++) {
 			if (cm->rx_buf[i] == msg) {
@@ -347,7 +348,7 @@ static void riocm_rx_fill(struct cm_dev *cm, int nent)
 			cm->rx_buf[i] = kmalloc(RIO_MAX_MSG_SIZE, GFP_KERNEL);
 			if (cm->rx_buf[i] == NULL)
 				break;
-			rio_add_inb_buffer(cm->mport, cmbox, cm->rx_buf[i]);
+			rio_add_inb_buffer(cm->mport, cmbox, cm->rx_buf[i], NULL);
 			cm->rx_slots--;
 			nent--;
 		}
@@ -624,7 +625,7 @@ static void rio_ibmsg_handler(struct work_struct *work)
 }
 
 static void riocm_inb_msg_event(struct rio_mport *mport, void *dev_id,
-				int mbox, int slot)
+				int mbox)
 {
 	struct cm_dev *cm = dev_id;
 
@@ -685,7 +686,7 @@ static void rio_txcq_handler(struct cm_dev *cm, int slot)
 			list_del(&req->node);
 			cm->tx_buf[cm->tx_slot] = req->buffer;
 			rc = rio_add_outb_message(cm->mport, req->rdev, cmbox,
-						  req->buffer, req->len);
+						  req->buffer, req->len, NULL);
 			kfree(req->buffer);
 			kfree(req);
 
@@ -701,12 +702,12 @@ static void rio_txcq_handler(struct cm_dev *cm, int slot)
 }
 
 static void riocm_outb_msg_event(struct rio_mport *mport, void *dev_id,
-				 int mbox, int slot)
+				 int mbox, int status, void *cookie)
 {
 	struct cm_dev *cm = dev_id;
 
 	if (cm && rio_mport_is_running(cm->mport))
-		rio_txcq_handler(cm, slot);
+		rio_txcq_handler(cm, cm->tx_slot);
 }
 
 static int riocm_queue_req(struct cm_dev *cm, struct rio_dev *rdev,
@@ -759,7 +760,7 @@ static int riocm_post_send(struct cm_dev *cm, struct rio_dev *rdev,
 	}
 
 	cm->tx_buf[cm->tx_slot] = buffer;
-	rc = rio_add_outb_message(cm->mport, rdev, cmbox, buffer, len);
+	rc = rio_add_outb_message(cm->mport, rdev, cmbox, buffer, len, NULL);
 
 	riocm_debug(TX, "Add buf@%p destid=%x tx_slot=%d tx_cnt=%d",
 		 buffer, rdev->destid, cm->tx_slot, cm->tx_cnt);
@@ -2108,6 +2109,7 @@ static int riocm_add_mport(struct device *dev,
 	int i;
 	struct cm_dev *cm;
 	struct rio_mport *mport = to_rio_mport(dev);
+	struct cm_peer *peer;
 
 	riocm_debug(MPORT, "add mport %s", mport->name);
 
@@ -2165,6 +2167,21 @@ static int riocm_add_mport(struct device *dev,
 	INIT_LIST_HEAD(&cm->peers);
 	cm->npeers = 0;
 	INIT_LIST_HEAD(&cm->tx_reqs);
+
+	/* Add self as a peer for loopback operations */
+	peer = kmalloc(sizeof(struct cm_peer), GFP_KERNEL);
+	if (peer) {
+		riocm_debug(DBG_MPORT, "add loopback for mport%d", mport->id);
+		cm->rdev.destid = (u16)mport->host_deviceid;
+		dev_set_name(&cm->rdev.dev, "loc_mport%d", mport->id);
+		device_initialize(&cm->rdev.dev);
+		peer->rdev = &cm->rdev;
+		list_add_tail(&peer->node, &cm->peers);
+		cm->npeers = 1;
+	} else {
+		riocm_error("%s failed to setup loopback peer on %s",
+			    __func__, mport->name);
+	}
 
 	down_write(&rdev_sem);
 	list_add_tail(&cm->list, &cm_dev_list);

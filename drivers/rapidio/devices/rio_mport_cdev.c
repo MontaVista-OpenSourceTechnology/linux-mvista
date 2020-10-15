@@ -77,6 +77,9 @@ enum {
 		no_printk(KERN_DEBUG pr_fmt(DRV_PREFIX fmt "\n"), ##arg)
 #endif
 
+#define rmcd_info(fmt, arg...) \
+	pr_info(DRV_PREFIX "%s INFO " fmt "\n", __func__, ##arg)
+
 #define rmcd_warn(fmt, arg...) \
 	pr_warn(DRV_PREFIX "%s WARNING " fmt "\n", __func__, ##arg)
 
@@ -91,15 +94,19 @@ MODULE_DESCRIPTION("RapidIO mport character device driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(DRV_VERSION);
 
-static int dma_timeout = 3000; /* DMA transfer timeout in msec */
+static int dma_timeout = 300; /* DMA transfer timeout in msec */
 module_param(dma_timeout, int, S_IRUGO);
-MODULE_PARM_DESC(dma_timeout, "DMA Transfer Timeout in msec (default: 3000)");
+MODULE_PARM_DESC(dma_timeout, "DMA Transfer Timeout in msec (default: 300)");
 
 #ifdef DEBUG
 static u32 dbg_level = DBG_NONE;
 module_param(dbg_level, uint, S_IWUSR | S_IWGRP | S_IRUGO);
 MODULE_PARM_DESC(dbg_level, "Debugging output level (default 0 = none)");
 #endif
+
+static int mport_lock_timeout = 1000; /* Port lock aquire timeout */
+module_param(mport_lock_timeout, int, S_IRUGO);
+MODULE_PARM_DESC(mport_lock_timeout, "Local host did lock timeout in msec (default: 1000)");
 
 /*
  * An internal DMA coherent buffer
@@ -145,6 +152,10 @@ struct rio_mport_dma_map {
 #define MPORT_MAX_DMA_BUFS	16
 #define MPORT_EVENT_DEPTH	10
 
+static int pw_evq_len = MPORT_EVENT_DEPTH; /* Port write event queue length */
+module_param(pw_evq_len, int, S_IRUGO);
+MODULE_PARM_DESC(pw_evq_len, "Port write event queue length (default: 10)");
+
 /*
  * mport_dev  driver-specific structure that represents mport device
  * @active    mport device status flag
@@ -181,6 +192,7 @@ struct mport_dev {
 #ifdef CONFIG_RAPIDIO_DMA_ENGINE
 	struct dma_chan *dma_chan;
 	struct kref	dma_ref;
+	struct mutex	dma_lock;
 	struct completion comp;
 #endif
 };
@@ -213,10 +225,10 @@ struct mport_cdev_priv {
 	struct dma_chan		*dmach;
 	struct list_head	async_list;
 	spinlock_t              req_lock;
-	struct mutex		dma_lock;
 	struct kref		dma_ref;
 	struct completion	comp;
 #endif
+	int event_overflow_flag;
 };
 
 /*
@@ -573,8 +585,7 @@ static void mport_release_dma(struct kref *dma_ref)
 
 static void dma_req_free(struct kref *ref)
 {
-	struct mport_dma_req *req = container_of(ref, struct mport_dma_req,
-			refcount);
+	struct mport_dma_req *req = container_of(ref, struct mport_dma_req, refcount);
 	struct mport_cdev_priv *priv = req->priv;
 	unsigned int i;
 
@@ -627,6 +638,7 @@ static struct dma_async_tx_descriptor
 	tx_data.sg_len = nents;
 	tx_data.rio_addr_u = 0;
 	tx_data.rio_addr = transfer->rio_addr;
+	tx_data.prio_lvl = transfer->prio_lvl;
 	if (dir == DMA_MEM_TO_DEV) {
 		switch (transfer->method) {
 		case RIO_EXCHANGE_NWRITE:
@@ -656,7 +668,7 @@ static struct dma_async_tx_descriptor
  */
 static int get_dma_channel(struct mport_cdev_priv *priv)
 {
-	mutex_lock(&priv->dma_lock);
+	mutex_lock(&priv->md->dma_lock);
 	if (!priv->dmach) {
 		priv->dmach = rio_request_mport_dma(priv->md->mport);
 		if (!priv->dmach) {
@@ -666,7 +678,7 @@ static int get_dma_channel(struct mport_cdev_priv *priv)
 				kref_get(&priv->md->dma_ref);
 			} else {
 				rmcd_error("Failed to get DMA channel");
-				mutex_unlock(&priv->dma_lock);
+				mutex_unlock(&priv->md->dma_lock);
 				return -ENODEV;
 			}
 		} else if (!priv->md->dma_chan) {
@@ -682,7 +694,7 @@ static int get_dma_channel(struct mport_cdev_priv *priv)
 	}
 
 	kref_get(&priv->dma_ref);
-	mutex_unlock(&priv->dma_lock);
+	mutex_unlock(&priv->md->dma_lock);
 	return 0;
 }
 
@@ -771,7 +783,7 @@ static int do_dma_request(struct mport_dma_req *req,
 
 	if (wret == 0) {
 		/* Timeout on wait occurred */
-		rmcd_error("%s(%d) timed out waiting for DMA_%s %d",
+		rmcd_info("%s(%d) timed out waiting for DMA_%s %d",
 		       current->comm, task_pid_nr(current),
 		       (dir == DMA_DEV_TO_MEM)?"READ":"WRITE", cookie);
 		return -ETIMEDOUT;
@@ -779,7 +791,7 @@ static int do_dma_request(struct mport_dma_req *req,
 		/* Wait_for_completion was interrupted by a signal but DMA may
 		 * be in progress
 		 */
-		rmcd_error("%s(%d) wait for DMA_%s %d was interrupted",
+		rmcd_info("%s(%d) wait for DMA_%s %d was interrupted",
 			current->comm, task_pid_nr(current),
 			(dir == DMA_DEV_TO_MEM)?"READ":"WRITE", cookie);
 		return -EINTR;
@@ -787,7 +799,7 @@ static int do_dma_request(struct mport_dma_req *req,
 
 	if (req->status != DMA_COMPLETE) {
 		/* DMA transaction completion was signaled with error */
-		rmcd_error("%s(%d) DMA_%s %d completed with status %d (ret=%d)",
+		rmcd_info("%s(%d) DMA_%s %d completed with status %d (ret=%d)",
 			current->comm, task_pid_nr(current),
 			(dir == DMA_DEV_TO_MEM)?"READ":"WRITE",
 			cookie, req->status, ret);
@@ -824,6 +836,13 @@ rio_dma_transfer(struct file *filp, u32 transfer_mode,
 
 	if (xfer->length == 0)
 		return -EINVAL;
+
+	if (xfer->prio_lvl > RIO_MAX_PRIO_LVL ||
+	   (xfer->prio_lvl & ~RIO_PRIO_LVL_CRF) > 2) {
+		pr_err(DRV_PREFIX "invalid prio_lvl: %d\n", xfer->prio_lvl);
+		return -EINVAL;
+	}
+
 	req = kzalloc(sizeof(*req), GFP_KERNEL);
 	if (!req)
 		return -ENOMEM;
@@ -853,10 +872,10 @@ rio_dma_transfer(struct file *filp, u32 transfer_mode,
 	 * offset within the internal buffer specified by handle parameter.
 	 */
 	if (xfer->loc_addr) {
-		unsigned int offset;
+		unsigned long offset;
 		long pinned;
 
-		offset = lower_32_bits(offset_in_page(xfer->loc_addr));
+		offset = (unsigned long)(uintptr_t)xfer->loc_addr & ~PAGE_MASK;
 		nr_pages = PAGE_ALIGN(xfer->length + offset) >> PAGE_SHIFT;
 
 		page_list = kmalloc_array(nr_pages,
@@ -866,14 +885,17 @@ rio_dma_transfer(struct file *filp, u32 transfer_mode,
 			goto err_req;
 		}
 
-		pinned = get_user_pages_fast(
+		down_read(&current->mm->mmap_sem);
+		pinned = get_user_pages(
 				(unsigned long)xfer->loc_addr & PAGE_MASK,
-				nr_pages, dir == DMA_FROM_DEVICE, page_list);
+				nr_pages,
+				dir == DMA_FROM_DEVICE ? FOLL_WRITE : 0,
+				page_list, NULL);
+		up_read(&current->mm->mmap_sem);
 
 		if (pinned != nr_pages) {
 			if (pinned < 0) {
-				rmcd_error("get_user_pages_unlocked err=%ld",
-					   pinned);
+				rmcd_error("get_user_pages err=%ld", pinned);
 				nr_pages = 0;
 			} else
 				rmcd_error("pinned %ld out of %ld pages",
@@ -950,7 +972,6 @@ rio_dma_transfer(struct file *filp, u32 transfer_mode,
 	} else {
 		rmcd_debug(DMA, "do_dma_request failed with err=%d", ret);
 	}
-
 err_pg:
 	if (!req->page_list) {
 		for (i = 0; i < nr_pages; i++)
@@ -980,7 +1001,7 @@ static int rio_mport_transfer_ioctl(struct file *filp, void __user *arg)
 	     priv->md->properties.transfer_mode) == 0)
 		return -ENODEV;
 
-	transfer = vmalloc(array_size(sizeof(*transfer), transaction.count));
+	transfer = vmalloc(transaction.count * sizeof(*transfer));
 	if (!transfer)
 		return -ENOMEM;
 
@@ -1011,6 +1032,7 @@ out_free:
 static int rio_mport_wait_for_async_dma(struct file *filp, void __user *arg)
 {
 	struct mport_cdev_priv *priv;
+	struct mport_dev *md;
 	struct rio_async_tx_wait w_param;
 	struct mport_dma_req *req;
 	dma_cookie_t cookie;
@@ -1020,6 +1042,7 @@ static int rio_mport_wait_for_async_dma(struct file *filp, void __user *arg)
 	int ret;
 
 	priv = (struct mport_cdev_priv *)filp->private_data;
+	md = priv->md;
 
 	if (unlikely(copy_from_user(&w_param, arg, sizeof(w_param))))
 		return -EFAULT;
@@ -1047,7 +1070,7 @@ static int rio_mport_wait_for_async_dma(struct file *filp, void __user *arg)
 
 	if (wret == 0) {
 		/* Timeout on wait occurred */
-		rmcd_error("%s(%d) timed out waiting for ASYNC DMA_%s",
+		rmcd_info("%s(%d) timed out waiting for ASYNC DMA_%s",
 		       current->comm, task_pid_nr(current),
 		       (req->dir == DMA_FROM_DEVICE)?"READ":"WRITE");
 		ret = -ETIMEDOUT;
@@ -1056,7 +1079,7 @@ static int rio_mport_wait_for_async_dma(struct file *filp, void __user *arg)
 		/* Wait_for_completion was interrupted by a signal but DMA may
 		 * be still in progress
 		 */
-		rmcd_error("%s(%d) wait for ASYNC DMA_%s was interrupted",
+		rmcd_info("%s(%d) wait for ASYNC DMA_%s was interrupted",
 			current->comm, task_pid_nr(current),
 			(req->dir == DMA_FROM_DEVICE)?"READ":"WRITE");
 		ret = -EINTR;
@@ -1390,8 +1413,12 @@ static int rio_mport_add_event(struct mport_cdev_priv *priv,
 	wake_up_interruptible(&priv->event_rx_wait);
 
 	if (overflow) {
-		dev_warn(&priv->md->dev, DRV_NAME ": event fifo overflow\n");
+		if (priv->event_overflow_flag == 0)
+			dev_warn_ratelimited(&priv->md->dev, "event fifo overflow\n");
+		priv->event_overflow_flag = 1;
 		return -EBUSY;
+	} else {
+		priv->event_overflow_flag = 0;
 	}
 
 	return 0;
@@ -1770,6 +1797,11 @@ static int rio_mport_add_riodev(struct mport_cdev_priv *priv,
 
 		rdev->em_efptr = rio_mport_get_feature(mport, 0, destid,
 						hopcount, RIO_EFB_ERR_MGMNT);
+
+		rio_mport_read_config_32(mport, destid, hopcount,
+				rdev->phys_efptr + RIO_PORT_GEN_CTL_CSR,
+				 &rval);
+		rdev->host = RIO_PORT_GEN_HOST & rval;
 	}
 
 	rio_mport_read_config_32(mport, destid, hopcount, RIO_SRC_OPS_CAR,
@@ -1865,6 +1897,270 @@ static int rio_mport_del_riodev(struct mport_cdev_priv *priv, void __user *arg)
 	return 0;
 }
 
+#ifdef CONFIG_RAPIDIO_MEM_MAP
+static int rio_mport_mem_region_add(struct mport_cdev_priv *priv, void __user *arg)
+{
+	struct rio_mport *mport = priv->md->mport;
+	struct rio_mem_map *map = mport->mem_map;
+	struct rio_mem_region_info map_info;
+	int err;
+
+	if (!map)
+		return -ENOTSUPP;
+
+	if (copy_from_user(&map_info, arg, sizeof(map_info)))
+		return -EFAULT;
+
+	mutex_lock(&map->lock);
+
+	map_info.name[RIO_MAX_REGION_NAME_SZ] = 0;
+	pr_info(DRV_PREFIX "%s(%d): add named region ('%s', %#llx, %u)\n",
+			current->comm, task_pid_nr(current),
+			map_info.name, map_info.phys_addr, map_info.length);
+
+	if (rio_lock_device(mport, 1, 0, 0, mport_lock_timeout)) {
+		pr_info(DRV_PREFIX "%s(%d): rio lock device timeout\n",
+			current->comm, task_pid_nr(current));
+		mutex_unlock(&map->lock);
+		return -EAGAIN;
+	}
+
+	err = rio_mem_map_add_named_region(map, map_info.name,
+			map_info.phys_addr, map_info.length);
+
+	if (rio_unlock_device(mport, 1, 0, 0))
+		pr_err(DRV_PREFIX "%s(%d): rio unlock device failed\n",
+			current->comm, task_pid_nr(current));
+
+	mutex_unlock(&map->lock);
+
+	return err;
+}
+
+static int rio_mport_mem_region_del(struct mport_cdev_priv *priv, void __user *arg)
+{
+	struct rio_mport *mport = priv->md->mport;
+	struct rio_mem_map *map = mport->mem_map;
+	char name[RIO_MAX_REGION_NAME_SZ + 1];
+	int err;
+
+	if (!map)
+		return -ENOTSUPP;
+
+	if (copy_from_user(&name, arg, sizeof(name)))
+		return -EFAULT;
+
+	mutex_lock(&map->lock);
+
+	name[RIO_MAX_REGION_NAME_SZ] = 0;
+	pr_info(DRV_PREFIX "%s(%d): del named region ('%s')\n",
+			current->comm, task_pid_nr(current), name);
+
+	if (rio_lock_device(mport, 1, 0, 0, mport_lock_timeout)) {
+		pr_info(DRV_PREFIX "%s(%d): rio lock device timeout\n",
+			current->comm, task_pid_nr(current));
+		mutex_unlock(&map->lock);
+		return -EAGAIN;
+	}
+
+	err = rio_mem_map_del_named_region(map, name);
+
+	if (rio_unlock_device(mport, 1, 0, 0))
+		pr_err(DRV_PREFIX "%s(%d): rio unlock device failed\n",
+			current->comm, task_pid_nr(current));
+
+	mutex_unlock(&map->lock);
+
+	return err;
+}
+
+static int rio_mport_mem_region_del_all(struct mport_cdev_priv *priv)
+{
+	struct rio_mport *mport = priv->md->mport;
+	struct rio_mem_map *map = mport->mem_map;
+
+	if (!map)
+		return -ENOTSUPP;
+
+	mutex_lock(&map->lock);
+
+	pr_info(DRV_PREFIX "%s(%d): del all named regions\n",
+			current->comm, task_pid_nr(current));
+
+	if (rio_lock_device(mport, 1, 0, 0, mport_lock_timeout)) {
+		pr_info(DRV_PREFIX "%s(%d): rio lock device timeout\n",
+			current->comm, task_pid_nr(current));
+		mutex_unlock(&map->lock);
+		return -EAGAIN;
+	}
+
+	rio_mem_map_del_named_all(map);
+
+	if (rio_unlock_device(mport, 1, 0, 0))
+		pr_err(DRV_PREFIX "%s(%d): rio unlock device failed\n",
+			current->comm, task_pid_nr(current));
+
+	mutex_unlock(&map->lock);
+
+	return 0;
+}
+
+static int rio_mport_mem_get_raw(struct mport_cdev_priv *priv, void __user *arg)
+{
+	struct rio_mport *mport = priv->md->mport;
+	struct rio_mem_map *map = mport->mem_map;
+	struct rio_mem_raw raw;
+	int ret = 0;
+
+	if (!map)
+		return -ENOTSUPP;
+
+	if (copy_from_user(&raw, arg, sizeof(raw)))
+		return -EFAULT;
+
+	if (raw.length < map->size)
+		return -ENOBUFS;
+
+	mutex_lock(&map->lock);
+	if (unlikely(copy_to_user(raw.buf, map->block, map->size)))
+		ret = -EFAULT;
+	mutex_unlock(&map->lock);
+
+	return ret;
+}
+
+static inline void* rio_mport_mem_region_check(struct mport_cdev_priv *priv,
+		void __user *arg, struct rio_mem_region_raw *raw)
+{
+	struct rio_mport *mport = priv->md->mport;
+	struct rio_mem_map *map = mport->mem_map;
+	struct rio_mem_map_block *block = map->block;
+	struct rio_mem_map_descriptor *desc = block->desc;
+	int count = block->count;
+	int i = 0;
+	void *vaddr = 0;
+	size_t size = 0;
+
+	if (!map || !block || !count) {
+		pr_err(DRV_PREFIX "%s: unsupported memory map\n", current->comm);
+		return NULL;
+	}
+
+	if (copy_from_user(raw, arg, sizeof(*raw))) {
+		pr_err(DRV_PREFIX "%s: cannot copy args from user\n", current->comm);
+		return NULL;
+	}
+
+	for (i = 0; i < count; i++)
+		if (be16_to_cpu(desc[i].type) == raw->type)
+			break;
+
+	if (i == count) {
+		pr_err(DRV_PREFIX "%s: required descriptor type not found\n", current->comm);
+		return NULL;
+	}
+
+	if (raw->buf == NULL) {
+		pr_err(DRV_PREFIX "%s: required buffer not provided\n", current->comm);
+		return NULL;
+	}
+
+	if (!map->region[RIO_MEM_MAP_TYPE_TO_REGION_ID(raw->type)].get_addr ||
+		!map->region[RIO_MEM_MAP_TYPE_TO_REGION_ID(raw->type)].get_size) {
+		pr_err(DRV_PREFIX "%s: unsupported region operation\n", current->comm);
+		return NULL;
+	}
+
+	vaddr = map->region[RIO_MEM_MAP_TYPE_TO_REGION_ID(raw->type)].get_addr();
+	size = map->region[RIO_MEM_MAP_TYPE_TO_REGION_ID(raw->type)].get_size();
+
+	if (!vaddr || !size) {
+		pr_err(DRV_PREFIX "%s: cannot fetch region info\n", current->comm);
+		return NULL;
+	}
+
+	if (raw->offset % 4 || raw->length % 4 || raw->offset + raw->length > size) {
+		pr_err(DRV_PREFIX "%s: unavailable offset in region\n", current->comm);
+		return NULL;
+	}
+
+	vaddr = (char*)vaddr + raw->offset;
+
+	return vaddr;
+}
+
+static int rio_mport_mem_region_read(struct mport_cdev_priv *priv, void __user *arg)
+{
+	void *vaddr;
+	struct rio_mem_region_raw raw;
+	vaddr = rio_mport_mem_region_check(priv, arg, &raw);
+	if (!vaddr) {
+		pr_err(DRV_PREFIX "%s: erroneous reading region %d\n",
+				current->comm, raw.type);
+		return -EFAULT;
+	}
+	pr_debug(DRV_PREFIX "%s %p: 0x%08x\n", __func__, vaddr, *(int*)vaddr);
+
+	if (copy_to_user((void*)raw.buf, vaddr, raw.length)) {
+		pr_err(DRV_PREFIX "%s: failed copy region to user\n", current->comm);
+		return -EFAULT;
+	}
+
+	return 0;
+}
+
+static int rio_mport_mem_region_write(struct mport_cdev_priv *priv, void __user *arg)
+{
+	void *vaddr;
+	struct rio_mem_region_raw raw;
+	vaddr = rio_mport_mem_region_check(priv, arg, &raw);
+	if (!vaddr) {
+		pr_err(DRV_PREFIX "%s: erroneous reading region %d\n",
+				current->comm, raw.type);
+		return -EFAULT;
+	}
+
+	pr_debug(DRV_PREFIX "%s buffer k:%p u:%p l:%zu [0x%08x]\n", 
+		 __func__, vaddr, raw.buf, raw.length, *(int*)raw.buf);
+	if (copy_from_user((void*)vaddr, (void*)raw.buf, raw.length)) {
+		pr_err(DRV_PREFIX "%s: failed copy region to kernel\n", current->comm);
+		return -EFAULT;
+	}
+
+	return 0;
+}
+#else
+static inline int rio_mport_mem_region_add(struct mport_cdev_priv *priv, void __user *arg)
+{
+	return -ENOTSUPP;
+}
+
+static inline int rio_mport_mem_region_del(struct mport_cdev_priv *priv, void __user *arg)
+{
+	return -ENOTSUPP;
+}
+
+static inline int rio_mport_mem_region_del_all(struct mport_cdev_priv *priv)
+{
+	return -ENOTSUPP;
+}
+
+static int rio_mport_mem_get_raw(struct mport_cdev_priv *priv, void __user *arg)
+{
+	return -ENOTSUPP;
+}
+
+static int rio_mport_mem_region_read(struct mport_cdev_priv *priv, void __user *arg)
+{
+	return -ENOTSUPP;
+}
+
+static int rio_mport_mem_region_write(struct mport_cdev_priv *priv, void __user *arg)
+{
+	return -ENOTSUPP;
+}
+#endif
+
 /*
  * Mport cdev management
  */
@@ -1911,7 +2207,7 @@ static int mport_cdev_open(struct inode *inode, struct file *filp)
 	spin_lock_init(&priv->fifo_lock);
 	init_waitqueue_head(&priv->event_rx_wait);
 	ret = kfifo_alloc(&priv->event_fifo,
-			  sizeof(struct rio_event) * MPORT_EVENT_DEPTH,
+			  sizeof(struct rio_event) * pw_evq_len,
 			  GFP_KERNEL);
 	if (ret < 0) {
 		dev_err(&chdev->dev, DRV_NAME ": kfifo_alloc failed\n");
@@ -1922,7 +2218,6 @@ static int mport_cdev_open(struct inode *inode, struct file *filp)
 #ifdef CONFIG_RAPIDIO_DMA_ENGINE
 	INIT_LIST_HEAD(&priv->async_list);
 	spin_lock_init(&priv->req_lock);
-	mutex_init(&priv->dma_lock);
 #endif
 
 	filp->private_data = priv;
@@ -1987,6 +2282,7 @@ static void mport_cdev_release_dma(struct file *filp)
 			current->comm, task_pid_nr(current), wret);
 	}
 
+	mutex_lock(&md->dma_lock);
 	if (priv->dmach != priv->md->dma_chan) {
 		rmcd_debug(EXIT, "Release DMA channel for filp=%p %s(%d)",
 			   filp, current->comm, task_pid_nr(current));
@@ -1997,6 +2293,7 @@ static void mport_cdev_release_dma(struct file *filp)
 	}
 
 	priv->dmach = NULL;
+	mutex_unlock(&md->dma_lock);
 }
 #else
 #define mport_cdev_release_dma(priv) do {} while (0)
@@ -2128,6 +2425,18 @@ static long mport_cdev_ioctl(struct file *filp,
 		return rio_mport_add_riodev(data, (void __user *)arg);
 	case RIO_DEV_DEL:
 		return rio_mport_del_riodev(data, (void __user *)arg);
+	case RIO_MEM_REGION_ADD:
+		return rio_mport_mem_region_add(data, (void __user *)arg);
+	case RIO_MEM_REGION_DEL:
+		return rio_mport_mem_region_del(data, (void __user *)arg);
+	case RIO_MEM_REGION_DEL_ALL:
+		return rio_mport_mem_region_del_all(data);
+	case RIO_MEM_RAW_GET:
+		return rio_mport_mem_get_raw(data, (void __user *)arg);
+	case RIO_MEM_RAW_REGION_READ:
+		return rio_mport_mem_region_read(data, (void __user *)arg);
+	case RIO_MEM_RAW_REGION_WRITE:
+		return rio_mport_mem_region_write(data, (void __user *)arg);
 	default:
 		break;
 	}
@@ -2249,13 +2558,13 @@ static int mport_cdev_mmap(struct file *filp, struct vm_area_struct *vma)
 	return ret;
 }
 
-static __poll_t mport_cdev_poll(struct file *filp, poll_table *wait)
+static unsigned int mport_cdev_poll(struct file *filp, poll_table *wait)
 {
 	struct mport_cdev_priv *priv = filp->private_data;
 
 	poll_wait(filp, &priv->event_rx_wait, wait);
 	if (kfifo_len(&priv->event_fifo))
-		return EPOLLIN | EPOLLRDNORM;
+		return POLLIN | POLLRDNORM;
 
 	return 0;
 }
@@ -2373,30 +2682,40 @@ static struct mport_dev *mport_cdev_add(struct rio_mport *mport)
 	mutex_init(&md->buf_mutex);
 	mutex_init(&md->file_mutex);
 	INIT_LIST_HEAD(&md->file_list);
+	cdev_init(&md->cdev, &mport_fops);
+	md->cdev.owner = THIS_MODULE;
+	ret = cdev_add(&md->cdev, MKDEV(MAJOR(dev_number), mport->id), 1);
+	if (ret < 0) {
+		kfree(md);
+		rmcd_error("Unable to register a device, err=%d", ret);
+		return NULL;
+	}
 
-	device_initialize(&md->dev);
-	md->dev.devt = MKDEV(MAJOR(dev_number), mport->id);
+	md->dev.devt = md->cdev.dev;
 	md->dev.class = dev_class;
 	md->dev.parent = &mport->dev;
 	md->dev.release = mport_device_release;
 	dev_set_name(&md->dev, DEV_NAME "%d", mport->id);
 	atomic_set(&md->active, 1);
 
-	cdev_init(&md->cdev, &mport_fops);
-	md->cdev.owner = THIS_MODULE;
-
-	ret = cdev_device_add(&md->cdev, &md->dev);
+	ret = device_register(&md->dev);
 	if (ret) {
 		rmcd_error("Failed to register mport %d (err=%d)",
 		       mport->id, ret);
 		goto err_cdev;
 	}
 
+	get_device(&md->dev);
+
 	INIT_LIST_HEAD(&md->doorbells);
 	spin_lock_init(&md->db_lock);
 	INIT_LIST_HEAD(&md->portwrites);
 	spin_lock_init(&md->pw_lock);
 	INIT_LIST_HEAD(&md->mappings);
+
+#ifdef CONFIG_RAPIDIO_DMA_ENGINE
+	mutex_init(&md->dma_lock);
+#endif
 
 	md->properties.id = mport->id;
 	md->properties.sys_size = mport->sys_size;
@@ -2436,7 +2755,8 @@ static struct mport_dev *mport_cdev_add(struct rio_mport *mport)
 	return md;
 
 err_cdev:
-	put_device(&md->dev);
+	cdev_del(&md->cdev);
+	kfree(md);
 	return NULL;
 }
 
@@ -2460,11 +2780,13 @@ static void mport_cdev_terminate_dma(struct mport_dev *md)
 	}
 	mutex_unlock(&md->file_mutex);
 
+	mutex_lock(&md->dma_lock);
 	if (md->dma_chan) {
 		dmaengine_terminate_all(md->dma_chan);
 		rio_release_dma(md->dma_chan);
 		md->dma_chan = NULL;
 	}
+	mutex_unlock(&md->dma_lock);
 #endif
 }
 
@@ -2500,7 +2822,7 @@ static void mport_cdev_remove(struct mport_dev *md)
 	atomic_set(&md->active, 0);
 	mport_cdev_terminate_dma(md);
 	rio_del_mport_pw_handler(md->mport, md, rio_mport_pw_handler);
-	cdev_device_del(&md->cdev, &md->dev);
+	cdev_del(&(md->cdev));
 	mport_cdev_kill_fasync(md);
 
 	/* TODO: do we need to give clients some time to close file
@@ -2523,6 +2845,7 @@ static void mport_cdev_remove(struct mport_dev *md)
 
 	rio_release_inb_dbell(md->mport, 0, 0x0fff);
 
+	device_unregister(&md->dev);
 	put_device(&md->dev);
 }
 

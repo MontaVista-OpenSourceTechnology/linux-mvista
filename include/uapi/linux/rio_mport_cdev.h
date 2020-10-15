@@ -197,6 +197,7 @@ struct rio_transfer_io {
 	__u16 rioid;	/* Target destID */
 	__u16 method;	/* Data exchange method, one of rio_exchange enum */
 	__u32 completion_code;	/* Completion code for this transfer */
+	uint8_t prio_lvl;	/* RIO packet priority level 0-7, msb (bit 2) is CRF */
 };
 
 struct rio_transaction {
@@ -221,6 +222,26 @@ struct rio_rdev_info {
 	__u8 pad0;
 	__u32 comptag;
 	char name[RIO_MAX_DEVNAME_SZ + 1];
+};
+
+#define RIO_MAX_REGION_NAME_SZ  16
+
+struct rio_mem_region_info {
+	uint64_t phys_addr;
+	uint32_t length;
+	char name[RIO_MAX_REGION_NAME_SZ + 1];
+};
+
+struct rio_mem_raw {
+	size_t length;
+	uint8_t __user *buf;
+};
+
+struct rio_mem_region_raw {
+	uint16_t type;
+	size_t offset;
+	size_t length;
+	uint8_t __user *buf;
 };
 
 /* Driver IOCTL codes */
@@ -274,5 +295,19 @@ struct rio_rdev_info {
 	_IOW(RIO_MPORT_DRV_MAGIC, 23, struct rio_rdev_info)
 #define RIO_DEV_DEL \
 	_IOW(RIO_MPORT_DRV_MAGIC, 24, struct rio_rdev_info)
+
+/* Kernel RapidIO memory map Management */
+#define RIO_MEM_REGION_ADD \
+	_IOW(RIO_MPORT_DRV_MAGIC, 200, struct rio_mem_region_info)
+#define RIO_MEM_REGION_DEL \
+	_IOW(RIO_MPORT_DRV_MAGIC, 201, char[RIO_MAX_REGION_NAME_SZ + 1])
+#define RIO_MEM_REGION_DEL_ALL \
+	_IO(RIO_MPORT_DRV_MAGIC, 202)
+#define RIO_MEM_RAW_GET \
+	_IOR(RIO_MPORT_DRV_MAGIC, 203, struct rio_mem_raw)
+#define RIO_MEM_RAW_REGION_READ \
+	_IOR(RIO_MPORT_DRV_MAGIC, 204, struct rio_mem_region_raw)
+#define RIO_MEM_RAW_REGION_WRITE \
+	_IOW(RIO_MPORT_DRV_MAGIC, 205, struct rio_mem_region_raw)
 
 #endif /* _RIO_MPORT_CDEV_H_ */
