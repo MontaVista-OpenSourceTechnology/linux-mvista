@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -42,7 +43,7 @@ static inline int syscom_sock_add_auto_addr(struct syscom_sock *ssk)
 	cpid = cpid_init = syscom_gen_cpid();
 	do {
 		ssk->local.cpid = htons(cpid);
-		rtn = syscom_sock_add(ssk);
+		rtn = syscom_sock_add(ssk, 1);
 	} while (rtn == -EADDRINUSE && cpid_init != (cpid = syscom_gen_cpid()));
 
 	return rtn;
@@ -61,31 +62,33 @@ static int syscom_dgram_bind(struct socket *sock, struct sockaddr *uaddr, int ad
 	if (uaddr->sa_family != AF_SYSCOM) {
 		return -EINVAL;
 	}
-	if (uaddr_syscom->nid < 0 ||
-	    uaddr_syscom->nid > 0xffff) {
-		return -EINVAL;
-	}
-	if (uaddr_syscom->cpid < 0 ||
-	    uaddr_syscom->cpid > 0xffff) {
-		return -EINVAL;
-	}
 
 	lock_sock(sock->sk);
+	if (ssk->sk.sk_state != SYSCOM_NEW &&
+	    ssk->sk.sk_state != SYSCOM_BIND_FAILED) {
+		rtn = ssk->sk.sk_state == SYSCOM_ROBBED ?
+				-ESHUTDOWN : -EALREADY;
+		goto out;
+	}
+
 	ssk->remote.nid = SOCKADDR_SYSCOM_ANY_N;
 	ssk->remote.cpid = SOCKADDR_SYSCOM_ANY_N;
 	ssk->local.nid = uaddr_syscom->nid;
 	if (uaddr_syscom->cpid != htons(SOCKADDR_SYSCOM_CPID_AUTO)) {
 		// Bind to an address
 		ssk->local.cpid = uaddr_syscom->cpid;
-		rtn = syscom_sock_add(ssk);
+		rtn = syscom_sock_add(ssk, 0);
 	} else {
 		rtn = syscom_sock_add_auto_addr(ssk);
 	}
 
-	if (!rtn) {
+	if (rtn) {
+		sock->sk->sk_state = rtn == -ESHUTDOWN ?
+				SYSCOM_ROBBED : SYSCOM_BIND_FAILED;
+	} else {
 		sock->sk->sk_state = SYSCOM_BOUND;
 	}
-	release_sock(sock->sk);
+out:	release_sock(sock->sk);
 
 	return rtn;
 }
@@ -95,23 +98,8 @@ static int syscom_dgram_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 
-	sock_hold(sk);
-
-	if (sock->sk->sk_state == SYSCOM_BOUND ||
-	    sock->sk->sk_state == SYSCOM_CONNECTED) {
-		syscom_sock_remove(syscom_sk(sk));
-	} else {
-		sock_put(sk);
-	}
-
-	sk->sk_state_change(sk);
-	sock_orphan(sk);
-	skb_queue_purge(&sk->sk_receive_queue);
-
-	syscom_sock_update_stats(syscom_sk(sk));
-	syscom_sock_dump_sndbuf(syscom_sk(sk));
-
-	sock_put(sk);
+	syscom_sock_remove(syscom_sk(sk));
+	syscom_release(syscom_sk(sk));
 
 	return 0;
 }
@@ -133,7 +121,8 @@ static int syscom_skb_copy_datagram_msg(struct sk_buff *skb, struct msghdr *msg,
 				sizeof hdr->flags;
 		// We do not check for error here, because the failure will
 		// be detected by skb_copy_datagram_msg again
-		copy_to_iter(&hdr->msg_id, sizeof hdr->msg_id, &msg->msg_iter);
+		(void)!copy_to_iter(&hdr->msg_id, sizeof hdr->msg_id,
+				&msg->msg_iter);
 		copied = sizeof hdr->msg_id;
 		len = ntohs(hdr->length) - uhdr_size;
 		skip = uhdr_size + copied;
@@ -152,6 +141,18 @@ static int syscom_skb_copy_datagram_msg(struct sk_buff *skb, struct msghdr *msg,
 	return err < 0 ? err : size;
 }
 
+static void syscom_dgram_fill_msg_name(struct msghdr *msg,
+		const struct syscom_hdr *hdr, bool dst)
+{
+	if (msg->msg_name) {
+		struct sockaddr_syscom *addr = msg->msg_name;
+		addr->nid = dst ? hdr->dst.nid : hdr->src.nid;
+		addr->cpid = dst ? hdr->dst.cpid : hdr->src.cpid;
+		addr->sun_family = AF_SYSCOM;
+		msg->msg_namelen = sizeof *addr;
+	}
+}
+
 /** recvmsg callback for SYSCOM datagram sockets. */
 static int syscom_dgram_recvmsg(struct socket *sock,
 		struct msghdr *msg, size_t size, int flags)
@@ -159,7 +160,11 @@ static int syscom_dgram_recvmsg(struct socket *sock,
 	struct syscom_sock *ssk = syscom_sk(sock->sk);
 	struct syscom_hdr *hdr;
 	struct sk_buff *skb;
-	int err, off = 0, peeked;
+	int err;
+	int off = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+	int peeked;
+#endif
 	ktime_t time_now, time_queue;
 
 	if (unlikely(flags & MSG_ERRQUEUE)) {
@@ -172,7 +177,8 @@ static int syscom_dgram_recvmsg(struct socket *sock,
 
 		skb = sock_dequeue_err_skb(sock->sk);
 		if (!skb) {
-			return -EAGAIN;
+			err = -EAGAIN;
+			goto err0;
 		}
 
 		exterr = SKB_EXT_ERR(skb);
@@ -182,19 +188,16 @@ static int syscom_dgram_recvmsg(struct socket *sock,
 				sizeof(errhdr), &errhdr);
 		msg->msg_flags |= MSG_ERRQUEUE;
 
+		hdr = (struct syscom_hdr*)skb->data;
 		err = syscom_skb_copy_datagram_msg(skb, msg, size,
 				ssk_flag(ssk, SYSCOM_RECV_FULLHDR));
-
-		if (msg->msg_name) {
-			struct sockaddr_syscom *addr = msg->msg_name;
-			hdr = (struct syscom_hdr*)skb->data;
-			addr->nid = hdr->dst.nid;
-			addr->cpid = hdr->dst.cpid;
-			addr->sun_family = AF_SYSCOM;
-			msg->msg_namelen = sizeof *addr;
+		if (likely(err >= 0)) {
+			syscom_dgram_fill_msg_name(msg, hdr, 1);
+			consume_skb(skb);
+		} else {
+			trace_syscom_sk_recv_err(ssk, hdr, err);
+			kfree_skb(skb);
 		}
-
-		consume_skb(skb);
 
 		return err;
 	}
@@ -213,10 +216,10 @@ static int syscom_dgram_recvmsg(struct socket *sock,
 		goto err0;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	skb = __skb_recv_datagram(sock->sk, flags, &peeked, &off, &err);
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 	skb = __skb_recv_datagram(sock->sk, flags, NULL, &peeked, &off, &err);
+#else
+	skb = __skb_recv_datagram(sock->sk, flags, NULL, &off, &err);
 #endif
 	if (!skb) {
 		goto err0;
@@ -232,27 +235,14 @@ rcv:	wake_up_interruptible(&ssk->loopback_waiters);
 	err = syscom_skb_copy_datagram_msg(skb, msg, size,
 			ssk_flag(ssk, SYSCOM_RECV_FULLHDR));
 	if (likely(err >= 0)) {
-		long delta, max;
-
 		if (skb->syscom_oob) {
 			msg->msg_flags |= MSG_OOB;
 		}
 
-		if (msg->msg_name) {
-			struct sockaddr_syscom *addr = msg->msg_name;
-			addr->nid = hdr->src.nid;
-			addr->cpid = hdr->src.cpid;
-			addr->sun_family = AF_SYSCOM;
-			msg->msg_namelen = sizeof *addr;
-		}
-
-		delta = ktime_to_us(ktime_sub(time_now, time_queue));
-		max = atomic_long_read(&ssk->stat.max_rx_latency);
-		while (unlikely(delta > max)) {
-			trace_syscom_sk_recv_latency_grow(ssk, skb, delta);
-			max = delta;
-			delta = atomic_long_xchg(&ssk->stat.max_rx_latency, delta);
-		}
+		syscom_dgram_fill_msg_name(msg, hdr, 0);
+		syscom_latency_update(&ssk->stat.max_rx_latency, time_queue,
+				time_now, trace_syscom_sk_recv_latency_grow,
+				ssk, skb);
 
 		size = err;
 		err = syscom_recv_ts(syscom_sk(sock->sk), msg, time_queue);
@@ -267,7 +257,9 @@ rcv:	wake_up_interruptible(&ssk->loopback_waiters);
 	skb_free_datagram_locked(sock->sk, skb);
 	return err;
 
-err0:	trace_syscom_sk_recv_err(ssk, NULL, err);
+err0:	if ((!err || err == -EAGAIN) && ssk->sk.sk_state == SYSCOM_ROBBED)
+		err = -ESHUTDOWN;
+	trace_syscom_sk_recv_err(ssk, NULL, err);
 	return err;
 }
 
@@ -278,9 +270,15 @@ static int syscom_dgram_sendmsg(struct socket *sock,
 	struct syscom_sock *ssk;
 	struct sock *sk = sock->sk;
 	__be16 nid, cpid;
-	int rtn = 0;
+	int state, rtn = 0;
 
 	ssk = syscom_sk(sk);
+	state = READ_ONCE(ssk->sk.sk_state);
+
+	if (state == SYSCOM_ROBBED) {
+		rtn = -ESHUTDOWN;
+		goto err0;
+	}
 
 	if (ssk_flag(ssk, SYSCOM_SEND_FULLHDR)) {
 		if (unlikely(msg->msg_namelen != 0)) {
@@ -291,11 +289,24 @@ static int syscom_dgram_sendmsg(struct socket *sock,
 		return syscom_send_rtn(ssk, rtn, size);
 	}
 
+	if (state == SYSCOM_BIND_FAILED) {
+		rtn = -EADDRNOTAVAIL;
+		goto err0;
+	}
+
 	// Get the destination
-	if (sk->sk_state != SYSCOM_CONNECTED) {
+	if (state == SYSCOM_CONNECTED) {
+		if (msg->msg_name != NULL) {
+			rtn = -EISCONN;
+			goto err0;
+		} else {
+			nid = ssk->remote.nid;
+			cpid = ssk->remote.cpid;
+		}
+	} else {
 		struct sockaddr_syscom *addr;
 
-		if (sk->sk_state != SYSCOM_BOUND) {
+		if (state == SYSCOM_NEW) {
 			// Bind the socket automatically
 			struct sockaddr_syscom addr = {
 				.sun_family = AF_SYSCOM,
@@ -321,19 +332,6 @@ static int syscom_dgram_sendmsg(struct socket *sock,
 			nid = addr->nid;
 			cpid = addr->cpid;
 		}
-	} else {
-		if (msg->msg_name != NULL) {
-			rtn = -EISCONN;
-			goto err0;
-		} else {
-			nid = ssk->remote.nid;
-			cpid = ssk->remote.cpid;
-		}
-	}
-
-	if (~0xffff & nid & cpid) { // Invalid address
-		rtn = -EDESTADDRREQ;
-		goto err0;
 	}
 
 	rtn = syscom_route_deliver_msg(ssk, nid, cpid, msg, size);
@@ -341,42 +339,35 @@ err0:	return syscom_send_rtn(ssk, rtn, size);
 }
 
 /** poll callback for SYSCOM datagram sockets. */
-static unsigned int syscom_dgram_poll(struct file *file, struct socket *sock,
+static __poll_t syscom_dgram_poll(struct file *file, struct socket *sock,
 		poll_table *wait)
 {
 	struct sock *sk = sock->sk;
 	struct syscom_sock *ssk = syscom_sk(sk);
-	unsigned int mask = 0;
+	__poll_t mask = 0;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
-	sock_poll_wait(file, sk_sleep(sk), wait);
-#else
 	sock_poll_wait(file, sock, wait);
-#endif
 
 	if (sk->sk_err || !skb_queue_empty(&sk->sk_error_queue))
-		mask |= POLLERR;
+		mask |= EPOLLERR;
 	if (!skb_queue_empty(&sk->sk_receive_queue))
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 	if (sk->sk_shutdown & RCV_SHUTDOWN)
-		mask |= POLLRDHUP | POLLIN | POLLRDNORM;
+		mask |= EPOLLRDHUP | EPOLLIN | EPOLLRDNORM;
 	if (sk->sk_shutdown == SHUTDOWN_MASK)
-		mask |= POLLHUP;
+		mask |= EPOLLHUP;
 	if (!skb_queue_empty(&ssk->sk_oob_queue))
-		mask |= POLLPRI;
+		mask |= EPOLLPRI;
 	if (sock_wspace(sk))
-		mask |= POLLOUT | POLLWRNORM;
+		mask |= EPOLLOUT | EPOLLWRNORM;
+	if (sk->sk_state == SYSCOM_ROBBED)
+		mask |= EPOLLHUP;
 
 	return mask;
 }
 
 /** getname callback for SYSCOM datagram sockets. */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0))
-static int syscom_getname(struct socket *sock, struct sockaddr *saddr, int *len,
-		 int peer)
-#else
 static int syscom_getname(struct socket *sock, struct sockaddr *saddr, int peer)
-#endif
 {
 	struct syscom_sock *ssk = syscom_sk(sock->sk);
 	DECLARE_SOCKADDR(struct sockaddr_syscom *, addr, saddr);
@@ -403,13 +394,7 @@ static int syscom_getname(struct socket *sock, struct sockaddr *saddr, int peer)
 	release_sock(sock->sk);
 
 	addr->sun_family = AF_SYSCOM;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0))
-	*len = sizeof *addr;
-
-	return 0;
-#else
 	return sizeof(*addr);
-#endif
 }
 
 /** connect callback for SYSCOM datagram sockets. */
@@ -436,17 +421,23 @@ static int syscom_dgram_connect(struct socket *sock, struct sockaddr *uaddr,
 	}
 
 	lock_sock(sock->sk);
-	if (sock->sk->sk_state == SYSCOM_CONNECTED) {
-		rtn = -EISCONN;
-		goto unlock;
-	}
-
-	if (sock->sk->sk_state != SYSCOM_BOUND) {
-		ssk->local.nid = SOCKADDR_SYSCOM_ANY_N;
-		rtn = syscom_sock_add_auto_addr(ssk);
-		if (rtn) {
+	switch (sock->sk->sk_state) {
+		case SYSCOM_NEW:
+			ssk->local.nid = SOCKADDR_SYSCOM_ANY_N;
+			rtn = syscom_sock_add_auto_addr(ssk);
+			if (rtn) goto unlock;
+			break;
+		case SYSCOM_BOUND:
+			break;
+		case SYSCOM_CONNECTED:
+			rtn = -EISCONN;
 			goto unlock;
-		}
+		case SYSCOM_ROBBED:
+			rtn = -ESHUTDOWN;
+			goto unlock;
+		default:
+			rtn = -EADDRNOTAVAIL;
+			goto unlock;
 	}
 
 	ssk->remote.nid = uaddr_syscom->nid;
@@ -485,10 +476,8 @@ static int syscom_dgram_socketpair(struct socket *sock1, struct socket *sock2)
 
 	return 0;
 
-err1:	syscom_sock_remove(ssk1);
-err0:
-	sock1->sk->sk_state = SYSCOM_NEW;
-	sock2->sk->sk_state = SYSCOM_NEW;
+err0:	sock1->sk->sk_state = SYSCOM_NEW;
+err1:	sock2->sk->sk_state = SYSCOM_NEW;
 	return rtn;
 }
 

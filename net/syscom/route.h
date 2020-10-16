@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -33,13 +34,6 @@ struct file;
 struct inode;
 struct seq_file;
 
-void *syscom_route_seq_start(struct seq_file *seq, loff_t *pos);
-void *syscom_route_seq_next(struct seq_file *seq, void *v, loff_t *pos);
-void syscom_route_seq_stop(struct seq_file *seq, void *v);
-int syscom_route_seq_show(struct seq_file *seq, void *v);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0))
-int syscom_route_seq_open(struct inode *inode, struct file *file);
-#endif
 extern const struct seq_operations syscom_route_seq_ops;
 #endif // CONFIG_PROC_FS
 
@@ -69,7 +63,7 @@ struct syscom_route_record_ops {
 	/** Deliver message on this route. Called with rcu_lock held to protect
 	  * the route record and is responsible for unlocking it. */
 	int (*deliver)(const struct syscom_route_record *,
-			struct syscom_delivery *);
+			struct syscom_delivery *) __releases(rcu);
 };
 
 enum syscom_route_record_flags {
@@ -127,11 +121,12 @@ int syscom_route_record_add(struct syscom_route_record *r, __be16 dst_nid,
 		int needed_headroom, bool down, bool reject_ordered,
 		bool reject_reliable, const struct syscom_route_record_ops *ops);
 
+/** Used by syscom_route_record_is_local() to identify local route */
+extern const struct syscom_route_record_ops syscom_route_record_local_ops;
+
 static inline bool syscom_route_record_is_local(
 		const struct syscom_route_record *r)
 {
-	extern const struct syscom_route_record_ops
-			syscom_route_record_local_ops;
 	return r->ops == &syscom_route_record_local_ops;
 }
 
@@ -177,5 +172,8 @@ static inline void syscom_route_bulk_del_sync(
 
 int syscom_route_bulk_del(struct syscom_route_bulk_del_s *del, __be16 nid,
 		uint8_t dst_nid_len);
+
+int _syscom_route_deliver_skb(struct sk_buff *skb, long timeo, gfp_t gfp_mask,
+		bool forward, const char *name);
 
 #endif // SYSCOM_ROUTE_H

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -29,6 +30,10 @@
 #include "route-gw.h"
 #include "route.h"
 #include "gw.h"
+
+#ifndef _K_SS_ALIGNSIZE
+#define _K_SS_ALIGNSIZE (__alignof__ (struct sockaddr *))
+#endif
 
 static struct socket *service_sock;
 static struct work_struct service_work;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -40,7 +41,7 @@ static void syscom_route_record_local_seq_show(
 
 /** Deliver the message to the local socket. */
 static int syscom_route_record_local_deliver(const struct syscom_route_record *r,
-		struct syscom_delivery *d)
+		struct syscom_delivery *d) __releases(rcu)
 {
 	struct sk_buff *skb;
 	long timeo;

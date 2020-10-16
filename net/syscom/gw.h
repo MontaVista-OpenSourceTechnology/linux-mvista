@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -29,6 +30,28 @@
 
 struct syscom_gw_ops_s;
 
+/** Gateway flags */
+enum syscom_gw_bits {
+	/** Strip syscom header while sending, push header while receiving */
+	SYSCOM_GW_NOHDR_BIT,
+	/** Do not process new "ready" work */
+	SYSCOM_GW_STOP_WORK_BIT,
+	/** Gateway is listening */
+	SYSCOM_GW_LISTENING_BIT,
+	/** Connection in progress */
+	SYSCOM_GW_CONNECTING_BIT,
+	/** Emulate many to many socket on the top of SOCK_STREAM */
+	SYSCOM_GW_M2M_BIT,
+	/** Do not send ordered messages on this GW */
+	SYSCOM_GW_REJECT_ORDERED_BIT,
+	/** Do not send reliable messages on this GW */
+	SYSCOM_GW_REJECT_RELIABLE_BIT,
+};
+
+/** Test for bit being set in flags */
+#define syscom_gw_test_bit(gw, bit) \
+		test_bit(SYSCOM_GW_##bit##_BIT, &(gw)->flags)
+
 struct syscom_gw {
 	/** Routes referencing this gateway */
 	struct list_head routes;
@@ -40,10 +63,18 @@ struct syscom_gw {
 	atomic_long_t send;
 	/** Number of received messages */
 	atomic_long_t recv;
+	/** Maximum RX software latency */
+	atomic_long_t rx_sw_us;
+	/** Maximum RX hardware (+netdriver) latency */
+	atomic_long_t rx_hw_us;
+	/** Maximum RX delivery latency */
+	atomic_long_t rx_dl_us;
 	/** Number of dropped outgoing messages */
 	atomic_t tx_drop;
 	/** Number of dropped incoming messages */
 	atomic_t rx_drop;
+	/** How many times the ready callback has returned EAGAIN */
+	atomic_t ready_would_block;
 	/** Number of errors */
 	atomic_t err;
 	/** Gateway name, kernel generated name are either generated from the
@@ -55,11 +86,7 @@ struct syscom_gw {
 	struct socket *m2m_sock;
 	/** Wait for the socket to be ready */
 	struct {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
-		wait_queue_t wait;
-#else
 		wait_queue_entry_t wait;
-#endif
 		wait_queue_head_t *wait_address;
 	} wait_ready[4];
 	/** Number of used wait_ready structures */
@@ -76,27 +103,8 @@ struct syscom_gw {
 	int pending_data;
 	/** Syscom header prepended to messages when receiving header less data */
 	struct syscom_hdr *hdr;
-	/** Gateway flags */
-	union syscom_gw_flags {
-		struct {
-		/** Strip syscom header while sending, push header while receiving */
-		unsigned char nohdr:1;
-		/** Map IP to NID and vice versa */
-		unsigned char addr2nid:1;
-		/** Map port to CPID and vice versa */
-		unsigned char port2cpid:1;
-		unsigned char fake_connect:1;
-		unsigned char stop_work:1;
-		unsigned char listening:1;
-		unsigned char connecting:1;
-		unsigned char m2m_emulation:1;
-		/** Do not send ordered messages on this GW */
-		unsigned char reject_ordered:1;
-		/** Do not send reliable messages on this GW */
-		unsigned char reject_reliable:1;
-		};
-		unsigned long flags;
-	} flag;
+	/** Gateway flags (see enum syscom_gw_bits) */
+	unsigned long flags;
 	/** Destination address used by the DGRAM GW */
 	struct sockaddr_in6 dest_addr;
 	/** Destination address length */
@@ -117,6 +125,8 @@ struct syscom_gw {
 	struct completion *completion;
 	/** Reason for removal */
 	int reason;
+	/** To measure delivery latency */
+	ktime_t delivery_start;
 };
 
 #ifdef CONFIG_PROC_FS
@@ -124,9 +134,6 @@ void *syscom_gw_seq_start(struct seq_file *seq, loff_t *pos);
 void *syscom_gw_seq_next(struct seq_file *seq, void *v, loff_t *pos);
 void syscom_gw_seq_stop(struct seq_file *seq, void *v);
 int syscom_gw_seq_show(struct seq_file *seq, void *v);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0))
-int syscom_gw_seq_open(struct inode *inode, struct file *file);
-#endif
 
 extern const struct seq_operations syscom_gw_seq_ops;
 
@@ -184,5 +191,7 @@ int syscom_gw_init(void);
 void syscom_gw_destroy(void);
 
 int syscom_gw_open_socket(const char *name, int flags);
+
+int syscom_gw_ts_change(void);
 
 #endif // SYSCOM_GW_H

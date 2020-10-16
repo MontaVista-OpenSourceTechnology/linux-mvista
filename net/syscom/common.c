@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -74,6 +75,15 @@ int syscom_setsockopt(struct socket *sock, int level, int optname,
 				return -EINVAL;
 			}
 			break;
+		case SYSCOM_SO_WEAK_BIND:
+			if (tmp == 0) {
+				ssk_reset_flag(ssk, SYSCOM_WEAK_BIND);
+			} else if (tmp == 1) {
+				ssk_set_flag(ssk, SYSCOM_WEAK_BIND);
+			} else {
+				return -EINVAL;
+			}
+			break;
 		case SYSCOM_SO_QUEUETSTAMP:
 			if (tmp == -1 || tmp == CLOCK_MONOTONIC ||
 					 tmp == CLOCK_REALTIME) {
@@ -128,6 +138,11 @@ int syscom_getsockopt(struct socket *sock, int level, int optname,
 		case SYSCOM_SO_SEND_FULLHDR:
 			put_len = sizeof tmp;
 			tmp = ssk_flag(ssk, SYSCOM_SEND_FULLHDR);
+			val = &tmp;
+			break;
+		case SYSCOM_SO_WEAK_BIND:
+			put_len = sizeof tmp;
+			tmp = ssk_flag(ssk, SYSCOM_WEAK_BIND);
 			val = &tmp;
 			break;
 		case SYSCOM_SO_QUEUETSTAMP:
@@ -236,24 +251,25 @@ int syscom_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
-#define update_stat(sock_atomic, glob_atomic, type) do { \
-		sock##type##stat = atomic##type##read(&(sock_atomic)); \
-		glob##type##stat = atomic##type##read(&(glob_atomic));	\
-		while (unlikely(sock##type##stat > glob##type##stat)) { \
-			glob##type##stat = sock##type##stat; \
-			sock##type##stat = atomic##type##xchg(&(glob_atomic), \
-					sock##type##stat); \
-		} \
-	} while (0)
-
-void syscom_sock_update_stats(struct syscom_sock *ssk)
+static void syscom_sock_update_stats(struct syscom_sock *ssk)
 {
-	unsigned long sock_long_stat, glob_long_stat;
-
-	update_stat(ssk->stat.max_rx_latency, syscom_stats.sock_max_rx_latency, _long_);
-	update_stat(ssk->stat.max_tx_latency, syscom_stats.sock_max_tx_latency, _long_);
+	syscom_max_update(&ssk->stat.max_rx_latency, &syscom_stats.sock_max_rx_latency);
+	syscom_max_update(&ssk->stat.max_tx_latency, &syscom_stats.sock_max_tx_latency);
 	atomic_add(atomic_read(&ssk->stat.tx_drops), &syscom_stats.sock_tx_drops);
 	atomic_add(atomic_read(&ssk->sk.sk_drops), &syscom_stats.sock_rx_drops);
+}
+
+void syscom_release(struct syscom_sock *ssk)
+{
+	struct sock *sk = &ssk->sk;
+
+	sock_orphan(sk);
+	sk->sk_state_change(sk);
+
+	syscom_sock_update_stats(syscom_sk(sk));
+	syscom_sock_dump_sndbuf(syscom_sk(sk));
+
+	sock_put(sk);
 }
 
 #ifndef CONFIG_CPU_BIG_ENDIAN

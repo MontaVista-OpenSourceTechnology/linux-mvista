@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -20,6 +21,7 @@
 #include <net/sctp/sctp.h>
 #include <linux/workqueue.h>
 #include <linux/rcupdate.h>
+#include <linux/errqueue.h>
 #include <linux/vmalloc.h>
 #include <linux/atomic.h>
 #include <linux/ctype.h>
@@ -33,9 +35,7 @@
 #include <linux/poll.h>
 #include <linux/crc16.h>
 #include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/sched/signal.h>
-#endif
 #include <asm/errno.h>
 
 #include "route-gw.h"
@@ -45,8 +45,15 @@
 
 #define SYSCOM_STREAM_SIZE(size) (SKB_TRUESIZE(size) + 64)
 #define SYSCOM_GW_DELIM ':'
-#define SYSCOM_GW_BUFSIZE (134*1024) // Should fit at least two messages
+#define SYSCOM_GW_BUFSIZE (268*1024) // Should fit at least four messages
+#define SYSCOM_GW_CMSG_SIZE 256
 #define SYSCOM_SCTP_STREAM_NUM 256
+
+#define syscom_gw_set_bit(gw, bit) \
+		__set_bit(SYSCOM_GW_##bit##_BIT, &(gw)->flags)
+
+#define syscom_gw_send_flags(noblock) \
+		(MSG_NOSIGNAL | ((noblock) ? MSG_DONTWAIT : 0))
 
 static DEFINE_MUTEX(gateways_lock);
 static LIST_HEAD(gateways);
@@ -133,6 +140,10 @@ static void syscom_gw_kref_release_worker(struct work_struct *work)
 	atomic_add(atomic_read(&gw->rx_drop), &syscom_stats.gw_rx_drops);
 	atomic_add(atomic_read(&gw->tx_drop), &syscom_stats.gw_tx_drops);
 	atomic_add(atomic_read(&gw->err), &syscom_stats.gw_errors);
+	atomic_add(atomic_read(&gw->ready_would_block), &syscom_stats.gw_ready_would_block);
+	syscom_max_update(&gw->rx_hw_us, &syscom_stats.gw_rx_hw_us);
+	syscom_max_update(&gw->rx_sw_us, &syscom_stats.gw_rx_sw_us);
+	syscom_max_update(&gw->rx_dl_us, &syscom_stats.gw_rx_dl_us);
 
 	// Nobody can hold a reference now, but somebody might try to obtain it
 	// until the next grace period after execution of syscom_gw_kref_release
@@ -145,8 +156,10 @@ void syscom_gw_kref_release(struct kref *kref)
 {
 	struct syscom_gw *self = container_of(kref, typeof(*self), kref);
 
+	smp_mb();
+
 	BUG_ON(!list_empty(&self->routes));
-	BUG_ON(!self->flag.stop_work);
+	BUG_ON(!syscom_gw_test_bit(self, STOP_WORK));
 
 	INIT_DELAYED_WORK(&self->work, syscom_gw_kref_release_worker);
 	schedule_delayed_work(&self->work, 0);
@@ -214,12 +227,7 @@ static int syscom_gw_genname(struct syscom_gw *gw, const char *parent_name,
 		const struct sockaddr *addr)
 {
 	struct sockaddr_in6 addrbuf = { .sin6_family = -1 };
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0))
-	int (*getname)(struct socket *, struct sockaddr *, int *);
-	int addrlen = sizeof addrbuf;
-#else
 	int (*getname)(struct socket *, struct sockaddr *);
-#endif
 	const char *pref, *delim;
 	struct {
 		__be32 addr;
@@ -250,11 +258,7 @@ static int syscom_gw_genname(struct syscom_gw *gw, const char *parent_name,
 
 	// Provide nice address based names if possible
 	if (getname) {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0))
-		err = getname(gw->sock, (struct sockaddr *)&addrbuf, &addrlen);
-#else
 		err = getname(gw->sock, (struct sockaddr *)&addrbuf);
-#endif
 	}
 	if (err >= 0) {
 		if (addr->sa_family == AF_INET) {
@@ -275,7 +279,7 @@ static int syscom_gw_genname(struct syscom_gw *gw, const char *parent_name,
 
 	if ((err < 0) || syscom_gw_lookup(gw->name)) {
 		// We expect the number of sockets fit into int
-		__be32 ino = gw->sock ? sock_i_ino(gw->sock->sk) : (long)gw;
+		u32 ino = gw->sock ? sock_i_ino(gw->sock->sk) : (long)gw;
 
 		base64(name, sizeof name, &ino, sizeof ino);
 		snprintf(gw->name, sizeof gw->name, "%s%s_%s", pref, delim, name);
@@ -348,7 +352,8 @@ static void syscom_gw_worker(struct work_struct *work)
 	trace_syscom_gw_worker_start(gw);
 	rtn = gw->ops->ready(gw);
 
-	if (unlikely(rtn == -EAGAIN) && !gw->flag.stop_work) {
+	if (unlikely(rtn == -EAGAIN) && !syscom_gw_test_bit(gw, STOP_WORK)) {
+		atomic_inc(&gw->ready_would_block);
 		if (!queue_delayed_work(syscom_wq, &gw->work, HZ)) {
 			goto put;
 		}
@@ -367,17 +372,21 @@ put:	trace_syscom_gw_worker_done(gw, rtn);
 	syscom_gw_put(gw);
 }
 
-#define SYSCOM_GW_CONNECTING_BIT (ffs(((union syscom_gw_flags){.connecting = 1}).flags)-1)
+static inline void syscom_gw_stop_work(struct syscom_gw *gw)
+{
+	set_bit(SYSCOM_GW_STOP_WORK_BIT, &gw->flags);
+	smp_mb__after_atomic();
+}
 
 int syscom_gw_send(struct syscom_gw *gw, struct iov_iter *iov, long timeo)
 {
 	int rtn;
 
 	trace_syscom_gw_send_start(gw, iov, timeo);
-	if (unlikely(gw->flag.connecting)) {
+	if (unlikely(syscom_gw_test_bit(gw, CONNECTING))) {
 		unsigned long slept, start = jiffies;
 
-		rtn = wait_on_bit_timeout(&gw->flag.flags,
+		rtn = wait_on_bit_timeout(&gw->flags,
 				SYSCOM_GW_CONNECTING_BIT,
 				TASK_INTERRUPTIBLE, timeo);
 		if (rtn) {
@@ -399,7 +408,7 @@ int syscom_gw_send(struct syscom_gw *gw, struct iov_iter *iov, long timeo)
 		goto err;
 	}
 
-	if (gw->flag.nohdr) {
+	if (syscom_gw_test_bit(gw, NOHDR)) {
 		if (iov_iter_count(iov) < sizeof(struct syscom_hdr)) {
 			rtn = -EBADMSG;
 			goto out;
@@ -428,8 +437,31 @@ int syscom_gw_send(struct syscom_gw *gw, struct iov_iter *iov, long timeo)
 out:	if (rtn >= 0) {
 		atomic_long_inc(&gw->send);
 		rtn = 0;
-	} else if (rtn != -EAGAIN && rtn != -EINTR) {
-		atomic_inc(&gw->err);
+	} else switch (rtn) {
+		case -ERESTARTSYS:
+			// TODO: Provide a restart block, which would handle
+			// the timeout properly. ERESTARTSYS can be returned
+			// by wait_event_interruptible_timeout above.
+		case -EAGAIN:
+		case -EINTR:
+			break;
+		case -ESRCH:
+			// SCTP returns this on 4.19 kernel, which may be a bug.
+			// This needs to be checked with upstream.
+		case -ENOTCONN:
+		case -EPIPE:
+		case -ETIMEDOUT:
+			// Connection died while sending, detach the route and
+			// try sending again to honor the connection failure
+			// behavior configured on the route. The actual gateway
+			// will be cleaned up from its ready callback.
+			syscom_gw_lock();
+			syscom_route_gw_remove_gw(gw);
+			syscom_gw_unlock();
+			rtn = -EUNATCH;
+			__attribute__((fallthrough)); 
+		default:
+			atomic_inc(&gw->err);
 	}
 
 err:	trace_syscom_gw_send_done(gw, rtn);
@@ -488,7 +520,7 @@ int syscom_gw_del(const char *name, bool del_children, bool del_routes,
 		syscom_route_gw_remove_gw(gw);
 		list_del(&gw->gateways_list);
 		gw->reason = reason;
-		gw->flag.stop_work = 1;
+		syscom_gw_stop_work(gw);
 		if (!nonblock) {
 			gw->completion = &removed;
 			cnt++;
@@ -557,15 +589,13 @@ static int syscom_gw_getname(struct syscom_gw *gw, bool local, int assoc,
 		*addrcnt = 1;
 		rtn = 0;
 	} else {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0))
-		int (*getname)(struct socket *, struct sockaddr *, int *);
-		getname = local ? kernel_getsockname : kernel_getpeername;
-		rtn = getname(gw->sock, *addr, &as);
-#else
 		int (*getname)(struct socket *, struct sockaddr *);
 		getname = local ? kernel_getsockname : kernel_getpeername;
 		rtn = getname(gw->sock, *addr);
-#endif
+		if (rtn >= 0) {
+			as = rtn;
+			rtn = 0;
+		}
 		if (rtn >= 0)
 			*addrcnt = 1;
 	}
@@ -681,9 +711,12 @@ int syscom_gw_add(const char *basename, char *genname,
 		gw->ops = &syscom_gw_dgram_base_ops;
 	}
 
-	gw->flag.nohdr = !!(flags & SYSCOM_SERVICE_MSG_CONF_OP_GW_ADD_NOHDR);
-	gw->flag.m2m_emulation = !!(flags &
-			SYSCOM_SERVICE_MSG_CONF_OP_GW_ADD_M2M_EMULATION);
+	if (flags & SYSCOM_SERVICE_MSG_CONF_OP_GW_ADD_NOHDR) {
+		syscom_gw_set_bit(gw, NOHDR);
+	}
+	if (flags & SYSCOM_SERVICE_MSG_CONF_OP_GW_ADD_M2M_EMULATION) {
+		syscom_gw_set_bit(gw, M2M);
+	}
 
 	rtn = gw->ops->init(gw, gw->sock, NULL);
 	if (rtn) {
@@ -701,7 +734,7 @@ int syscom_gw_add(const char *basename, char *genname,
 
 	syscom_gw_lock();
 	if (basename[0]) {
-		strncpy(gw->name, basename, sizeof gw->name);
+		strbcpy(gw->name, basename, sizeof gw->name);
 		rtn = syscom_gw_lookup(gw->name) ? -EEXIST : 0;
 	} else {
 		rtn = syscom_gw_genname(gw, NULL, NULL);
@@ -725,7 +758,7 @@ int syscom_gw_add(const char *basename, char *genname,
 	return 0;
 
 err3:	syscom_gw_unlock();
-err2:	gw->flag.stop_work = 1;
+err2:	syscom_gw_stop_work(gw);
 	syscom_gw_put(gw);
 	return rtn;
 
@@ -762,7 +795,7 @@ int syscom_gw_rename(const char *old_name, const char *new_name)
 	}
 
 	syscom_route_gw_remove_gw(gw);
-	strncpy(gw->name, new_name, sizeof gw->name);
+	strbcpy(gw->name, new_name, sizeof gw->name);
 
 	syscom_route_gw_introduce_gw(gw);
 	syscom_notify_gw_rename(old_name, new_name);
@@ -780,11 +813,7 @@ struct syscom_poll_table {
 	struct syscom_gw *gw;
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
-static int syscom_gw_poll_ready(wait_queue_t *wq_entry, unsigned mode, int flags, void *key)
-#else
 static int syscom_gw_poll_ready(wait_queue_entry_t *wq_entry, unsigned mode, int flags, void *key)
-#endif
 {
 	struct syscom_gw *gw = wq_entry->private;
 
@@ -809,11 +838,7 @@ static void syscom_gw_poll_queue(struct file *file, wait_queue_head_t *head,
 	struct syscom_poll_table *syscom_pt = container_of(pt,
 			typeof(*syscom_pt), pt);
 	struct syscom_gw *gw = syscom_pt->gw;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
-	wait_queue_t *wq_entry;
-#else
 	wait_queue_entry_t *wq_entry;
-#endif
 
 	BUG_ON(gw->wait_ready_cnt >= ARRAY_SIZE(gw->wait_ready));
 	gw->wait_ready[gw->wait_ready_cnt].wait_address = head;
@@ -830,7 +855,7 @@ static void syscom_gw_poll_queue(struct file *file, wait_queue_head_t *head,
 static void syscom_gw_register_poller(struct syscom_gw *gw)
 {
 	struct syscom_poll_table syscom_pt = { .gw = gw };
-	int mask;
+	__poll_t mask;
 
 	if (!gw->ops->ready && !gw->ops->send) {
 		// It doesn't make sense to poll the socket, if
@@ -881,8 +906,8 @@ int syscom_gw_listen(const char *name, int backlog)
 
 	rtn = gw->ops->listen(gw, backlog);
 
-	if (rtn == 0 && !gw->flag.listening) {
-		gw->flag.listening = 1;
+	if (rtn == 0 && !syscom_gw_test_bit(gw, LISTENING)) {
+		syscom_gw_set_bit(gw, LISTENING);
 		syscom_gw_register_poller(gw);
 	}
 
@@ -929,15 +954,9 @@ struct syscom_gw_worker_timer {
 };
 
 /** Terminate connect operation */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0))
-static void syscom_gw_connect_timeout(unsigned long arg)
-{
-	struct syscom_gw_worker_timer *sgw_timer = (struct syscom_gw_worker_timer *)arg;
-#else
 static void syscom_gw_connect_timeout(struct timer_list *t)
 {
 	struct syscom_gw_worker_timer *sgw_timer = from_timer(sgw_timer, t, timer);
-#endif
 
 	send_sig(SIGUSR1, sgw_timer->task, 0);
 	trace_syscom_gw_connect_timeout(sgw_timer->task);
@@ -954,13 +973,8 @@ static void syscom_gw_connect_worker(struct work_struct *work)
 	trace_syscom_gw_connect_start(child_gw, arg->timeo);
 	if (arg->timeo != MAX_SCHEDULE_TIMEOUT) {
 		sgw_timer.task = current;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0))
-		setup_timer_on_stack(&sgw_timer.timer, syscom_gw_connect_timeout,
-				(unsigned long)&sgw_timer);
-#else
 		timer_setup_on_stack(&sgw_timer.timer,
 				     syscom_gw_connect_timeout, 0);
-#endif
 		sgw_timer.timer.expires = jiffies + arg->timeo;
 		allow_signal(SIGUSR1);
 		add_timer(&sgw_timer.timer);
@@ -992,9 +1006,9 @@ static void syscom_gw_connect_worker(struct work_struct *work)
 		syscom_gw_notify_connect(child_gw, 0);
 	}
 
-	child_gw->flag.connecting = 0;
-	smp_mb();
-	wake_up_bit(&child_gw->flag.flags, SYSCOM_GW_CONNECTING_BIT);
+	clear_bit(SYSCOM_GW_CONNECTING_BIT, &child_gw->flags);
+	smp_mb__after_atomic();
+	wake_up_bit(&child_gw->flags, SYSCOM_GW_CONNECTING_BIT);
 
 	trace_syscom_gw_connect_done(child_gw, rtn);
 	syscom_gw_put(gw);
@@ -1074,7 +1088,7 @@ int syscom_gw_hdr(const char *name, const struct syscom_hdr *hdr)
 		return -ENOENT;
 	}
 
-	if (!gw->flag.nohdr) {
+	if (!syscom_gw_test_bit(gw, NOHDR)) {
 		syscom_gw_put(gw);
 		return -ENOPROTOOPT;
 	}
@@ -1099,6 +1113,52 @@ out:	syscom_gw_unlock();
 	return rtn;
 }
 
+static int syscom_gw_ts_set(struct syscom_gw *gw)
+{
+	const int rx_opt = SOF_TIMESTAMPING_RX_SOFTWARE |
+			SOF_TIMESTAMPING_RX_HARDWARE |
+			SOF_TIMESTAMPING_SOFTWARE |
+			SOF_TIMESTAMPING_RAW_HARDWARE;
+	int ts, rtn;
+
+	// This can be called only if the GW is on gateways_list
+	// or is being destroyed
+
+	if (!gw->sock) {
+		return 0;
+	}
+
+	ts = syscom_gw_rx_timestamping ? rx_opt : 0;
+	// ts |= syscom_gw_tx_timestamping ? tx_opt : 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+	rtn = kernel_setsockopt(gw->sock, SOL_SOCKET, SO_TIMESTAMPING,
+#else
+	rtn = kernel_setsockopt(gw->sock, SOL_SOCKET, SO_TIMESTAMPING_OLD,
+#endif
+			(char*)&ts, sizeof ts);
+	if (rtn) {
+		pr_err("Can't enable timestamping on gw '%s': %d\n",
+				gw->name, rtn);
+	}
+
+	return rtn;
+}
+
+int syscom_gw_ts_change(void)
+{
+	struct syscom_gw *gw;
+	int tmp, rtn = 0;
+
+	syscom_gw_lock();
+	list_for_each_entry(gw, &gateways, gateways_list) {
+		tmp = syscom_gw_ts_set(gw);
+		rtn = rtn ?: tmp;
+	}
+	syscom_gw_unlock();
+
+	return rtn;
+}
+
 static void _syscom_gw_attach_socket(struct syscom_gw *gw, struct socket *sock)
 {
 	BUG_ON(gw->sock);
@@ -1111,6 +1171,7 @@ static void syscom_gw_attach_socket(struct syscom_gw *gw, struct socket *sock)
 {
 	_syscom_gw_attach_socket(gw, sock);
 	syscom_gw_register_poller(gw);
+	syscom_gw_ts_set(gw);
 }
 
 int syscom_gw_open_socket(const char *name, int flags)
@@ -1183,8 +1244,8 @@ static struct syscom_gw *syscom_gw_spawn_child(struct syscom_gw *gw,
 	}
 
 	newgw->ops = ops;
-	if (gw->flag.nohdr) {
-		newgw->flag.nohdr = 1;
+	if (syscom_gw_test_bit(gw, NOHDR)) {
+		syscom_gw_set_bit(newgw, NOHDR);
 		if (gw->hdr) {
 			newgw->hdr = kmalloc(sizeof *newgw->hdr, GFP_KERNEL);
 			if (!newgw->hdr) {
@@ -1203,12 +1264,12 @@ static struct syscom_gw *syscom_gw_spawn_child(struct syscom_gw *gw,
 		_syscom_gw_attach_socket(newgw, sock);
 		sock = NULL;
 	} else {
-		newgw->flag.connecting = 1;
+		syscom_gw_set_bit(newgw, CONNECTING);
 	}
 
 	syscom_gw_lock();
 	// The parent could be deleted in the mean time
-	if (gw->flag.stop_work) {
+	if (syscom_gw_test_bit(gw, STOP_WORK)) {
 		err = -ECONNABORTED;
 		goto err3;
 	}
@@ -1222,7 +1283,7 @@ static struct syscom_gw *syscom_gw_spawn_child(struct syscom_gw *gw,
 		} else if (syscom_gw_lookup(name)) {
 			err = -EEXIST;
 		} else {
-			strcpy(newgw->name, name);
+			strbcpy(newgw->name, name, sizeof newgw->name);
 			err = 0;
 		}
 	} else {
@@ -1242,6 +1303,7 @@ static struct syscom_gw *syscom_gw_spawn_child(struct syscom_gw *gw,
 
 	syscom_gw_get(newgw); // List reference
 	list_add(&newgw->gateways_list, &gw->gateways_list);
+	syscom_gw_ts_set(newgw);
 	trace_syscom_gw_create(newgw);
 
 	syscom_route_gw_introduce_gw(newgw);
@@ -1266,6 +1328,51 @@ err0:	atomic_inc(&gw->err);
 		sock_release(sock);
 	}
 	return ERR_PTR(err);
+}
+
+static void syscom_gw_delivery_start(struct syscom_gw *gw, struct msghdr *msg,
+		const struct syscom_hdr *hdr)
+{
+	struct scm_timestamping *scmts = NULL;
+	struct cmsghdr *cmsg;
+
+	for (cmsg = CMSG_FIRSTHDR(msg); cmsg;
+			cmsg = CMSG_NXTHDR(msg, cmsg)) {
+		if (unlikely(!CMSG_OK(msg, cmsg))) {
+			pr_err("Bogus cmsg\n");
+			break;
+		}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+		if (cmsg->cmsg_level == SOL_SOCKET &&
+		    cmsg->cmsg_type == SCM_TIMESTAMPING) {
+			scmts = CMSG_DATA(cmsg);
+		}
+#else
+		if (cmsg->cmsg_level == SOL_SOCKET &&
+		    cmsg->cmsg_type == SO_TIMESTAMPING_OLD)
+			scmts = CMSG_DATA(cmsg);
+#endif
+	}
+
+	gw->delivery_start = ktime_get();
+	if (scmts) {
+		if (scmts->ts[0].tv_sec || scmts->ts[0].tv_nsec) {
+			syscom_latency_update(&gw->rx_sw_us,
+					ktime_mono_to_real(gw->delivery_start),
+					timespec_to_ktime(scmts->ts[0]),
+					trace_syscom_gw_latency_grow,
+					gw, SYSCOM_GW_LATENCY_RX_SW, hdr);
+		}
+	}
+}
+
+static void syscom_gw_delivery_complete(struct syscom_gw *gw,
+		const struct syscom_hdr *hdr)
+{
+	syscom_latency_update(&gw->rx_dl_us, gw->delivery_start, ktime_get(),
+			trace_syscom_gw_latency_grow, gw,
+			SYSCOM_GW_LATENCY_RX_DL, hdr);
 }
 
 static void syscom_gw_destroy_sock(struct syscom_gw *gw)
@@ -1297,9 +1404,39 @@ static void syscom_gw_destroy_sock_rcvbuf(struct syscom_gw *gw)
 	syscom_gw_destroy_rcvbuf(gw);
 }
 
+static int syscom_gw_setopt(struct socket *sock)
+{
+	const struct { int opt; void *arg; int len; } opts[] = {
+#define SOCK_OPT_INT(OPT, VAL) { SO_##OPT, (int[]){VAL}, sizeof(int) }
+		SOCK_OPT_INT(PRIORITY, 3),
+	};
+	int i, rtn;
+
+	for (i = 0; i < ARRAY_SIZE(opts); i++) {
+		rtn = kernel_setsockopt(sock, SOL_SOCKET, opts[i].opt,
+				opts[i].arg, opts[i].len);
+		if (rtn) {
+			pr_err("Failed to set socket option %d: %d\n",
+					opts[i].opt, rtn);
+			return rtn;
+		}
+	}
+
+	return 0;
+}
+
+static int syscom_gw_basic_init(struct syscom_gw *gw,
+		struct socket *sock, void *arg)
+{
+	if (sock)
+		return syscom_gw_setopt(sock);
+	return 0;
+}
+
 static int syscom_gw_init_rcvbuf(struct syscom_gw *gw,
 		struct socket *sock, void *arg)
 {
+	syscom_gw_basic_init(gw, sock, arg);
 	gw->vec.iov_len = SYSCOM_MTU;
 	gw->vec.iov_base = vmalloc(SYSCOM_MTU);
 	if (!gw->vec.iov_base) {
@@ -1309,17 +1446,12 @@ static int syscom_gw_init_rcvbuf(struct syscom_gw *gw,
 	return 0;
 }
 
-static int syscom_gw_no_init(struct syscom_gw *gw,
-		struct socket *sock, void *arg)
-{
-	return 0;
-}
-
 static int syscom_gw_sctp_setopt(struct socket *sock, bool init)
 {
-	struct { int init; int opt; void *arg; int len; } opts[] = {
+	const struct { int init; int opt; void *arg; int len; } opts[] = {
 #define SCTP_OPT(I, OPT, ARG, ...) { I, SCTP_##OPT, &(struct sctp_##ARG)\
 		{ __VA_ARGS__ }, sizeof(struct sctp_##ARG) }
+#define SCTP_OPT_INT(I, OPT, VAL) { I, SCTP_##OPT, (int[]){VAL}, sizeof(int) }
 		SCTP_OPT(1, INITMSG, initmsg,
 			.sinit_num_ostreams = SYSCOM_SCTP_STREAM_NUM,
 			.sinit_max_instreams = 65535,
@@ -1341,7 +1473,8 @@ static int syscom_gw_sctp_setopt(struct socket *sock, bool init)
 			.spp_pathmaxrxt = 5,
 			.spp_sackdelay = 5,
 			.spp_flags = SPP_HB_ENABLE | SPP_SACKDELAY_ENABLE),
-		{ 0, SCTP_NODELAY, (int[]){1}, sizeof(int) } };
+		SCTP_OPT_INT(0, NODELAY, 1),
+		SCTP_OPT_INT(0, PARTIAL_DELIVERY_POINT, SYSCOM_MAX_MSGSIZE) };
 	int rtn, i;
 
 	for (i = 0; i < ARRAY_SIZE(opts); i++) {
@@ -1354,12 +1487,13 @@ static int syscom_gw_sctp_setopt(struct socket *sock, bool init)
 		rtn = kernel_setsockopt(sock, SOL_SCTP, opts[i].opt,
 				opts[i].arg, opts[i].len);
 		if (rtn) {
-			pr_err("Failed to set %d: %d\n", opts[i].opt, rtn);
+			pr_err("Failed to set SCTP option %d: %d\n",
+					opts[i].opt, rtn);
 			return rtn;
 		}
 	}
 
-	return 0;
+	return init ? 0 : syscom_gw_setopt(sock);
 }
 
 static struct socket *syscom_gw_sctp_peeloff(struct syscom_gw *gw, int assoc)
@@ -1368,9 +1502,9 @@ static struct socket *syscom_gw_sctp_peeloff(struct syscom_gw *gw, int assoc)
 	int rtn;
 
 	// This lock can be removed once SCTP stack is fixed
-	mutex_lock(&gw->lock);
+	lock_sock(gw->sock->sk);
 	rtn = sctp_do_peeloff(gw->sock->sk, assoc, &sock);
-	mutex_unlock(&gw->lock);
+	release_sock(gw->sock->sk);
 	if (rtn) {
 		// We can observe -EINVAL here for outgoing association, which
 		// can be peeled of before we process the notification
@@ -1511,9 +1645,18 @@ static int syscom_gw_stream_accept(struct syscom_gw *gw)
 	}
 }
 
+static inline int syscom_kernel_recvmsg(struct socket *sock, struct msghdr *msg,
+		struct kvec *vec)
+{
+	int controllen = msg->msg_controllen;
+	int rtn = kernel_recvmsg(sock, msg, vec, 1, vec->iov_len, MSG_DONTWAIT);
+	msg->msg_controllen = controllen - msg->msg_controllen;
+	return rtn;
+}
+
 static int syscom_gw_stream_recv(struct syscom_gw *gw)
 {
-	int recv, nohdr = gw->flag.nohdr;
+	int recv, nohdr = syscom_gw_test_bit(gw, NOHDR);
 	struct syscom_hdr *hdr = gw->vec.iov_base;
 
 	if (unlikely(gw->pending_data)) {
@@ -1525,7 +1668,10 @@ static int syscom_gw_stream_recv(struct syscom_gw *gw)
 	}
 
 	while (1) {
-		struct msghdr msg = { 0 };
+		char cmsg[SYSCOM_GW_CMSG_SIZE] = { 0 };
+		struct msghdr msg = {
+			.msg_control = cmsg,
+			.msg_controllen = sizeof cmsg };
 		struct kvec vec;
 		int rtn;
 
@@ -1538,8 +1684,7 @@ static int syscom_gw_stream_recv(struct syscom_gw *gw)
 			vec.iov_len = gw->vec.iov_len - recv;
 		}
 
-		rtn = kernel_recvmsg(gw->sock, &msg, &vec, 1,
-				vec.iov_len, MSG_DONTWAIT);
+		rtn = syscom_kernel_recvmsg(gw->sock, &msg, &vec);
 		if (rtn <= 0) {
 			if (rtn == -EAGAIN) {
 				gw->pending_data = recv;
@@ -1568,6 +1713,7 @@ static int syscom_gw_stream_recv(struct syscom_gw *gw)
 			hdr->length = htons(recv);
 		}
 		atomic_long_inc(&gw->recv); // FIXME: Count properly (probably at return)
+		syscom_gw_delivery_start(gw, &msg, hdr);
 
 try_to_send:	while (recv >= sizeof *hdr && recv >= ntohs(hdr->length)) {
 			int msglen = ntohs(hdr->length);
@@ -1585,6 +1731,7 @@ try_to_send:	while (recv >= sizeof *hdr && recv >= ntohs(hdr->length)) {
 					atomic_inc(&gw->rx_drop);
 				}
 			}
+			syscom_gw_delivery_complete(gw, hdr);
 			hdr = (struct syscom_hdr *)((char*)hdr + msglen);
 			recv -= msglen;
 
@@ -1620,11 +1767,8 @@ static int syscom_gw_stream_sock_copy(struct socket *orig, struct socket **copy,
 			memmove(addr, sga->addrs, as);
 		}
 	} else {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0))
-		rtn = kernel_getsockname(orig, addr, &as);
-#else
 		rtn = kernel_getsockname(orig, addr);
-#endif
+		as = rtn;
 	}
 
 	if (rtn < 0)
@@ -1715,7 +1859,8 @@ static int syscom_gw_stream_connect(struct syscom_gw *gw,
 	rtn = _syscom_gw_stream_connect(gw->sock, child_gw, addrs, addrcnt,
 			addrsize);
 
-	if (rtn == -EISCONN && gw->flag.listening && gw->flag.m2m_emulation) {
+	if (rtn == -EISCONN && syscom_gw_test_bit(gw, LISTENING) &&
+			syscom_gw_test_bit(gw, M2M)) {
 		if (!gw->m2m_sock) {
 			// Fixme serialize
 			rtn = syscom_gw_stream_sock_copy(gw->sock, &gw->m2m_sock, 1);
@@ -1741,7 +1886,7 @@ static int syscom_gw_stream_destroy_sync_safe(struct syscom_gw *gw,
 {
 	lockdep_assert_held(&gateways_lock);
 
-	if (gw->flag.listening || del_children) {
+	if (syscom_gw_test_bit(gw, LISTENING) || del_children) {
 		// Listening gateway children do not take parent reference
 		// or we will delete them
 		return 0;
@@ -1760,7 +1905,7 @@ static int syscom_gw_stream_listen(struct syscom_gw *gw, int backlog)
 static int syscom_gw_stream_send(struct syscom_gw *gw, struct iov_iter *iov,
 		bool noblock)
 {
-	struct msghdr msg = { .msg_flags = noblock ? MSG_DONTWAIT : 0,
+	struct msghdr msg = { .msg_flags = syscom_gw_send_flags(noblock),
 			.msg_iter = *iov };
 	size_t size = iov_iter_count(iov);
 	int rtn = 0;
@@ -1833,7 +1978,7 @@ static void syscom_gw_stream_destroy_child_connect(struct syscom_gw *gw)
 }
 
 static const struct syscom_gw_ops_s syscom_gw_stream_base_ops = {
-	.init = syscom_gw_no_init,
+	.init = syscom_gw_basic_init,
 	.ready = syscom_gw_stream_accept,
 	.listen = syscom_gw_stream_listen,
 	.connect = syscom_gw_stream_connect,
@@ -1876,8 +2021,8 @@ static int syscom_gw_dgram_init_child(struct syscom_gw *gw,
 {
 	struct syscom_gw_connect_arg_s *connect_arg = init_arg;
 
-	gw->flag.reject_ordered = 1;
-	gw->flag.reject_reliable = 1;
+	syscom_gw_set_bit(gw, REJECT_ORDERED);
+	syscom_gw_set_bit(gw, REJECT_RELIABLE);
 	gw->parent = syscom_gw_get(connect_arg->gw); // We reuse the parent GW socket
 	memcpy(&gw->dest_addr, connect_arg->addrs, connect_arg->addrsize);
 	gw->dest_addrlen = connect_arg->addrsize;
@@ -1926,7 +2071,7 @@ static int syscom_gw_dgram_send(struct syscom_gw *gw, struct iov_iter *iov,
 	struct msghdr msg = {
 		.msg_name = &gw->dest_addr,
 		.msg_namelen = gw->dest_addrlen,
-		.msg_flags = noblock ? MSG_DONTWAIT : 0,
+		.msg_flags = syscom_gw_send_flags(noblock),
 		.msg_iter = *iov,
 	};
 
@@ -1980,7 +2125,7 @@ static int syscom_gw_recv_notify(struct syscom_gw *gw, void *buf, int size)
 
 static int syscom_gw_dgram_recv(struct syscom_gw *gw)
 {
-	const int nohdr = gw->flag.nohdr;
+	const int nohdr = syscom_gw_test_bit(gw, NOHDR);
 	int recv;
 
 	if (unlikely(gw->pending_data)) {
@@ -1990,8 +2135,11 @@ static int syscom_gw_dgram_recv(struct syscom_gw *gw)
 	}
 
 	while (1) {
+		char cmsg[SYSCOM_GW_CMSG_SIZE] = { 0 };
 		struct kvec vec = gw->vec;
-		struct msghdr msg = { 0 };
+		struct msghdr msg = {
+			.msg_control = cmsg,
+			.msg_controllen = sizeof cmsg };
 		int rtn;
 
 		if (nohdr) {
@@ -1999,8 +2147,7 @@ static int syscom_gw_dgram_recv(struct syscom_gw *gw)
 			vec.iov_len -= sizeof *gw->hdr;
 		}
 
-		recv = kernel_recvmsg(gw->sock, &msg, &vec, 1,
-				vec.iov_len, MSG_DONTWAIT);
+		recv = syscom_kernel_recvmsg(gw->sock, &msg, &vec);
 		if (recv < 0) {
 			if (recv == -EAGAIN) {
 				return 0;
@@ -2028,6 +2175,7 @@ static int syscom_gw_dgram_recv(struct syscom_gw *gw)
 			hdr->length = htons(recv);
 		}
 		atomic_long_inc(&gw->recv);
+		syscom_gw_delivery_start(gw, &msg, gw->vec.iov_base);
 
 try_to_send:	rtn = syscom_route_deliver_buf(gw->vec.iov_base, recv, HZ/8);
 		if (unlikely(rtn < 0)) {
@@ -2040,6 +2188,7 @@ try_to_send:	rtn = syscom_route_deliver_buf(gw->vec.iov_base, recv, HZ/8);
 				atomic_inc(&gw->rx_drop);
 			}
 		}
+		syscom_gw_delivery_complete(gw, gw->vec.iov_base);
 	}
 }
 
@@ -2108,24 +2257,25 @@ static int syscom_gw_sctp_seqpacket_connect(struct syscom_gw *gw,
 	assoc = kernel_setsockopt(gw->sock, SOL_SCTP, SCTP_SOCKOPT_CONNECTX,
 			(char*)addrs, addrsize);
 
+	if (assoc >= 0) {
+		sock = syscom_gw_sctp_peeloff(gw, assoc);
+	} else {
+		sock = ERR_PTR(assoc);
+	}
+
 	mutex_lock(&gw->lock);
 	list_del(&conn.conns_list);
 	mutex_unlock(&gw->lock);
 
 	if (conn.assoc >= 0) {
-		if (assoc > 0 && conn.assoc != assoc) {
+		if (assoc >= 0 && conn.assoc != assoc) {
 			pr_warn("Unexpected double association on %s\n", gw->name);
 			syscom_gw_sctp_peeloff_child(gw, conn.assoc);
-		} else {
-			assoc = conn.assoc;
+		} else if (IS_ERR(sock)) {
+			sock = syscom_gw_sctp_peeloff(gw, conn.assoc);
 		}
 	}
 
-	if (assoc < 0) {
-		return assoc;
-	}
-
-	sock = syscom_gw_sctp_peeloff(gw, assoc);
 	if (!IS_ERR(sock)) {
 		syscom_gw_attach_socket(child_gw, sock);
 		return 0;
@@ -2137,9 +2287,9 @@ static int syscom_gw_sctp_seqpacket_connect(struct syscom_gw *gw,
 static int syscom_gw_sctp_seqpacket_send(struct syscom_gw *gw,
 		struct iov_iter *iov, bool noblock)
 {
-	if (gw->flag.nohdr) {
+	if (syscom_gw_test_bit(gw, NOHDR)) {
 		// We never reorder messages send without syscom header
-		struct msghdr msg = { .msg_flags = noblock ? MSG_DONTWAIT : 0,
+		struct msghdr msg = { .msg_flags = syscom_gw_send_flags(noblock),
 			.msg_iter = *iov };
 		return sock_sendmsg(gw->sock, &msg);
 	} else {
@@ -2153,7 +2303,7 @@ static int syscom_gw_sctp_seqpacket_send(struct syscom_gw *gw,
 			.cmsg.cmsg_type = SCTP_SNDINFO,
 			.cmsg.cmsg_len = CMSG_LEN(sizeof *sndinfo) };
 		struct msghdr msg = {
-			.msg_flags = noblock ? MSG_DONTWAIT : 0,
+			.msg_flags = syscom_gw_send_flags(noblock),
 			.msg_control = &cbuf, .msg_controllen = sizeof cbuf,
 			.msg_iter = *iov };
 
@@ -2165,6 +2315,8 @@ static int syscom_gw_sctp_seqpacket_send(struct syscom_gw *gw,
 		sndinfo = CMSG_DATA(&cbuf.cmsg);
 		sndinfo->snd_sid = crc16(0xFFFF, (u8*)&hdr.destination, 8) %
 				SYSCOM_SCTP_STREAM_NUM;
+		sndinfo->snd_ppid = (__force uint32_t)htonl(ETH_P_SYSCOM);
+		if (!hdr.ordered) sndinfo->snd_flags = SCTP_UNORDERED;
 		return sock_sendmsg(gw->sock, &msg);
 	}
 }
@@ -2284,31 +2436,24 @@ int syscom_gw_seq_show(struct seq_file *seq, void *v)
 	struct syscom_gw *gw = v;
 
 	if (v == SEQ_START_TOKEN) {
-		seq_puts(seq, "name                  pkt_send   pkt_recv tx_drop rx_drop err flags      inode\n");
+		seq_puts(seq, "name                  pkt_send   pkt_recv tx_drop rx_drop err rdbl rx_hw_us rx_sw_us rx_dl_us flags      inode\n");
 	} else {
-		seq_printf(seq, "%-19s %10lu %10lu %7u %7u %3u %c%c%c%c%c%c%c %8lx\n",
+		seq_printf(seq, "%-19s %10lu %10lu %7u %7u %3u %4u %8lu %8lu %8lu %c%c%c%c%c%c%c %8lx\n",
 				gw->name, atomic_long_read(&gw->send),
 				atomic_long_read(&gw->recv), atomic_read(&gw->tx_drop),
 				atomic_read(&gw->rx_drop), atomic_read(&gw->err),
-				gw->ops->identifier, gw->flag.nohdr ? (gw->hdr ? 'h' : 'H') : '-',
-				gw->flag.listening ? gw->flag.m2m_emulation ? 'L' : 'l' : '-',
-				gw->flag.stop_work ? 's' : '-',
+				atomic_read(&gw->ready_would_block), atomic_long_read(&gw->rx_hw_us),
+				atomic_long_read(&gw->rx_sw_us), atomic_long_read(&gw->rx_dl_us),
+				gw->ops->identifier, syscom_gw_test_bit(gw, NOHDR) ? (gw->hdr ? 'h' : 'H') : '-',
+				syscom_gw_test_bit(gw, LISTENING) ? syscom_gw_test_bit(gw, M2M) ? 'L' : 'l' : '-',
+				syscom_gw_test_bit(gw, STOP_WORK) ? 's' : '-',
 				gw->sock ? gw->sock->file ? 'F' : 'S' : '-',
-				gw->flag.reject_reliable ? 'r' : '-',
-				gw->flag.reject_ordered ? 'o' : '-',
+				syscom_gw_test_bit(gw, REJECT_RELIABLE) ? 'r' : '-',
+				syscom_gw_test_bit(gw, REJECT_ORDERED) ? 'o' : '-',
 				gw->sock ? sock_i_ino(gw->sock->sk) : -1);
 	}
 
 	return 0;
 }
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0))
-/** Open sequential file for inspection of the route table */
-int syscom_gw_seq_open(struct inode *inode, struct file *file)
-{
-	return seq_open_net(inode, file, &syscom_gw_seq_ops,
-			    sizeof(struct syscom_gw_iter_state));
-}
-#endif
 
 #endif

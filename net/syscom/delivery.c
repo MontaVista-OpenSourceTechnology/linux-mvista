@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -19,8 +20,10 @@
 
 #include <linux/errqueue.h>
 #include <linux/highmem.h>
+#include <linux/version.h>
 
 #include "delivery.h"
+#include "route.h"
 #include "af.h"
 
 #define SYSCOM_FRAG_LEN 4096
@@ -62,12 +65,14 @@ static int syscom_frag_skb_from_iter(struct iov_iter *iter, int headroom,
 	struct syscom_frag_hdr hdr;
 	struct sk_buff **nextp, *new;
 	int len, frag_len, rtn;
+	struct iov_iter i = *iter;
 
 	if (mtu > SYSCOM_FRAG_LEN) mtu = SYSCOM_FRAG_LEN;
 	mtu -= sizeof hdr;
 
 	if (!syscom_hdr) {
-		copy_from_iter(&syscom_hdr_buf, sizeof syscom_hdr_buf, iter);
+		BUG_ON(sizeof syscom_hdr_buf != copy_from_iter(&syscom_hdr_buf,
+				sizeof syscom_hdr_buf, &i));
 		syscom_hdr = &syscom_hdr_buf;
 	}
 	len = ntohs(syscom_hdr->length);
@@ -110,10 +115,10 @@ static int syscom_frag_skb_from_iter(struct iov_iter *iter, int headroom,
 					sizeof *syscom_hdr);
 			frag_len -= sizeof *syscom_hdr;
 			skb_copy_datagram_from_iter(new, sizeof *syscom_hdr +
-					sizeof hdr, iter, frag_len);
+					sizeof hdr, &i, frag_len);
 		} else {
 			__skb_put(new, frag_len);
-			skb_copy_datagram_from_iter(new, sizeof hdr, iter,
+			skb_copy_datagram_from_iter(new, sizeof hdr, &i,
 					frag_len);
 		}
 	}
@@ -208,7 +213,7 @@ void syscom_sock_dump_sndbuf(struct syscom_sock *ssk)
 	ktime_t ktime_now = ktime_get();
 	unsigned long flags, ino;
 
-	ino = ssk->sk.sk_socket ? SOCK_INODE(ssk->sk.sk_socket)->i_ino : 0;
+	ino = sock_i_ino(&ssk->sk);
 	if (ssk->sk.sk_family != PF_SYSCOM) {
 		pr_warn("Ignoring non-syscom socket %d/%lx\n",
 				ssk->sk.sk_family, ino);
@@ -225,7 +230,7 @@ void syscom_sock_dump_sndbuf(struct syscom_sock *ssk)
 	list_for_each_entry(s, &ssk->skb_snd_list, list) {
 		pr_notice(" * SKB %p, pending for %ld us, proto: %x\n",
 				s->skb, (long)ktime_to_us(ktime_sub(ktime_now,
-				s->time_queue)), htons(s->skb->protocol));
+				s->time_queue)), ntohs(s->skb->protocol));
 		print_hex_dump(KERN_NOTICE, pr_fmt("   payload: "),
 				DUMP_PREFIX_OFFSET, 16, 1, s->skb->data,
 				min_t(int, skb_headlen(s->skb), 64), 0);
@@ -237,7 +242,6 @@ unlock:	spin_unlock_irqrestore(&ssk->skb_snd_list_lock, flags);
 struct syscom_sk_alloc_skb_s {
 	struct sk_buff *parent_skb;
 	struct sock *sk;
-	unsigned done_trace:1;
 	unsigned allocated:1;
 	unsigned noblock:1;
 };
@@ -266,7 +270,13 @@ static void syscom_tx_done_parent(struct sk_buff *skb)
 {
 	struct syscom_sock *ssk = syscom_sk(skb->sk);
 
-	BUG_ON(!skb->sk);
+	BUG_ON(!ssk);
+
+	trace_syscom_sk_tx_done(ssk, skb);
+
+	if (skb->peeked) {
+		atomic_inc(&ssk->stat.tx_drops);
+	}
 
 	if ((skb->peeked && (ssk->report_fail_reliable ||
 			ssk->report_fail_unreliable)) ||
@@ -344,7 +354,7 @@ static struct sk_buff *syscom_sk_alloc_skb(unsigned head_len, unsigned data_len,
 	if (arg->parent_skb) {
 		skb_shinfo(skb)->destructor_arg = skb_get(arg->parent_skb);
 		skb->destructor = syscom_tx_done;
-	} else if (arg->done_trace) {
+	} else {
 		arg->parent_skb = skb;
 		skb->destructor = syscom_tx_done_parent;
 	}
@@ -386,9 +396,13 @@ static struct sk_buff *syscom_alloc_skb(unsigned head_len, unsigned data_len,
 	return skb;
 }
 
-int __syscom_skb_from_iter(struct iov_iter *iter, int headroom,
+/** Create an SKB from iov_iter
+ * The function preserves the iter when it creates a fragmented SKB, that way it
+ * can be called again to get a non-fragmented SKB for raw sockets. */
+static int __syscom_skb_from_iter(struct iov_iter *iter, int headroom,
 		int mtu, const struct syscom_hdr *hdr, struct sock *sk,
-		struct sk_buff **skb, bool noblock, bool fragment)
+		struct sk_buff **skb, bool noblock, bool fragment,
+		bool overcommit)
 {
 	union {
 		struct syscom_sk_alloc_skb_s arg_sk;
@@ -397,16 +411,9 @@ int __syscom_skb_from_iter(struct iov_iter *iter, int headroom,
 	syscom_skb_alloc alloc;
 
 	if (sk) {
-		bool reliabe = !(htons(SYSCOM_HDR_FLAG_UNRELIABLE) & hdr->flags);
-		struct syscom_sock *ssk = syscom_sk(sk);
-
-		arg.arg_sk.done_trace = (reliabe && (ssk->report_fail_reliable
-						|| ssk->report_done_reliable)) ||
-				(!reliabe && (ssk->report_fail_unreliable
-						|| ssk->report_done_unreliable));
 		arg.arg_sk.sk = sk;
 		arg.arg_sk.noblock = noblock;
-		arg.arg_sk.allocated = 0;
+		arg.arg_sk.allocated = overcommit;
 		arg.arg_sk.parent_skb = NULL;
 		alloc = syscom_sk_alloc_skb;
 	} else {
@@ -492,6 +499,8 @@ void syscom_delivery_raw_from_iov(struct syscom_delivery *d,
 	struct sk_buff *skb = __dev_alloc_skb(d->msg_size, d->gfp_mask);
 	struct iov_iter iov = *i;
 
+	BUG_ON(d->raw_skb);
+
 	if (skb) {
 		skb->protocol = htons(ETH_P_SYSCOM);
 		skb_reset_network_header(skb);
@@ -507,11 +516,13 @@ void syscom_delivery_raw_from_iov(struct syscom_delivery *d,
 void syscom_delivery_raw_from_skb(struct syscom_delivery *d,
 		struct sk_buff *skb)
 {
+	BUG_ON(d->raw_skb);
+
 	if (skb->protocol == htons(ETH_P_SYSCOM)) {
 		d->raw_skb = skb_clone(skb, d->gfp_mask);
 	} else {
-		d->raw_skb = NULL;
-		d->ops->get_skb(d, &d->raw_skb, 0, SYSCOM_MAX_MSGSIZE);
+		d->frag_threshold = SYSCOM_MAX_MSGSIZE; // Do not fragment
+		d->ops->get_skb(d, &d->raw_skb, 0, SYSCOM_MAX_MSGSIZE, 1);
 	}
 }
 
@@ -522,9 +533,6 @@ struct delivery_work_struct {
 	struct sk_buff *skb;
 	const char *name;
 };
-
-int _syscom_route_deliver_skb(struct sk_buff *skb, long timeo, gfp_t gfp_mask,
-		bool forward, const char *name);
 
 static void syscom_delivery_worker(struct work_struct *work)
 {
@@ -576,7 +584,7 @@ static int syscom_delivery_buf_get_iov(struct syscom_delivery *d,
 }
 
 static int syscom_delivery_buf_get_skb(struct syscom_delivery *d,
-		struct sk_buff **skb, int headroom, int mtu)
+		struct sk_buff **skb, int headroom, int mtu, bool overcommit)
 {
 	struct syscom_delivery_buf *dbuf = (struct syscom_delivery_buf*)d;
 	struct iov_iter i;
@@ -584,7 +592,8 @@ static int syscom_delivery_buf_get_skb(struct syscom_delivery *d,
 	iov_iter_kvec(&i, READ | ITER_KVEC, &dbuf->kvec, 1, dbuf->kvec.iov_len);
 
 	return __syscom_skb_from_iter(&i, headroom, mtu, NULL, NULL, skb,
-			d->timeo == 0, d->msg_size > d->frag_threshold);
+			d->timeo == 0, d->msg_size > d->frag_threshold,
+			overcommit);
 }
 
 const struct syscom_delivery_ops syscom_delivery_buf_ops = {
@@ -612,7 +621,11 @@ static int syscom_delivery_skb_get_iov(struct syscom_delivery *d,
 					while (--j >= 0) kunmap(skb_frag_page(&skb_shinfo(dskb->skb)->frags[j]));
 					return -EIO;
 				}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
 				dskb->skb_kvec[nmemb].iov_base += frag->page_offset;
+#else
+				dskb->skb_kvec[nmemb].iov_base += skb_frag_off(frag);
+#endif
 				dskb->skb_kvec[nmemb++].iov_len = skb_frag_size(frag);
 			}
 			dskb->mapped = 1;
@@ -643,7 +656,7 @@ static int syscom_delivery_skb_get_iov(struct syscom_delivery *d,
 }
 
 static int syscom_delivery_skb_get_skb(struct syscom_delivery *d,
-		struct sk_buff **skb, int headroom, int mtu)
+		struct sk_buff **skb, int headroom, int mtu, bool overcommit)
 {
 	struct syscom_delivery_skb *dskb = (struct syscom_delivery_skb*)d;
 	struct syscom_hdr *hdr = (struct syscom_hdr *)dskb->skb->data;
@@ -751,9 +764,11 @@ static int syscom_delivery_msg_get_iov(struct syscom_delivery *d,
 	fixup_nid_cpid(dmsg->hdr.src.cpid, SYSCOM_SO_ADDR_CPID, dmsg->msg,
 			SOCKADDR_SYSCOM_ANY_N);
 
-	dmsg->iovec[0].iov_base = &dmsg->hdr;
+	dmsg->iovec[0].iov_base = (void __user *)&dmsg->hdr;
 	dmsg->iovec[0].iov_len = sizeof dmsg->hdr;
-	iov_for_each(iovec_iter, iov, dmsg->msg->msg_iter) {
+	for (iov = dmsg->msg->msg_iter;
+	     iov.count && ((iovec_iter = iov_iter_iovec(&iov)), 1);
+	     iov_iter_advance(&iov, iovec_iter.iov_len)) {
 		dmsg->iovec[idx++] = iovec_iter;
 	}
 	iov_iter_init(i, READ | ITER_IOVEC, dmsg->iovec, idx, d->msg_size);
@@ -763,7 +778,7 @@ err0:	return rtn;
 }
 
 static int syscom_delivery_msg_get_skb(struct syscom_delivery *d,
-		struct sk_buff **skb, int headroom, int mtu)
+		struct sk_buff **skb, int headroom, int mtu, bool overcommit)
 {
 	struct syscom_delivery_msg *dmsg = (struct syscom_delivery_msg*)d;
 	int rtn;
@@ -775,7 +790,7 @@ static int syscom_delivery_msg_get_skb(struct syscom_delivery *d,
 
 	rtn = __syscom_skb_from_iter(&dmsg->msg->msg_iter, headroom, mtu,
 			&dmsg->hdr, &dmsg->src->sk, skb, d->timeo == 0,
-			d->msg_size > d->frag_threshold);
+			d->msg_size > d->frag_threshold, overcommit);
 
 	if (likely(!rtn)) {
 		(*skb)->priority = dmsg->src->sk.sk_priority;
@@ -800,14 +815,14 @@ static int syscom_delivery_rawmsg_get_iov(struct syscom_delivery *d,
 }
 
 static int syscom_delivery_rawmsg_get_skb(struct syscom_delivery *d,
-		struct sk_buff **skb, int headroom, int mtu)
+		struct sk_buff **skb, int headroom, int mtu, bool overcommit)
 {
 	struct syscom_delivery_msg *dmsg = (struct syscom_delivery_msg*)d;
 	int rtn;
 
 	rtn = __syscom_skb_from_iter(&dmsg->msg->msg_iter, headroom, mtu,
 			&dmsg->hdr, &dmsg->src->sk, skb, d->timeo == 0,
-			d->msg_size > d->frag_threshold);
+			d->msg_size > d->frag_threshold, overcommit);
 
 	if (likely(!rtn)) {
 		(*skb)->priority = dmsg->src->sk.sk_priority;

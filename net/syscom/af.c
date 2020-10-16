@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -48,6 +49,8 @@
 #define SYSCOM_SK_HASH_SIZE 10
 static DEFINE_MUTEX(syscom_sk_hash_lock);
 static struct hlist_head syscom_sk_hash[jhash_size(SYSCOM_SK_HASH_SIZE)];
+static HLIST_HEAD(unhashed_sockets);
+static HLIST_HEAD(robbed_sockets);
 
 static inline struct hlist_head *syscom_sock_hlist(
 		__be16 local_nid, __be16 local_cpid)
@@ -59,18 +62,73 @@ static inline struct hlist_head *syscom_sock_hlist(
 #define rcu_ssk_next_protected(ssk) rcu_dereference_protected((ssk)->next,\
 		lockdep_is_held(&syscom_sk_hash_lock))
 
-int syscom_sock_add(struct syscom_sock *new)
+static void syscom_sock_rob(struct syscom_sock *ssk)
 {
-	struct sock *sk;
+	struct sock *sk = &ssk->sk;
+	struct socket_wq *wq;
+
+	lock_sock(sk);
+	sk->sk_state = SYSCOM_ROBBED;
+	sk->sk_shutdown |= RCV_SHUTDOWN;
+	// We can't use sk_node or unhashed without calling synchronize_rcu, but
+	// until then the socket wouldn't be visible in proc. Use another list
+	// instead..
+	hlist_add_head_rcu(&ssk->robbed, &robbed_sockets);
+	release_sock(sk);
+
+	rcu_read_lock();
+	wq = rcu_dereference(sk->sk_wq);
+	if (skwq_has_sleeper(wq))
+		wake_up_interruptible_sync(&wq->wait);
+	rcu_read_unlock();
+
+	sk_wake_async(sk, SOCK_WAKE_WAITD, POLL_HUP);
+}
+
+int syscom_sock_add(struct syscom_sock *new, bool new_bind_only)
+{
 	struct hlist_head *hlist;
+	struct sock *sk;
 
 	hlist = syscom_sock_hlist(new->local.nid, new->local.cpid);
 
 	mutex_lock(&syscom_sk_hash_lock);
 
+	// Unbind weak sockets
+	if (!new_bind_only) sk_for_each(sk, hlist) {
+		struct syscom_sock *ssk = syscom_sk(sk);
+		bool all_week = 1;
+		if (syscom_addr_eq(ssk->local, new->local)) {
+			do {
+				if (!ssk_flag(ssk, SYSCOM_WEAK_BIND)) {
+					all_week = 0;
+					break;
+				}
+			} while ((ssk = rcu_ssk_next_protected(ssk)));
+			ssk = syscom_sk(sk);
+
+			if (ssk_flag(new, SYSCOM_WEAK_BIND) && !all_week) {
+				mutex_unlock(&syscom_sk_hash_lock);
+				return -ESHUTDOWN;
+			}
+			if (!ssk_flag(new, SYSCOM_WEAK_BIND) && all_week) {
+				syscom_sock_rob(ssk);
+				sk_del_node_init_rcu(&ssk->sk);
+				while ((ssk = rcu_ssk_next_protected(ssk))) {
+					syscom_sock_rob(ssk);
+					sock_put(&ssk->sk);
+				}
+			}
+		}
+	}
+
 	sk_for_each(sk, hlist) {
 		struct syscom_sock *ssk = syscom_sk(sk);
 		if (syscom_addr_eq(ssk->local, new->local)) {
+			if (new_bind_only) {
+				mutex_unlock(&syscom_sk_hash_lock);
+				return -EADDRINUSE;
+			}
 			if (new->sk.sk_reuse == SK_NO_REUSE) {
 				mutex_unlock(&syscom_sk_hash_lock);
 				return -EADDRINUSE;
@@ -89,7 +147,8 @@ int syscom_sock_add(struct syscom_sock *new)
 
 	rcu_assign_pointer(new->next, NULL);
 	sk_add_node_rcu(&new->sk, hlist);
-out:	mutex_unlock(&syscom_sk_hash_lock);
+out:	hlist_del_init_rcu(&new->unhashed);
+	mutex_unlock(&syscom_sk_hash_lock);
 
 	return 0;
 }
@@ -145,9 +204,13 @@ static struct syscom_sock *syscom_iter_next(struct syscom_iter *iter)
 
 	// We need new head
 	switch (iter->how) {
-#define SL(c, nid, cpid, next) state_##c: __attribute__((unused)) case c: \
+#define SL(c, nid, cpid, next) \
+			__attribute__((fallthrough)); \
+		state_##c: __attribute__((unused)) case c: \
 			iter->ssk = syscom_sock_lookup(iter, nid, cpid); \
 			if (iter->ssk) { iter->how = next; break; }
+		default: BUG();
+
 		SL(1, iter->hdr->dst.nid, iter->hdr->dst.cpid, 11);
 		SL(2, iter->hdr->dst.nid, SOCKADDR_SYSCOM_ANY_N, 21);
 		SL(3, SOCKADDR_SYSCOM_ANY_N, iter->hdr->dst.cpid, 31);
@@ -157,6 +220,7 @@ static struct syscom_sock *syscom_iter_next(struct syscom_iter *iter)
 		SL(7, SOCKADDR_SYSCOM_ORPHANS_N, SOCKADDR_SYSCOM_ANY_N, 8);
 		SL(8, SOCKADDR_SYSCOM_ANY_N, SOCKADDR_SYSCOM_ORPHANS_N, 9);
 		SL(9, SOCKADDR_SYSCOM_ANY_N, SOCKADDR_SYSCOM_ANY_N, 0);
+			__attribute__((fallthrough));
 		case 0:	iter->ssk = NULL;
 			iter->how = 100;
 			break;
@@ -173,8 +237,6 @@ static struct syscom_sock *syscom_iter_next(struct syscom_iter *iter)
 		SL(32, SOCKADDR_SYSCOM_ORPHANS_N, iter->hdr->dst.cpid, 33);
 		SL(33, SOCKADDR_SYSCOM_ORPHANS_N, SOCKADDR_SYSCOM_ANY_N, 9);
 		goto state_9;
-
-		default: BUG();
 	}
 	if (iter->ssk) {
 done:		sock_hold(&iter->ssk->sk);
@@ -317,22 +379,21 @@ int syscom_queue_rcv_skb(struct sk_buff *skb, long timeo, bool bp)
 
 drop:	atomic_inc(&ssk->sk.sk_drops);
 	atomic_long_inc(&ssk->stat.rx_count);
-drop2:	trace_syscom_sk_recv_drop(ssk);
+drop2:	trace_syscom_sk_recv_drop(ssk, skb, err);
 	sock_put(&ssk->sk);
 	if (next) sock_put(&next->sk);
 	kfree_skb(skb);
 	return err;
 }
 
-static void sock_put_rcu(struct rcu_head *head)
-{
-	sock_put(&container_of(head, struct syscom_sock, rcu)->sk);
-}
-
 void syscom_sock_remove(struct syscom_sock *ssk)
 {
 	mutex_lock(&syscom_sk_hash_lock);
-	if (sk_hashed(&ssk->sk)) {
+	if (!hlist_unhashed(&ssk->unhashed)) {
+		hlist_del_init_rcu(&ssk->unhashed);
+	} else if (!hlist_unhashed(&ssk->robbed)) {
+		hlist_del_init_rcu(&ssk->robbed);
+	} else if (sk_hashed(&ssk->sk)) {
 		// Move the next socket behind us, that enforces it won't be
 		// missed by RCU iterators.
 		struct syscom_sock *new_head = rcu_ssk_next_protected(ssk);
@@ -345,7 +406,7 @@ void syscom_sock_remove(struct syscom_sock *ssk)
 		sk_for_each_rcu(sk, syscom_sock_hlist(ssk->local.nid, ssk->local.cpid)) {
 			struct syscom_sock *prev = syscom_sk(sk);
 			if (syscom_addr_eq(ssk->local, prev->local)) {
-				while (prev->next != ssk) {
+				while (rcu_ssk_next_protected(prev) != ssk) {
 					prev = rcu_ssk_next_protected(prev);
 				}
 				rcu_assign_pointer(prev->next, ssk->next);
@@ -355,8 +416,6 @@ void syscom_sock_remove(struct syscom_sock *ssk)
 		}
 	}
 	mutex_unlock(&syscom_sk_hash_lock);
-
-	call_rcu(&ssk->rcu, sock_put_rcu);
 }
 
 /***********************************************************************/
@@ -395,6 +454,10 @@ void _syscom_delivery_error(int rtn, void *hdrp, struct sk_buff *skb,
 		char copy[32];
 		pr_warn("Malformed message discarded on %s. Detected by %s:%d.\n",
 				where, file, line);
+		if (skb) {
+			pr_warn("SKB len: %d, data_len: %d\n", skb->len,
+					skb->data_len);
+		}
 		if (hdrp && -EFAULT != probe_kernel_read(copy, hdrp,
 		    sizeof copy)) {
 			print_hex_dump(KERN_INFO, pr_fmt("data: "),
@@ -424,6 +487,7 @@ void _syscom_delivery_error(int rtn, void *hdrp, struct sk_buff *skb,
 
 int syscom_forward __read_mostly;
 int syscom_trace_sndbuf_skbs __read_mostly;
+int syscom_gw_rx_timestamping __read_mostly;
 static int syscom_raw_receives_forward __read_mostly = 1;
 static unsigned syscom_oom_threshold __read_mostly = 1 << 20;
 unsigned syscom_route_queue_bytes __read_mostly = 4 << 20;
@@ -649,7 +713,7 @@ restart:frag = syscom_frag_find(hash);
 			}
 
 			head = s[0]; h = (struct syscom_hdr *)head->data;
-			pr_info_ratelimited("Message %04x of %uB from %04x:%04x "
+			pr_debug_ratelimited("Message %04x of %uB from %04x:%04x "
 				"to %04x:%04x arrived out-of-order. Fixing...\n",
 				ntohs(h->msg_id), ntohs(h->length),
 				ntohs(h->src.nid), ntohs(h->src.cpid),
@@ -851,6 +915,8 @@ static void syscom_sock_destructor(struct sock *sk)
 	/* Returns sk_wmem_alloc minus initial offset of one */
 	WARN_ON(sk_wmem_alloc_get(sk) >= 0);
 	WARN_ON(sk_hashed(sk));
+	WARN_ON(!hlist_unhashed(&syscom_sk(sk)->unhashed));
+	WARN_ON(!hlist_unhashed(&syscom_sk(sk)->robbed));
 	/*WARN_ON(sk->sk_socket);
 	if (!sock_flag(sk, SOCK_DEAD)) {
 		printk(KERN_INFO "Attempt to release alive unix socket: %p\n", sk);
@@ -908,7 +974,9 @@ static int syscom_create(struct net *net, struct socket *sock, int protocol, int
 	ssk->ordered = sock->type == SOCK_SEQPACKET;
 	ssk->reliable = sock->type == SOCK_SEQPACKET;
 	sk->sk_write_space = syscom_write_space;
-	sk->sk_destruct    = syscom_sock_destructor;
+	sk->sk_destruct = syscom_sock_destructor;
+	sk->sk_state = SYSCOM_NEW;
+	sock_set_flag(sk, SOCK_RCU_FREE);
 
 	local_bh_disable();
 	sock_prot_inuse_add(sock_net(sk), sk->sk_prot, 1);
@@ -916,6 +984,10 @@ static int syscom_create(struct net *net, struct socket *sock, int protocol, int
 
 	if (sock->type == SOCK_RAW) {
 		syscom_raw_create(ssk);
+	} else {
+		mutex_lock(&syscom_sk_hash_lock);
+		hlist_add_head_rcu(&ssk->unhashed, &unhashed_sockets);
+		mutex_unlock(&syscom_sk_hash_lock);
 	}
 
 	return 0;
@@ -936,6 +1008,14 @@ struct socket_iter_state {
 	int idx;
 };
 
+#define SYSCOM_ITER_RAW_INIT -4
+#define SYSCOM_ITER_RAW_LOOP -3
+#define SYSCOM_ITER_UNHASHED_INIT -2
+#define SYSCOM_ITER_UNHASHED_LOOP -1
+#define SYSCOM_ITER_HASHED_INIT 0
+#define SYSCOM_ITER_ROBBED_INIT (INT_MAX - 1)
+#define SYSCOM_ITER_ROBBED_LOOP INT_MAX
+
 #define hlist_first_entry_rcu(head, type, member) \
 	hlist_entry_safe(rcu_dereference_raw(hlist_first_rcu(head)), type, member)
 
@@ -946,42 +1026,71 @@ static struct syscom_sock *socket_next(struct socket_iter_state *iter)
 {
 	int i;
 
-	if (iter->idx == -1) {
-		iter->idx = 0;
-		iter->ssk_head = hlist_first_entry_rcu(&raw_sockets,
-				struct syscom_sock, sk.sk_node);
-		if (iter->ssk_head) {
+rst:	switch (iter->idx) {
+		case SYSCOM_ITER_RAW_LOOP:
+			iter->ssk_head = hlist_next_entry_rcu(
+					iter->ssk_head, sk.sk_node);
+			break;
+		case SYSCOM_ITER_UNHASHED_LOOP:
+			iter->ssk_head = hlist_next_entry_rcu(
+					iter->ssk_head, unhashed);
+			break;
+		case SYSCOM_ITER_RAW_INIT:
+			iter->ssk_head = hlist_first_entry_rcu(&raw_sockets,
+					struct syscom_sock, sk.sk_node);
+			if (iter->ssk_head) {
+				iter->idx = SYSCOM_ITER_RAW_LOOP;
+				return iter->ssk_head;
+			}
+			/* Fall through */
+		case SYSCOM_ITER_UNHASHED_INIT:
+			iter->ssk_head = hlist_first_entry_rcu(&unhashed_sockets,
+					struct syscom_sock, unhashed);
+			if (iter->ssk_head) {
+				iter->idx = SYSCOM_ITER_UNHASHED_LOOP;
+				return iter->ssk_head;
+			}
+			iter->idx = SYSCOM_ITER_HASHED_INIT;
+			/* Fall through */
+		default:
+			if (iter->ssk_reuse) {
+				struct syscom_sock *rtn;
+				rtn = iter->ssk_reuse;
+				iter->ssk_reuse = rcu_dereference(iter->ssk_reuse->next);
+				return rtn;
+			}
+			if (iter->ssk_head) {
+				iter->ssk_head = hlist_next_entry_rcu(
+						iter->ssk_head, sk.sk_node);
+				if (iter->ssk_head) {
+					goto nh;
+				}
+			}
+			for (i = iter->idx; i < ARRAY_SIZE(syscom_sk_hash); i++) {
+				iter->ssk_head = hlist_first_entry_rcu(&syscom_sk_hash[i],
+						struct syscom_sock, sk.sk_node);
+				if (iter->ssk_head) {
+					iter->idx = i + 1;
+					goto nh;
+				}
+			}
+			/* Fall through */
+		case SYSCOM_ITER_ROBBED_INIT:
+			iter->ssk_reuse = NULL;
+			iter->ssk_head = hlist_first_entry_rcu(&robbed_sockets,
+					struct syscom_sock, robbed);
+			iter->idx = SYSCOM_ITER_ROBBED_LOOP;
 			return iter->ssk_head;
-		}
+		case SYSCOM_ITER_ROBBED_LOOP:
+			iter->ssk_head = hlist_next_entry_rcu(
+					iter->ssk_head, robbed);
+			return iter->ssk_head;
 	}
-
-	if (iter->ssk_reuse) {
-		struct syscom_sock *rtn;
-		rtn = iter->ssk_reuse;
-		iter->ssk_reuse = rcu_dereference(iter->ssk_reuse->next);
-		return rtn;
+	if (!iter->ssk_head) {
+		iter->idx++;
+		goto rst;
 	}
-
-	if (iter->ssk_head) {
-		iter->ssk_head = hlist_next_entry_rcu(iter->ssk_head, sk.sk_node);
-		if (iter->ssk_head) {
-			goto nh;
-		}
-	}
-
-	for (i = iter->idx; i < ARRAY_SIZE(syscom_sk_hash); i++) {
-		iter->ssk_head = hlist_first_entry_rcu(&syscom_sk_hash[i],
-				struct syscom_sock, sk.sk_node);
-		if (iter->ssk_head) {
-			iter->idx = i + 1;
-			goto nh;
-		}
-	}
-
-	iter->idx = INT_MAX;
-	iter->ssk_head = NULL;
-	iter->ssk_reuse = NULL;
-	return NULL;
+	return iter->ssk_head;
 
 nh:	iter->ssk_reuse = rcu_dereference(iter->ssk_head->next);
 	return iter->ssk_head;
@@ -991,7 +1100,7 @@ static struct syscom_sock *socket_first(struct socket_iter_state *iter)
 {
 	iter->ssk_head = NULL;
 	iter->ssk_reuse = NULL;
-	iter->idx = -1;
+	iter->idx = SYSCOM_ITER_RAW_INIT;
 
 	return socket_next(iter);
 }
@@ -1032,10 +1141,13 @@ static void syscom_seq_stop(struct seq_file *seq, void *v)
 	rcu_read_unlock();
 }
 
-static inline void syscom_addr_format(char *buf, __be16 addr, bool right, int type)
+static inline void syscom_addr_format(char *buf, __be16 addr, bool right,
+		int type, int state)
 {
 	if (type == SOCK_RAW) {
 		strcpy(buf, right ? "   -" : "-   ");
+	} else if (state == SYSCOM_NEW) {
+		strcpy(buf, right ? "   ~" : "~   ");
 	} else if (addr == SOCKADDR_SYSCOM_ANY_N) {
 		strcpy(buf, right ? "   *" : "*   ");
 	} else {
@@ -1053,10 +1165,10 @@ static int syscom_seq_show(struct seq_file *seq, void *v)
 		return 0;
 	}
 
-	syscom_addr_format(addr[0], r->local.nid, 1, r->sk.sk_type);
-	syscom_addr_format(addr[1], r->local.cpid, 0, r->sk.sk_type);
-	syscom_addr_format(addr[2], r->remote.nid, 1, r->sk.sk_type);
-	syscom_addr_format(addr[3], r->remote.cpid, 0, r->sk.sk_type);
+	syscom_addr_format(addr[0], r->local.nid, 1, r->sk.sk_type, r->sk.sk_state);
+	syscom_addr_format(addr[1], r->local.cpid, 0, r->sk.sk_type, r->sk.sk_state);
+	syscom_addr_format(addr[2], r->remote.nid, 1, r->sk.sk_type, r->sk.sk_state);
+	syscom_addr_format(addr[3], r->remote.cpid, 0, r->sk.sk_type, r->sk.sk_state);
 
 	seq_printf(seq, "%s:%s %s:%s %2d %c%c%c %9lu %8u %8u %9lu %8u %8u %11lu %7u %11lu %7u %08lx\n",
 			addr[0], addr[1], addr[2], addr[3], r->sk.sk_state,
@@ -1070,7 +1182,7 @@ static int syscom_seq_show(struct seq_file *seq, void *v)
 			atomic_read(&r->sk.sk_drops),
 			atomic_long_read(&r->stat.tx_count),
 			atomic_read(&r->stat.tx_drops),
-			SOCK_INODE(r->sk.sk_socket)->i_ino);
+			sock_i_ino(&r->sk));
 
 	return 0;
 }
@@ -1081,14 +1193,6 @@ static const struct seq_operations syscom_sec_ops = {
 	.stop   = syscom_seq_stop,
 	.show   = syscom_seq_show,
 };
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0))
-static int syscom_seq_open(struct inode *inode, struct file *file)
-{
-	return seq_open_net(inode, file, &syscom_sec_ops,
-			    sizeof(struct socket_iter_state));
-}
-#endif
 
 static int show_stat(struct seq_file *seq, void *v)
 {
@@ -1111,6 +1215,10 @@ static int show_stat(struct seq_file *seq, void *v)
 			"gw_rx_drops: %u\n"
 			"gw_tx_drops: %u\n"
 			"gw_errors: %u\n"
+			"gw_ready_would_block: %u\n"
+			"gw_rx_hw_us: %lu\n"
+			"gw_rx_sw_us: %lu\n"
+			"gw_rx_dl_us: %lu\n"
 			"notify_errors: %u\n"
 			"snd_trace: %u\n",
 			atomic_read(&syscom_stats.route_tree_miss),
@@ -1132,22 +1240,30 @@ static int show_stat(struct seq_file *seq, void *v)
 			atomic_read(&syscom_stats.gw_rx_drops),
 			atomic_read(&syscom_stats.gw_tx_drops),
 			atomic_read(&syscom_stats.gw_errors),
+			atomic_read(&syscom_stats.gw_ready_would_block),
+			atomic_long_read(&syscom_stats.gw_rx_hw_us),
+			atomic_long_read(&syscom_stats.gw_rx_sw_us),
+			atomic_long_read(&syscom_stats.gw_rx_dl_us),
 			atomic_read(&syscom_stats.notify_errors),
 			syscom_trace_sndbuf_skbs);
 	return 0;
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0))
-static int stat_seq_open(struct inode *inode, struct file *file)
-{
-	return single_open_net(inode, file, show_stat);
-}
-#endif
 #endif
 
 #ifdef CONFIG_SYSCTL
 static int zero = 0;
 static int one = 1;
+
+static int syscom_gw_rx_timestamping_change(struct ctl_table *table, int write,
+		  void __user *buffer, size_t *lenp, loff_t *ppos)
+{
+	int rtn = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
+	if (write && !rtn) {
+		rtn = syscom_gw_ts_change();
+	}
+	return rtn;
+}
 
 static struct ctl_table syscom_ctl_table[] = {
 	{
@@ -1185,6 +1301,15 @@ static struct ctl_table syscom_ctl_table[] = {
 		.extra2         = &one,
 	},
 	{
+		.procname       = "gw_rx_timestamping",
+		.data           = &syscom_gw_rx_timestamping,
+		.proc_handler   = syscom_gw_rx_timestamping_change,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.extra1         = &zero,
+		.extra2         = &one,
+	},
+	{
 		.procname       = "route_queue_bytes",
 		.data           = &syscom_route_queue_bytes,
 		.proc_handler   = proc_douintvec,
@@ -1199,49 +1324,6 @@ struct ctl_table_header *ctl_forward_hdr;
 static int syscom_net_init(struct net *net)
 {
 #ifdef CONFIG_PROC_FS
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0))
-	static const struct file_operations sfops = {
-		.owner          = THIS_MODULE,
-		.open           = syscom_seq_open,
-		.read           = seq_read,
-		.llseek         = seq_lseek,
-		.release        = seq_release_net,
-	};
-	static const struct file_operations rfops = {
-		.owner          = THIS_MODULE,
-		.open           = syscom_route_seq_open,
-		.read           = seq_read,
-		.llseek         = seq_lseek,
-		.release        = seq_release_net,
-	};
-	static const struct file_operations gwops = {
-		.owner          = THIS_MODULE,
-		.open           = syscom_gw_seq_open,
-		.read           = seq_read,
-		.llseek         = seq_lseek,
-		.release        = seq_release_net,
-	};
-	static const struct file_operations statops = {
-		.owner          = THIS_MODULE,
-		.open           = stat_seq_open,
-		.read           = seq_read,
-		.llseek         = seq_lseek,
-		.release        = single_release_net,
-	};
-
-	if (!proc_create("syscom", 0, net->proc_net, &sfops)) {
-		return -EIO;
-	}
-	if (!proc_create("syscom_route", 0, net->proc_net, &rfops)) {
-		goto err0;
-	}
-	if (!proc_create("syscom_gw", 0, net->proc_net, &gwops)) {
-		goto err1;
-	}
-	if (!proc_create("syscom_stat", 0, net->proc_net, &statops)) {
-		goto err2;
-	}
-#else
 	if (!proc_create_net("syscom", 0, net->proc_net, &syscom_sec_ops,
 			     sizeof(struct socket_iter_state))) {
 		return -EIO;
@@ -1259,7 +1341,6 @@ static int syscom_net_init(struct net *net)
 				    NULL)) {
 		goto err2;
 	}
-#endif
 #endif
 
 #ifdef CONFIG_SYSCTL
@@ -1328,7 +1409,7 @@ static int syscom_oom_notify(struct notifier_block *self,
 		if (rmem < syscom_oom_threshold) {
 			pr_info("OOM handling skipped, largest queue size is %d"
 					" bytes on %016lx.\n", rmem,
-					SOCK_INODE(maxsk->sk.sk_socket)->i_ino);
+					sock_i_ino(&maxsk->sk));
 		} else {
 			struct sockaddr_syscom addr;
 			struct kvec vec = { };
@@ -1339,8 +1420,7 @@ static int syscom_oom_notify(struct notifier_block *self,
 
 			pr_crit("OOM handler sacrifices messages on %016lx "
 					"because its queue size is %d bytes.",
-					SOCK_INODE(maxsk->sk.sk_socket)->i_ino,
-					rmem);
+					sock_i_ino(&maxsk->sk), rmem);
 			maxsk->sk.sk_rcvbuf = syscom_oom_threshold;
 
 			while (0 == kernel_recvmsg(maxsk->sk.sk_socket, &msg, &vec,
@@ -1447,5 +1527,5 @@ module_exit(af_syscom_exit);
 
 MODULE_ALIAS_NETPROTO(PF_SYSCOM);
 
-MODULE_LICENSE("GPL v2");
+MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Petr Malat");

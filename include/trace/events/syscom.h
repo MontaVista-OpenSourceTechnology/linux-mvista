@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -44,22 +45,87 @@ struct syscom_trace_hdr {
 	__be16 length;
 };
 
+#define HDR_FIELDS \
+	__field(__be16, msg_id) \
+	__field(__be16, dst_nid) \
+	__field(__be16, dst_cpid) \
+	__field(__be16, src_nid) \
+	__field(__be16, src_cpid) \
+	__field(__be16, length)
+
+#define HDR_ASSIGN(hdr) \
+	memcpy(&__entry->msg_id, &((hdr)->msg_id), \
+		sizeof(struct syscom_trace_hdr))
+
+#define HDR_ASSIGN_NULL(hdr) \
+	((hdr) ? memcpy(&__entry->msg_id, &((hdr)->msg_id), \
+		sizeof(struct syscom_trace_hdr)) : \
+	      memset(&__entry->msg_id, 0xff, \
+		sizeof(struct syscom_trace_hdr)))
+
+#define HDR_FMT "msg_id=%d src=%04x:%04x dst=%04x:%04x len=%d"
+
+#define HDR_FMT_ARG \
+	ntohs(__entry->msg_id), \
+	ntohs(__entry->src_nid), \
+	ntohs(__entry->src_cpid), \
+	ntohs(__entry->dst_nid), \
+	ntohs(__entry->dst_cpid), \
+	ntohs(__entry->length)
+
+
 #define SKB_FIELDS \
-	__field_struct(struct syscom_trace_hdr, syscom_trace_hdr)
+	HDR_FIELDS \
+	__field(void *, shinfo)
 
 #define SKB_ASSIGN(skb) \
-	memcpy(&__entry->syscom_trace_hdr, \
-		&(((struct syscom_hdr*)(skb)->data)->msg_id),\
-		sizeof __entry->syscom_trace_hdr)
+	HDR_ASSIGN((struct syscom_hdr*)(skb)->data), \
+	__entry->shinfo = skb_shinfo(skb)
 
-#define SKB_FMT "from: %04x:%04x to: %04x:%04x msg_id: %d"
+#define SKB_ASSIGN_ANY(skb) \
+	HDR_ASSIGN((struct syscom_hdr*)((skb)->data + \
+		((skb)->protocol == htons(ETH_P_SYSCOM) ? 0 : \
+			sizeof(struct syscom_frag_hdr)))), \
+	__entry->shinfo = skb_shinfo(skb)
 
-#define SKB_FMT_ARG \
-	ntohs(__entry->syscom_trace_hdr.src.nid), \
-	ntohs(__entry->syscom_trace_hdr.src.cpid), \
-	ntohs(__entry->syscom_trace_hdr.dst.nid), \
-	ntohs(__entry->syscom_trace_hdr.dst.cpid), \
-	ntohs(__entry->syscom_trace_hdr.msg_id)
+#define SKB_FMT HDR_FMT " shinfo=%p"
+
+#define SKB_FMT_ARG HDR_FMT_ARG, __entry->shinfo
+
+
+#define GW_FIELDS \
+	__array(char, gw_name, 20)
+
+#define GW_ASSIGN(gw) \
+	strlcpy(__entry->gw_name, gw->name, sizeof __entry->gw_name)
+
+#define GW_FMT "gw=%s"
+
+#define GW_FMT_ARG __entry->gw_name
+
+
+#define SSK_FIELDS \
+	__field(ino_t, ino) \
+	__field(int, rmem_alloc) \
+	__field(int, wmem_alloc)
+
+#define SSK_ASSIGN(ssk) \
+	__entry->ino = ssk->sk.sk_socket ? SOCK_INODE(ssk->sk.sk_socket)->i_ino : 0, \
+	__entry->rmem_alloc = sk_rmem_alloc_get(&ssk->sk), \
+	__entry->wmem_alloc = sk_wmem_alloc_get(&ssk->sk)
+
+#define SSK_FMT "sk_ino=0x%lx rmem_alloc=%d wmem_alloc=%d"
+
+#define SSK_FMT_ARG \
+	(unsigned long)__entry->ino, \
+	__entry->rmem_alloc, \
+	__entry->wmem_alloc
+
+enum trace_syscom_gw_latency_type {
+	SYSCOM_GW_LATENCY_RX_SW,
+	SYSCOM_GW_LATENCY_RX_HW,
+	SYSCOM_GW_LATENCY_RX_DL,
+};
 
 #endif // TRACE_SYSCOM_H
 
@@ -73,16 +139,16 @@ TRACE_EVENT(syscom_sk_send_err,
 	TP_ARGS(ssk, rtn),
 
 	TP_STRUCT__entry(
-		__field(ino_t, ino)
+		SSK_FIELDS
 		__field(int, rtn)
 	),
 
 	TP_fast_assign(
-		__entry->ino = SOCK_INODE(ssk->sk.sk_socket)->i_ino;
+		SSK_ASSIGN(ssk);
 		__entry->rtn = rtn;
 	),
 
-	TP_printk("sk_ino=0x%lx rtn=%d", (unsigned long)__entry->ino, __entry->rtn)
+	TP_printk(SSK_FMT " rtn=%d", SSK_FMT_ARG, __entry->rtn)
 );
 
 TRACE_EVENT(syscom_sk_send_drop,
@@ -91,14 +157,14 @@ TRACE_EVENT(syscom_sk_send_drop,
 	TP_ARGS(ssk),
 
 	TP_STRUCT__entry(
-		__field(ino_t, ino)
+		SSK_FIELDS
 	),
 
 	TP_fast_assign(
-		__entry->ino = SOCK_INODE(ssk->sk.sk_socket)->i_ino;
+		SSK_ASSIGN(ssk);
 	),
 
-	TP_printk("sk_ino=0x%lx", (unsigned long)__entry->ino)
+	TP_printk(SSK_FMT, SSK_FMT_ARG)
 );
 
 TRACE_EVENT(syscom_sk_recv_err,
@@ -107,40 +173,40 @@ TRACE_EVENT(syscom_sk_recv_err,
 	TP_ARGS(ssk, hdr, rtn),
 
 	TP_STRUCT__entry(
-		__field(ino_t, ino)
-		__field(__be16, msg_id)
-		__field(__be16, src_nid)
-		__field(__be16, src_cpid)
+		HDR_FIELDS
+		SSK_FIELDS
 		__field(int, rtn)
 	),
 
 	TP_fast_assign(
-		__entry->ino = SOCK_INODE(ssk->sk.sk_socket)->i_ino;
-		__entry->msg_id = hdr ? hdr->msg_id : 0xffff;
-		__entry->src_nid = hdr ? hdr->src.nid : 0xffff;
-		__entry->src_cpid = hdr ? hdr->src.cpid : 0xffff;
+		HDR_ASSIGN_NULL(hdr);
+		SSK_ASSIGN(ssk);
 		__entry->rtn = rtn;
 	),
 
-	TP_printk("sk_ino=0x%lx msg_id=%d src=%04x:%04x rtn=%d",
-		(unsigned long)__entry->ino, ntohs(__entry->msg_id),
-		ntohs(__entry->src_nid), ntohs(__entry->src_cpid), __entry->rtn)
+	TP_printk(HDR_FMT " " SSK_FMT " rtn=%d", HDR_FMT_ARG, SSK_FMT_ARG,
+		__entry->rtn)
 );
 
 TRACE_EVENT(syscom_sk_recv_drop,
-	TP_PROTO(struct syscom_sock *ssk),
+	TP_PROTO(struct syscom_sock *ssk, struct sk_buff *skb, int rtn),
 
-	TP_ARGS(ssk),
+	TP_ARGS(ssk, skb, rtn),
 
 	TP_STRUCT__entry(
-		__field(ino_t, ino)
+		SKB_FIELDS
+		SSK_FIELDS
+		__field(int, rtn)
 	),
 
 	TP_fast_assign(
-		__entry->ino = SOCK_INODE(ssk->sk.sk_socket)->i_ino;
+		SKB_ASSIGN(skb);
+		SSK_ASSIGN(ssk);
+		__entry->rtn = rtn;
 	),
 
-	TP_printk("sk_ino=0x%lx", (unsigned long)__entry->ino)
+	TP_printk(SKB_FMT " " SSK_FMT " rtn=%d", SKB_FMT_ARG, SSK_FMT_ARG,
+		__entry->rtn)
 );
 
 TRACE_EVENT(syscom_sk_recv_latency_grow,
@@ -149,19 +215,19 @@ TRACE_EVENT(syscom_sk_recv_latency_grow,
 	TP_ARGS(ssk, skb, latency),
 
 	TP_STRUCT__entry(
-		__field(ino_t, ino)
-		__field(unsigned long, latency)
 		SKB_FIELDS
+		SSK_FIELDS
+		__field(unsigned long, latency)
 	),
 
 	TP_fast_assign(
-		__entry->ino = SOCK_INODE(ssk->sk.sk_socket)->i_ino;
-		__entry->latency = latency;
 		SKB_ASSIGN(skb);
+		SSK_ASSIGN(ssk);
+		__entry->latency = latency;
 	),
 
-	TP_printk("sk_ino=0x%lx latency=%lu " SKB_FMT,
-		(unsigned long)__entry->ino, __entry->latency, SKB_FMT_ARG)
+	TP_printk(SKB_FMT " " SSK_FMT " latency=%lu", SKB_FMT_ARG, SSK_FMT_ARG,
+		__entry->latency)
 );
 
 TRACE_EVENT(syscom_sk_queue_recv_skb,
@@ -170,19 +236,40 @@ TRACE_EVENT(syscom_sk_queue_recv_skb,
 	TP_ARGS(ssk, skb),
 
 	TP_STRUCT__entry(
-		__field(ino_t, ino)
-		__field(int, ifindex)
 		SKB_FIELDS
+		SSK_FIELDS
+		__field(int, ifindex)
 	),
 
 	TP_fast_assign(
-		__entry->ino = SOCK_INODE(ssk->sk.sk_socket)->i_ino;
-		__entry->ifindex = skb->dev ? skb->dev->ifindex : -1;
 		SKB_ASSIGN(skb);
+		SSK_ASSIGN(ssk);
+		__entry->ifindex = skb->dev ? skb->dev->ifindex : -1;
 	),
 
-	TP_printk("sk_ino=0x%lx dev=%d " SKB_FMT, (unsigned long)__entry->ino,
-		__entry->ifindex, SKB_FMT_ARG)
+	TP_printk(SKB_FMT " " SSK_FMT " dev=%d", SKB_FMT_ARG, SSK_FMT_ARG,
+		__entry->ifindex)
+);
+
+TRACE_EVENT(syscom_sk_tx_done,
+	TP_PROTO(struct syscom_sock *ssk, struct sk_buff *skb),
+
+	TP_ARGS(ssk, skb),
+
+	TP_STRUCT__entry(
+		SKB_FIELDS
+		SSK_FIELDS
+		__field(int, rtn)
+	),
+
+	TP_fast_assign(
+		SKB_ASSIGN_ANY(skb);
+		SSK_ASSIGN(ssk);
+		__entry->rtn = skb->peeked ? -EIO : 0;
+	),
+
+	TP_printk(SKB_FMT " " SSK_FMT " rtn=%d", SKB_FMT_ARG, SSK_FMT_ARG,
+		__entry->rtn)
 );
 
 /* Trace service ****************************************************/
@@ -291,14 +378,14 @@ TRACE_EVENT(syscom_gw_create,
 	TP_ARGS(gw),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
+		GW_FIELDS
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
+		GW_ASSIGN(gw);
 	),
 
-	TP_printk("gw=%s", __entry->gw->name)
+	TP_printk(GW_FMT, GW_FMT_ARG)
 );
 
 TRACE_EVENT(syscom_gw_destroy,
@@ -307,14 +394,14 @@ TRACE_EVENT(syscom_gw_destroy,
 	TP_ARGS(gw),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
+		GW_FIELDS
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
+		GW_ASSIGN(gw);
 	),
 
-	TP_printk("gw=%s", __entry->gw->name)
+	TP_printk(GW_FMT, GW_FMT_ARG)
 );
 
 TRACE_EVENT(syscom_gw_del,
@@ -324,18 +411,21 @@ TRACE_EVENT(syscom_gw_del,
 	TP_ARGS(gw, del_children, del_routes, reason),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
+		GW_FIELDS
 		__field(int, del_children)
 		__field(int, del_routes)
 		__field(int, reason)
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
+		GW_ASSIGN(gw);
+		__entry->del_children = del_children;
+		__entry->del_routes = del_routes;
+		__entry->reason = reason;
 	),
 
-	TP_printk("gw=%s del_children=%d del_routes=%d reason=%d",
-			__entry->gw->name, __entry->del_children,
+	TP_printk(GW_FMT " del_children=%d del_routes=%d reason=%d",
+			GW_FMT_ARG, __entry->del_children,
 			__entry->del_routes, __entry->reason)
 );
 
@@ -345,14 +435,14 @@ TRACE_EVENT(syscom_gw_ready,
 	TP_ARGS(gw),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
+		GW_FIELDS
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
+		GW_ASSIGN(gw);
 	),
 
-	TP_printk("gw=%s", __entry->gw->name)
+	TP_printk(GW_FMT, GW_FMT_ARG)
 );
 
 TRACE_EVENT(syscom_gw_worker_start,
@@ -361,14 +451,14 @@ TRACE_EVENT(syscom_gw_worker_start,
 	TP_ARGS(gw),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
+		GW_FIELDS
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
+		GW_ASSIGN(gw);
 	),
 
-	TP_printk("gw=%s", __entry->gw->name)
+	TP_printk(GW_FMT, GW_FMT_ARG)
 );
 
 TRACE_EVENT(syscom_gw_worker_done,
@@ -377,16 +467,16 @@ TRACE_EVENT(syscom_gw_worker_done,
 	TP_ARGS(gw, rtn),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
+		GW_FIELDS
 		__field(int, rtn)
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
+		GW_ASSIGN(gw);
 		__entry->rtn = rtn;
 	),
 
-	TP_printk("gw=%s rtn=%d", __entry->gw->name, __entry->rtn)
+	TP_printk(GW_FMT " rtn=%d", GW_FMT_ARG, __entry->rtn)
 );
 
 TRACE_EVENT(syscom_gw_connect_start,
@@ -395,16 +485,16 @@ TRACE_EVENT(syscom_gw_connect_start,
 	TP_ARGS(gw, timeo),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
+		GW_FIELDS
 		__field(unsigned long, timeo)
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
+		GW_ASSIGN(gw);
 		__entry->timeo = timeo;
 	),
 
-	TP_printk("gw=%s timeo=%lu", __entry->gw->name, __entry->timeo)
+	TP_printk(GW_FMT " timeo=%lu", GW_FMT_ARG, __entry->timeo)
 );
 
 TRACE_EVENT(syscom_gw_connect_done,
@@ -413,16 +503,16 @@ TRACE_EVENT(syscom_gw_connect_done,
 	TP_ARGS(gw, rtn),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
+		GW_FIELDS
 		__field(int, rtn)
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
+		GW_ASSIGN(gw);
 		__entry->rtn = rtn;
 	),
 
-	TP_printk("gw=%s rtn=%d", __entry->gw->name, __entry->rtn)
+	TP_printk(GW_FMT " rtn=%d", GW_FMT_ARG, __entry->rtn)
 );
 
 TRACE_EVENT(syscom_gw_connect_timeout,
@@ -447,18 +537,19 @@ TRACE_EVENT(syscom_gw_send_start,
 	TP_ARGS(gw, iov, timeo),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
-		__field(const struct iov_iter *, iov)
+		GW_FIELDS
+		__field(int, len)
 		__field(long, timeo)
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
-		__entry->iov = iov;
+		GW_ASSIGN(gw);
+		__entry->len = iov->count;
 		__entry->timeo = timeo;
 	),
 
-	TP_printk("gw=%s timeo=%ld", __entry->gw->name, __entry->timeo)
+	TP_printk(GW_FMT " timeo=%ld len=%d", GW_FMT_ARG, __entry->timeo,
+			__entry->len)
 );
 
 TRACE_EVENT(syscom_gw_send_done,
@@ -467,16 +558,40 @@ TRACE_EVENT(syscom_gw_send_done,
 	TP_ARGS(gw, rtn),
 
 	TP_STRUCT__entry(
-		__field(const struct syscom_gw *, gw)
+		GW_FIELDS
 		__field(int, rtn)
 	),
 
 	TP_fast_assign(
-		__entry->gw = gw;
+		GW_ASSIGN(gw);
 		__entry->rtn = rtn;
 	),
 
-	TP_printk("gw=%s rtn=%d", __entry->gw->name, __entry->rtn)
+	TP_printk(GW_FMT " rtn=%d", GW_FMT_ARG, __entry->rtn)
+);
+
+TRACE_EVENT(syscom_gw_latency_grow,
+	TP_PROTO(const struct syscom_gw *gw, int type,
+			const struct syscom_hdr *hdr, long latency),
+
+	TP_ARGS(gw, type, hdr, latency),
+
+	TP_STRUCT__entry(
+		HDR_FIELDS
+		GW_FIELDS
+		__field(int, type)
+		__field(long, latency)
+	),
+
+	TP_fast_assign(
+		HDR_ASSIGN(hdr);
+		GW_ASSIGN(gw);
+		__entry->type = type;
+		__entry->latency = latency;
+	),
+
+	TP_printk(HDR_FMT " " GW_FMT " latency=%lu type=%d", HDR_FMT_ARG,
+		GW_FMT_ARG, __entry->latency, __entry->type)
 );
 
 /* Trace route ******************************************************/
@@ -487,36 +602,34 @@ TRACE_EVENT(syscom_route_deliver_start,
 	TP_ARGS(hdr, d),
 
 	TP_STRUCT__entry(
-		__field_struct(struct syscom_trace_hdr, hdr)
+		HDR_FIELDS
 		__field(long, timeo)
 	),
 
 	TP_fast_assign(
-		memcpy(&__entry->hdr, &hdr->msg_id, sizeof __entry->hdr);
+		HDR_ASSIGN(hdr),
 		__entry->timeo = d->timeo;
 	),
 
-	TP_printk("msg_id=%d src=%04x:%04x dst=%04x:%04x len=%d timeo=%ld",
-		ntohs(__entry->hdr.msg_id),
-		ntohs(__entry->hdr.src.nid), ntohs(__entry->hdr.src.cpid),
-		ntohs(__entry->hdr.dst.nid), ntohs(__entry->hdr.dst.cpid),
-		ntohs(__entry->hdr.length), __entry->timeo)
+	TP_printk(HDR_FMT " timeo=%ld", HDR_FMT_ARG, __entry->timeo)
 );
 
 TRACE_EVENT(syscom_route_deliver_done,
-	TP_PROTO(int rtn),
+	TP_PROTO(const struct syscom_hdr *hdr, int rtn),
 
-	TP_ARGS(rtn),
+	TP_ARGS(hdr, rtn),
 
 	TP_STRUCT__entry(
+		HDR_FIELDS
 		__field(int, rtn)
 	),
 
 	TP_fast_assign(
+		HDR_ASSIGN(hdr);
 		__entry->rtn = rtn;
 	),
 
-	TP_printk("rtn=%d", __entry->rtn)
+	TP_printk(HDR_FMT " rtn=%d", HDR_FMT_ARG, __entry->rtn)
 );
 
 #endif // TRACE_SYSCOM_H

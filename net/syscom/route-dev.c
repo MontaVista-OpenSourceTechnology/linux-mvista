@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -82,16 +83,16 @@ static void syscom_route_record_dev_seq_show(
 
 /** Deliver the message over a net device. */
 static int syscom_route_record_dev_deliver(const struct syscom_route_record *r,
-		struct syscom_delivery *d)
+		struct syscom_delivery *d) __releases(rcu)
 {
 	const struct syscom_route_record_dev *self = syscom_route_record_dev(r);
 	int rtn, headroom = r->headroom + self->header_len;
 	struct net_device *dev = self->dev;
-	char header[self->header_len];
+	char header[SYSCOM_ROUTE_DEV_HDR_MAX];
 	struct sk_buff *skb, *i;
 
 	dev_hold(dev);
-	memcpy(header, self->header, sizeof header);
+	memcpy(header, self->header, self->header_len);
 	rcu_read_unlock();
 
 	rtn = syscom_delivery_get_skb(d, &skb, NULL, NULL, headroom, dev->mtu);
@@ -100,6 +101,10 @@ static int syscom_route_record_dev_deliver(const struct syscom_route_record *r,
 	}
 
 	skb->dev = dev;
+	if (d->raw_skb) {
+		d->raw_skb->dev = dev;
+	}
+
 	rtn = dev_hard_header(skb, dev, ntohs(skb->protocol), header,
 			NULL, skb->len);
 	for (i = skb_shinfo(skb)->frag_list; i && rtn >= 0; i = i->next) {
@@ -258,7 +263,7 @@ int syscom_route_dev_down(const char *if_name, void *header, uint8_t header_len,
 			return -ENOMEM;
 		}
 		memcpy(d->header, header, header_len);
-		strcpy(d->if_name, if_name);
+		strbcpy(d->if_name, if_name, sizeof d->if_name);
 		d->header_len = header_len;
 		list_add_tail(&d->down_hdr_list, &down_hdr);
 	} else if (!auto_down && d) {

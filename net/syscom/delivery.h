@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -37,7 +38,7 @@ struct syscom_delivery_ops {
 	int (*get_iov)(struct syscom_delivery *d, struct iov_iter *i);
 	/** Turn delivery into an SKB */
 	int (*get_skb)(struct syscom_delivery *d, struct sk_buff **head,
-			int headroom, int mtu);
+			int headroom, int mtu, bool overcommit);
 };
 
 /** Structure to represent a delivery request. */
@@ -106,7 +107,7 @@ static inline int syscom_delivery_get_iov(struct syscom_delivery *d,
 	if (timeo) *timeo = d->timeo;
 
 	rtn = d->ops->get_iov(d, i);
-	if (syscom_raw_delivery_needed() && !rtn) {
+	if (syscom_raw_delivery_needed() && !rtn && !d->raw_skb) {
 		syscom_delivery_raw_from_iov(d, i);
 	}
 
@@ -128,8 +129,8 @@ static inline int syscom_delivery_get_skb(struct syscom_delivery *d,
 		return -EMSGSIZE;
 	}
 
-	rtn = d->ops->get_skb(d, head, headroom, mtu);
-	if (syscom_raw_delivery_needed() && !rtn) {
+	rtn = d->ops->get_skb(d, head, headroom, mtu, 0);
+	if (syscom_raw_delivery_needed() && !rtn && !d->raw_skb) {
 		syscom_delivery_raw_from_skb(d, *head);
 	}
 

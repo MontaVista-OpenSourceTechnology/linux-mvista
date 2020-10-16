@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -36,7 +37,7 @@ static DEFINE_SPINLOCK(raw_sockets_lock);
 #define iter_cond(sk, skb) (sk && sk->sk_bound_dev_if && \
 		(!skb->dev || skb->dev->ifindex != sk->sk_bound_dev_if))
 
-struct sock *syscom_raw_next(struct sock *sk, const struct sk_buff *skb)
+static struct sock *syscom_raw_next(struct sock *sk, const struct sk_buff *skb)
 {
 	do {
 		sk = hlist_entry_safe(rcu_dereference_raw(
@@ -46,7 +47,7 @@ struct sock *syscom_raw_next(struct sock *sk, const struct sk_buff *skb)
 	return sk;
 }
 
-struct sock *syscom_raw_first(const struct sk_buff *skb)
+static struct sock *syscom_raw_first(const struct sk_buff *skb)
 {
 	struct sock *sk;
 	sk = hlist_entry_safe(
@@ -69,7 +70,12 @@ void syscom_raw_queue_skb(struct sk_buff *skb, gfp_t gfp_mask, int rtn)
 	time = ktime_get();
 
 	rcu_read_lock();
-	for (sk = syscom_raw_first(skb); sk; sk = next) {
+	sk = syscom_raw_first(skb);
+	if (!sk) {
+		consume_skb(skb);
+	}
+
+	for (; sk; sk = next) {
 		struct sk_buff *cskb;
 
 		next = syscom_raw_next(sk, skb);
@@ -104,7 +110,7 @@ void syscom_raw_queue_skb(struct sk_buff *skb, gfp_t gfp_mask, int rtn)
 void syscom_raw_create(struct syscom_sock *ssk)
 {
 	spin_lock(&raw_sockets_lock);
-	hlist_add_head_rcu(&ssk->sk.sk_node, &raw_sockets);
+	sk_add_node_rcu(&ssk->sk, &raw_sockets);
 	spin_unlock(&raw_sockets_lock);
 }
 
@@ -113,22 +119,11 @@ static int syscom_raw_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 
-	sock_hold(sk);
-
 	spin_lock(&raw_sockets_lock);
 	sk_del_node_init_rcu(sk);
 	spin_unlock(&raw_sockets_lock);
-	synchronize_rcu();
 
-	sk->sk_state_change(sk);
-
-	sock_orphan(sk);
-	skb_queue_purge(&sk->sk_receive_queue);
-
-	syscom_sock_update_stats(syscom_sk(sk));
-	syscom_sock_dump_sndbuf(syscom_sk(sk));
-
-	sock_put(sk);
+	syscom_release(syscom_sk(sk));
 
 	return 0;
 }
@@ -139,13 +134,17 @@ static int syscom_raw_recvmsg(struct socket *sock,
 {
 	struct syscom_hdr *hdr;
 	struct sk_buff *skb;
-	int off = 0, peeked, err;
+	int off = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+	int peeked;
+#endif
+	int err;
 	int len;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	skb = __skb_recv_datagram(sock->sk, flags, &peeked, &off, &err);
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 	skb = __skb_recv_datagram(sock->sk, flags, NULL, &peeked, &off, &err);
+#else
+	skb = __skb_recv_datagram(sock->sk, flags, NULL, &off, &err);
 #endif
 	if (!skb) {
 		trace_syscom_sk_recv_err(syscom_sk(sock->sk), NULL, err);
@@ -185,26 +184,22 @@ static int syscom_raw_sendmsg(struct socket *sock,
 }
 
 /** poll callback for SYSCOM raw sockets. */
-static unsigned int syscom_raw_poll(struct file *file, struct socket *sock,
+static __poll_t syscom_raw_poll(struct file *file, struct socket *sock,
 		poll_table *wait)
 {
 	struct sock *sk = sock->sk;
-	unsigned int mask = 0;
+	__poll_t mask = 0;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0))
-	sock_poll_wait(file, sk_sleep(sk), wait);
-#else
 	sock_poll_wait(file, sock, wait);
-#endif
 
 	if (sk->sk_err || !skb_queue_empty(&sk->sk_error_queue))
-		mask |= POLLERR;
+		mask |= EPOLLERR;
 	if (!skb_queue_empty(&sk->sk_receive_queue))
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 	if (sk->sk_shutdown & RCV_SHUTDOWN)
-		mask |= POLLRDHUP | POLLIN | POLLRDNORM;
+		mask |= EPOLLRDHUP | EPOLLIN | EPOLLRDNORM;
 	if (sk->sk_shutdown == SHUTDOWN_MASK)
-		mask |= POLLHUP;
+		mask |= EPOLLHUP;
 
 	return mask;
 }

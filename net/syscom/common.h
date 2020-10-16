@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -66,7 +67,7 @@ static inline int syscom_send_rtn(struct syscom_sock *ssk, int rtn, int size)
 	return size;
 }
 
-void syscom_sock_update_stats(struct syscom_sock *ssk);
+void syscom_release(struct syscom_sock *ssk);
 
 #ifdef CONFIG_CPU_BIG_ENDIAN
 static inline void syscom_addr_to_be(struct sockaddr *addr, int addrsize) { }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -27,6 +28,7 @@
 #include <linux/netdevice.h>
 #include <linux/if_syscom_ether.h>
 #include <linux/highmem.h>
+#include <linux/types.h>
 
 #include "route.h"
 #include "raw.h"
@@ -34,14 +36,17 @@
 
 /* Route tables ********************************************************/
 
-/** Dummy structure to prevent dereferencing */
-struct syscom_route_entry_dummy;
+/**
+ * Route table entry is a pointer with least significant 2 bits used to indicate
+ * the pointer type. We can do that, because we know the pointer is always
+ * aligned and these bits are thus zero in the address. We need to be sure the
+ * route entry will not get dereferenced by mistake, we assure that by making it
+ * __private.
+ */
+typedef void __private *syscom_route_entry;
 
 /** RCU protected route table entry */
-typedef struct syscom_route_entry_dummy __rcu *syscom_route_entry_rcu;
-
-/** Route table entry */
-typedef struct syscom_route_entry_dummy *syscom_route_entry;
+typedef void __rcu *syscom_route_entry_rcu;
 
 /** 256-ary tree node */
 typedef syscom_route_entry_rcu syscom_route_node[256];
@@ -53,7 +58,7 @@ static syscom_route_node syscom_route_root;
  * We need the cast to workaround inability of GCC to compile
  *   typeof(*incomplete_ptr) *ptr
  * which is used by RCU macros */
-#define syscom_route_node_line(node, line) (*(void * __rcu *)&(*node)[line])
+#define syscom_route_node_line(node, line) ((*node)[line])
 
 /** List of routes based on their mask length, RCU protected. */
 static struct hlist_head route[17];
@@ -89,16 +94,18 @@ enum {
 #define SYSCOM_TYPE_BUG_ON(cond)
 #endif
 
-static __always_inline syscom_route_entry tlp(const syscom_route_node *t,
+static __always_inline syscom_route_entry tlp(syscom_route_node *t,
 		int line)
 {
-	return rcu_dereference_protected(syscom_route_node_line(t, line),
+	return (syscom_route_entry)rcu_dereference_protected(
+			syscom_route_node_line(t, line),
 			lockdep_is_held(&route_lock));
 }
 
-static __always_inline syscom_route_entry tl(const syscom_route_node *t, int line)
+static __always_inline syscom_route_entry tl(syscom_route_node *t, int line)
 {
-	return rcu_dereference_check(syscom_route_node_line(t, line),
+	return (syscom_route_entry)rcu_dereference_check(
+			syscom_route_node_line(t, line),
 			lockdep_is_held(&route_lock));
 }
 
@@ -110,20 +117,20 @@ static __always_inline void tlu(syscom_route_node *t, int line,
 
 static __always_inline int to_TYPE(const syscom_route_entry ptr)
 {
-	SYSCOM_TYPE_BUG_ON(ptr != 0 && ((long)ptr & 3L) == 0);
-	return (int)(long)ptr & 3L;
+	SYSCOM_TYPE_BUG_ON(ptr != NULL && ((__force long)ptr & 3L) == 0);
+	return (int)(__force long)ptr & 3L;
 }
 
-static __always_inline syscom_route_entry to_ROUTE(const struct syscom_route_record *r)
+static __always_inline syscom_route_entry to_ROUTE(struct syscom_route_record *r)
 {
 	SYSCOM_TYPE_BUG_ON((long)r & 3L);
-	return ((void*)((long)(r) | ROUTE));
+	return ((syscom_route_entry)((long)(r) | ROUTE));
 }
 
-static __always_inline syscom_route_entry to_NODE(const syscom_route_node *t)
+static __always_inline syscom_route_entry to_NODE(syscom_route_node *t)
 {
 	SYSCOM_TYPE_BUG_ON((long)t & 3L);
-	return ((void*)((long)(t) | NODE));
+	return ((syscom_route_entry)((long)(t) | NODE));
 }
 
 static __always_inline struct syscom_route_record *to_PTR_ROUTE(
@@ -142,13 +149,13 @@ static __always_inline syscom_route_node *to_PTR_NODE(const syscom_route_entry p
 static void syscom_route_tree_optimize(void);
 
 /** Remove route from the routing tree */
-static void syscom_route_tree_del(const struct syscom_route_record *r)
+static void syscom_route_tree_del(struct syscom_route_record *r)
 {
 	const uint8_t idx1 = syscom_node_index(r->dst_nid, 0);
 	const uint8_t idx2 = syscom_node_index(r->dst_nid, 1);
 	const int i_max = syscom_mask_iter(r->dst_nid_mask, 0);
 	const int j_max = syscom_mask_iter(r->dst_nid_mask, 1);
-	const syscom_route_entry match = to_ROUTE(r);
+	syscom_route_entry match = to_ROUTE(r);
 	int i, j;
 
 	for (i = 0; i < i_max; i++) {
@@ -171,12 +178,12 @@ static void syscom_route_tree_del(const struct syscom_route_record *r)
 }
 
 static int syscom_route_tree_add(syscom_route_node *node, int level,
-		const struct syscom_route_record *r, bool replace_slow);
+		struct syscom_route_record *r, bool replace_slow);
 
 /** Either add the entry or allocate a new node and recurse */
 static int syscom_route_tree_modify(syscom_route_node *node, int level,
-		int index, const struct syscom_route_record *r,
-		const syscom_route_entry initial_value,
+		int index, struct syscom_route_record *r,
+		syscom_route_entry initial_value,
 		const bool replace_slow)
 {
 	if (level == 0 && syscom_node_index(r->dst_nid_mask, 1)) {
@@ -190,7 +197,7 @@ static int syscom_route_tree_modify(syscom_route_node *node, int level,
 		atomic_inc(&syscom_stats.route_tree_nodes);
 
 		for (i = 0; i < ARRAY_SIZE(*t); i++) {
-			(*t)[i] = initial_value;
+			tlu(t, i, initial_value);
 		}
 
 		syscom_route_tree_add(t, level + 1, r, replace_slow);
@@ -204,7 +211,7 @@ static int syscom_route_tree_modify(syscom_route_node *node, int level,
 
 /** Add entry to the route tree */
 static int syscom_route_tree_add(syscom_route_node *node, int level,
-		const struct syscom_route_record *r, bool replace_slow)
+		struct syscom_route_record *r, bool replace_slow)
 {
 	const uint8_t idx = syscom_node_index(r->dst_nid, level);
 	const int i_max = syscom_mask_iter(r->dst_nid_mask, level);
@@ -577,15 +584,19 @@ void syscom_route_destroy(void)
  * @return -errno value, which can be forwarded to the user, or NET_XMIT_SUCCESS
  *         if the message is successfully routed or NET_XMIT_DROP if it's dropped
  */
-static int syscom_route_deliver(struct syscom_delivery *d, __be16 nid,
-		bool remote_delivery)
+static int syscom_route_deliver(struct syscom_delivery *d,
+		const struct syscom_hdr *hdr, bool remote_delivery)
 {
 	struct syscom_route_record *r;
+	unsigned long end;
 	mm_segment_t seg;
 	int rtn;
 
+	trace_syscom_route_deliver_start(hdr, d);
+	end = jiffies + syscom_delivery_get_timeout(d);
+
 again:	rcu_read_lock();
-	r = syscom_route_lookup(nid);
+	r = syscom_route_lookup(hdr->dst.nid);
 	if (unlikely(!r)) {
 		rtn = -ENETUNREACH;
 		goto err;
@@ -620,8 +631,17 @@ again:	rcu_read_lock();
 		atomic_long_add(d->msg_size, &r->send_bytes);
 	} else if (rtn == -EUNATCH) {
 		// Route has changed during the delivery, repeat
-		// TODO: Update timeout
-		goto again;
+		if (syscom_delivery_get_timeout(d) == MAX_SCHEDULE_TIMEOUT) {
+			goto again;
+		} else {
+			unsigned long now = jiffies;
+			if (time_before(now, end)) {
+				syscom_delivery_set_timeout(d, end - now);
+				goto again;
+			} else {
+				rtn = -EAGAIN;
+			}
+		}
 	} else if (rtn == -EINPROGRESS) {
 		rtn = 0;
 	} else if (rtn != -EAGAIN) {
@@ -630,9 +650,11 @@ again:	rcu_read_lock();
 	if (d->raw_skb) {
 		syscom_raw_queue_skb(d->raw_skb, d->gfp_mask, rtn);
 	}
+	trace_syscom_route_deliver_done(hdr, rtn);
 	return rtn;
 
 err:	rcu_read_unlock();
+	trace_syscom_route_deliver_done(hdr, rtn);
 	return rtn;
 }
 
@@ -662,9 +684,7 @@ int syscom_route_deliver_buf(void *buf, size_t size, long timeo)
 	forward = READ_ONCE(syscom_forward) && hdr->ttl < 0x7;
 	if (forward) hdr->ttl += 1;
 
-	trace_syscom_route_deliver_start(hdr, &dbuf.super);
-	rtn = syscom_route_deliver(&dbuf.super, hdr->dst.nid, forward);
-	trace_syscom_route_deliver_done(rtn);
+	rtn = syscom_route_deliver(&dbuf.super, hdr, forward);
 
 	hdr->ttl = ttl;
 
@@ -715,9 +735,7 @@ int syscom_route_deliver_msg(struct syscom_sock *src,
 	dmsg.hdr.length = htons(size);
 	dmsg.hdr.flags = dgram_hdr.flags;
 
-	trace_syscom_route_deliver_start(&dmsg.hdr, &dmsg.super);
-	rtn = syscom_route_deliver(&dmsg.super, nid, 1);
-	trace_syscom_route_deliver_done(rtn);
+	rtn = syscom_route_deliver(&dmsg.super, &dmsg.hdr, 1);
 
 	return rtn;
 }
@@ -759,9 +777,7 @@ int syscom_route_deliver_rawmsg(struct syscom_sock *src, struct msghdr *msg,
 	dmsg.super.ordered = dmsg.hdr.ordered;
 	dmsg.super.reliable = !(dmsg.hdr.flags & htons(SYSCOM_HDR_FLAG_UNRELIABLE));
 
-	trace_syscom_route_deliver_start(&dmsg.hdr, &dmsg.super);
-	rtn = syscom_route_deliver(&dmsg.super, dmsg.hdr.dst.nid, 1);
-	trace_syscom_route_deliver_done(rtn);
+	rtn = syscom_route_deliver(&dmsg.super, &dmsg.hdr, 1);
 
 	return rtn;
 }
@@ -777,16 +793,14 @@ int _syscom_route_deliver_skb(struct sk_buff *skb, long timeo, gfp_t gfp_mask,
 			.ops = &syscom_delivery_skb_ops,
 		}
 	};
-	struct syscom_hdr *hdr = (struct syscom_hdr *)skb->data;
+	struct syscom_hdr hdr = *(struct syscom_hdr *)skb->data;
 	int rtn, j;
 
-	dskb.super.msg_size = ntohs(hdr->length);
-	dskb.super.ordered = hdr->ordered;
-	dskb.super.reliable = !(hdr->flags & htons(SYSCOM_HDR_FLAG_UNRELIABLE));
+	dskb.super.msg_size = ntohs(hdr.length);
+	dskb.super.ordered = hdr.ordered;
+	dskb.super.reliable = !(hdr.flags & htons(SYSCOM_HDR_FLAG_UNRELIABLE));
 
-	trace_syscom_route_deliver_start(hdr, &dskb.super);
-	rtn = syscom_route_deliver(&dskb.super, hdr->dst.nid, forward);
-	trace_syscom_route_deliver_done(rtn);
+	rtn = syscom_route_deliver(&dskb.super, &hdr, forward);
 
 	if (dskb.mapped) {
 		BUG_ON(!dskb.skb);
@@ -824,6 +838,7 @@ int syscom_route_deliver_skb(struct sk_buff *skb)
 			ntohs(hdr->length) > skb->len)) {
 		syscom_delivery_error_skb(-EBADMSG, hdr, skb,
 				skb->dev ? netdev_name(skb->dev) : NULL);
+		kfree_skb(skb);
 		return -EBADMSG;
 	}
 
@@ -836,10 +851,11 @@ int syscom_route_deliver_skb(struct sk_buff *skb)
 /* Proc FS (content of /proc/net/syscom_route) *************************/
 
 /** Get the next syscom_route_record for the specified iterator */
-static struct syscom_route_record *route_next(struct syscom_route_iter_state *iter)
+static struct syscom_route_record *route_next(
+		struct syscom_route_iter_state *iter) __must_hold(rcu)
 {
 	if (iter->node) {
-		iter->node = hlist_next_rcu(iter->node);
+		iter->node = rcu_dereference(hlist_next_rcu(iter->node));
 		if (iter->node) {
 			return hlist_entry_safe(rcu_dereference_raw(iter->node),
 					struct syscom_route_record, hlist);
@@ -847,7 +863,7 @@ static struct syscom_route_record *route_next(struct syscom_route_iter_state *it
 	}
 
 	for (iter->idx--; iter->idx >= 0; iter->idx--) {
-		iter->node = hlist_first_rcu(&route[iter->idx]);
+		iter->node = rcu_dereference(hlist_first_rcu(&route[iter->idx]));
 		if (iter->node) {
 			return hlist_entry_safe(rcu_dereference_raw(iter->node),
 					struct syscom_route_record, hlist);
@@ -881,13 +897,6 @@ void syscom_route_record_iterate(
 
 #ifdef CONFIG_PROC_FS
 
-const struct seq_operations syscom_route_seq_ops = {
-	.start  = syscom_route_seq_start,
-	.next   = syscom_route_seq_next,
-	.stop   = syscom_route_seq_stop,
-	.show   = syscom_route_seq_show,
-};
-
 /** Get the route record at the specified offset */
 static struct syscom_route_record *route_idx(struct seq_file *seq, loff_t pos)
 {
@@ -905,14 +914,14 @@ static struct syscom_route_record *route_idx(struct seq_file *seq, loff_t pos)
 }
 
 /** Start callback of seq_file to dump the route table  */
-void *syscom_route_seq_start(struct seq_file *seq, loff_t *pos)
+static void *syscom_route_seq_start(struct seq_file *seq, loff_t *pos) __acquires(rcu)
 {
 	rcu_read_lock();
 	return *pos ? route_idx(seq, *pos - 1) : SEQ_START_TOKEN;
 }
 
 /** Next callback of seq_file to dump the route table  */
-void *syscom_route_seq_next(struct seq_file *seq, void *v, loff_t *pos)
+static void *syscom_route_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {
 	struct syscom_route_iter_state *iter = seq->private;
 
@@ -921,13 +930,13 @@ void *syscom_route_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 }
 
 /** Stop callback of seq_file to dump the route table  */
-void syscom_route_seq_stop(struct seq_file *seq, void *v)
+static void syscom_route_seq_stop(struct seq_file *seq, void *v) __releases(rcu)
 {
 	rcu_read_unlock();
 }
 
 /** Show callback of seq_file to dump the route table  */
-int syscom_route_seq_show(struct seq_file *seq, void *v)
+static int syscom_route_seq_show(struct seq_file *seq, void *v)
 {
 	struct syscom_route_record *r = v;
 
@@ -948,13 +957,11 @@ int syscom_route_seq_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0))
-/** Open sequential file for inspection of the route table */
-int syscom_route_seq_open(struct inode *inode, struct file *file)
-{
-	return seq_open_net(inode, file, &syscom_route_seq_ops,
-			    sizeof(struct syscom_route_iter_state));
-}
-#endif
+const struct seq_operations syscom_route_seq_ops = {
+	.start  = syscom_route_seq_start,
+	.next   = syscom_route_seq_next,
+	.stop   = syscom_route_seq_stop,
+	.show   = syscom_route_seq_show,
+};
 
 #endif

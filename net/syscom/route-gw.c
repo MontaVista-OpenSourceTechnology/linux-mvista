@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -18,6 +19,7 @@
 
 #include <asm/atomic.h>
 
+#include "route-gw.h"
 #include "route.h"
 #include "gw.h"
 
@@ -97,7 +99,7 @@ static void syscom_route_record_gw_seq_show(
 
 /** Deliver the message over a socket. */
 static int syscom_route_record_gw_deliver(const struct syscom_route_record *r,
-		struct syscom_delivery *d)
+		struct syscom_delivery *d) __releases(rcu)
 {
 	const struct syscom_route_record_gw *self = syscom_route_record_gw(r);
 	struct syscom_gw *gw;
@@ -110,8 +112,8 @@ static int syscom_route_record_gw_deliver(const struct syscom_route_record *r,
 found:		gw = rcu_pointer_handoff(gw);
 		rcu_read_unlock();
 
-		if (unlikely((d->ordered && gw->flag.reject_ordered) ||
-				(d->reliable && gw->flag.reject_reliable))) {
+		if (unlikely((d->ordered && syscom_gw_test_bit(gw, REJECT_ORDERED)) ||
+				(d->reliable && syscom_gw_test_bit(gw, REJECT_RELIABLE)))) {
 			syscom_gw_put(gw);
 			return -EMEDIUMTYPE;
 		}
@@ -217,7 +219,7 @@ int syscom_route_record_gw_add(__be16 dst_nid, uint8_t dst_nid_len,
 		self->nogw = NOGW_DESTROY;
 	}
 
-	strncpy(self->gw_name, gw_name, sizeof self->gw_name);
+	strbcpy(self->gw_name, gw_name, sizeof self->gw_name);
 
 	syscom_gw_lock();
 	gw = syscom_gw_lookup(gw_name);

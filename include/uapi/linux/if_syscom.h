@@ -43,6 +43,9 @@
 #define SYSCOM_SO_ADDR_CPID    7
 /** Controls what delivery notifications should be queued to the error queue */
 #define SYSCOM_SO_TX_REPORT    8
+/** Weakly bound socket unbinds itself if normal socket binds the same address */
+#define SYSCOM_SO_WEAK_BIND    9
+
 
 /** Flags for SYSCOM_SO_TX_REPORT */
 enum {

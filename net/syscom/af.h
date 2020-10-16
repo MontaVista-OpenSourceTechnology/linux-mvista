@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -36,8 +37,12 @@
 /** Maximum length of a syscom message */
 #define SYSCOM_MAX_MSGSIZE 65535
 
+/** Copy a string, emit warning when it doesn't fit */
+#define strbcpy(dest, src, count) WARN_ON(-E2BIG == strscpy(dest, src, count))
+
 extern int syscom_forward;
 extern int syscom_trace_sndbuf_skbs;
+extern int syscom_gw_rx_timestamping;
 extern unsigned syscom_route_queue_bytes;
 
 /** Socket states for sk_state */
@@ -48,6 +53,10 @@ enum syscom_sock_states {
 	SYSCOM_BOUND,
 	/** Socket is connected */
 	SYSCOM_CONNECTED,
+	/** Weak socket which lost its address */
+	SYSCOM_ROBBED,
+	/** Bind was attempted, but failed. We do not autobind these sockets */
+	SYSCOM_BIND_FAILED,
 };
 
 
@@ -88,6 +97,12 @@ struct syscom_sock {
 	wait_queue_head_t loopback_waiters;
 	/** Next socket with the same local address (for SO_REUSEADDR) */
 	struct syscom_sock __rcu *next;
+	/** Used to queue on unhashed list, using default sk_node would
+	 *  require an additional rcu_synchronize call during bind */
+	struct hlist_node unhashed;
+	/** Used to queue on unhashed list, using default sk_node would
+	 *  require an additional rcu_synchronize call during "robbing" */
+	struct hlist_node robbed;
 	/** Queue for OOB traffic */
 	struct sk_buff_head sk_oob_queue;
 	/** Socket flags */
@@ -106,11 +121,9 @@ struct syscom_sock {
 	struct list_head skb_snd_list;
 	/** Protects skb_snd_list */
 	spinlock_t skb_snd_list_lock;
-	/** RCU header used for socket cleanup */
-	struct rcu_head rcu;
 };
 
-int syscom_sock_add(struct syscom_sock *sk);
+int syscom_sock_add(struct syscom_sock *sk, bool ignore_weak);
 
 void syscom_sock_remove(struct syscom_sock *sk);
 
@@ -120,10 +133,6 @@ int syscom_queue_rcv_skb(struct sk_buff *skb, long timeo, bool bp);
 
 typedef struct sk_buff *(*syscom_skb_alloc)(unsigned header_len,
 		unsigned data_len, int *errcode, void *arg);
-
-int __syscom_skb_from_iter(struct iov_iter *iter, int headroom,
-		int mtu, const struct syscom_hdr *hdr, struct sock *sk,
-		struct sk_buff **skb, bool noblock, bool fragment);
 
 void _syscom_delivery_error(int rtn, void *hdrp, struct sk_buff *skb,
 		const char *where, const char *file, int line);
@@ -145,6 +154,7 @@ enum syscom_sock_flags {
 	SYSCOM_BACKPRESSURE,
 	SYSCOM_RECV_FULLHDR,
 	SYSCOM_SEND_FULLHDR,
+	SYSCOM_WEAK_BIND,
 };
 
 static inline void ssk_set_flag(struct syscom_sock *ssk, enum syscom_sock_flags flag)
@@ -200,12 +210,20 @@ struct syscom_stats_s {
 	 * reason then one of these listed */
 	atomic_t deliver_other_errors;
 
-	/** Number of dropped outgoing messages among all destroyed gateways */
+	/** Sum of dropped outgoing messages among all destroyed gateways */
 	atomic_t gw_tx_drops;
-	/** Number of dropped incoming messages among all destroyed gateways */
+	/** Sum of dropped incoming messages among all destroyed gateways */
 	atomic_t gw_rx_drops;
-	/** Number of errors among all destroyed gateways */
+	/** Sum of errors among all destroyed gateways */
 	atomic_t gw_errors;
+	/** Sum of ready_would_block among all destroyed gateways */
+	atomic_t gw_ready_would_block;
+	/** Maximum RX SW latency among destroyed gateways */
+	atomic_long_t gw_rx_sw_us;
+	/** Maximum RX HW latency among destroyed gateways */
+	atomic_long_t gw_rx_hw_us;
+	/** Maximum RX delivery latency among destroyed gateways */
+	atomic_long_t gw_rx_dl_us;
 
 	atomic_t notify_errors;
 };
@@ -222,5 +240,33 @@ extern struct syscom_stats_s syscom_stats;
 /** Size difference between raw and DGRAM headers */
 #define SYSCOM_DGRAM_RAW_HDR_DELTA \
 	(sizeof(struct syscom_hdr) - sizeof(struct syscom_dgram_hdr))
+
+/** Update max value tracking stat */
+static inline int _syscom_max_update(long v, atomic_long_t *max)
+{
+	long m = atomic_long_read(max);
+	int updated = 0;
+
+	while (unlikely(v > m)) {
+		m = v;
+		v = atomic_long_xchg(max, v);
+		updated = 1;
+	}
+
+	return updated;
+}
+
+/** Update max value tracking stat */
+static inline void syscom_max_update(atomic_long_t *val, atomic_long_t *max)
+{
+	long v = atomic_long_read(val);
+	_syscom_max_update(v, max);
+}
+
+/** Update latency tracing atomic */
+#define syscom_latency_update(max, start, end, trace, ...) do { \
+		long delta = (long)ktime_to_us(ktime_sub((end), (start))); \
+		if (_syscom_max_update(delta, max)) trace(__VA_ARGS__, delta); \
+	} while (0)
 
 #endif // SYSCOM_AF_H

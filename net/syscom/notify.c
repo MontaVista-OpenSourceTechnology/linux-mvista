@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SYSCOM protocol stack for the Linux kernel
  * Author: Petr Malat
@@ -58,41 +59,41 @@ static void syscom_notify_send(int msg_id, void *buf, size_t size,
 
 void syscom_notify_gw_rename(const char *oldname, const char *newname)
 {
-	struct syscom_notify_msg_gw_added_s addmsg = { 0 };
-	struct syscom_notify_msg_gw_removed_s rmmsg = { 0 };
+	struct syscom_notify_msg_gw_added_s addmsg = {{ 0 }};
+	struct syscom_notify_msg_gw_removed_s rmmsg = {{ 0 }};
 
-	strncpy(addmsg.name, newname, sizeof addmsg.name);
-	strncpy(addmsg.old_name, oldname, sizeof addmsg.old_name);
+	strbcpy(addmsg.name, newname, sizeof addmsg.name);
+	strbcpy(addmsg.old_name, oldname, sizeof addmsg.old_name);
 	addmsg.flags = htonl(SYSCOM_NOTIFY_MSG_GW_ADDED_FLAGS_RENAME);
-	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_ADDED, &addmsg, sizeof addmsg, 0, 0);
+	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_ADDED, &addmsg, sizeof addmsg, NULL, 0);
 
-	strncpy(rmmsg.name, oldname, sizeof rmmsg.name);
-	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_REMOVED, &rmmsg, sizeof rmmsg, 0, 0);
+	strbcpy(rmmsg.name, oldname, sizeof rmmsg.name);
+	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_REMOVED, &rmmsg, sizeof rmmsg, NULL, 0);
 }
 
 void syscom_notify_gw_add(const char *name, bool accepted)
 {
-	struct syscom_notify_msg_gw_added_s msg = { 0 };
+	struct syscom_notify_msg_gw_added_s msg = {{ 0 }};
 
-	strncpy(msg.name, name, sizeof msg.name);
+	strbcpy(msg.name, name, sizeof msg.name);
 	msg.flags = htonl(accepted ? SYSCOM_NOTIFY_MSG_GW_ADDED_FLAGS_ACCEPT : 0);
-	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_ADDED, &msg, sizeof msg, 0, 0);
+	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_ADDED, &msg, sizeof msg, NULL, 0);
 }
 
 void syscom_notify_gw_remove(const char *name, int reason)
 {
 	struct syscom_notify_msg_gw_removed_s msg = { .reason = htonl(reason) };
 
-	strncpy(msg.name, name, sizeof msg.name);
-	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_REMOVED, &msg, sizeof msg, 0, 0);
+	strbcpy(msg.name, name, sizeof msg.name);
+	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_REMOVED, &msg, sizeof msg, NULL, 0);
 }
 
 void syscom_notify_gw_bind(const char *name, struct sockaddr *addr,
 		int addrcnt, int addrsize)
 {
-	struct syscom_notify_msg_gw_bound_s msg = { .addrcnt = ntohs(addrcnt) };
+	struct syscom_notify_msg_gw_bound_s msg = { .addrcnt = htons(addrcnt) };
 
-	strncpy(msg.name, name, sizeof msg.name);
+	strbcpy(msg.name, name, sizeof msg.name);
 	syscom_addr_to_be(addr, addrsize);
 	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_BOUND, &msg, sizeof msg,
 			addr, addrsize);
@@ -101,9 +102,9 @@ void syscom_notify_gw_bind(const char *name, struct sockaddr *addr,
 void syscom_notify_gw_connect(const char *name, bool accepted, struct sockaddr *addr,
 		int addrcnt, int addrsize)
 {
-	struct syscom_notify_msg_gw_connected_s msg = { .addrcnt = ntohs(addrcnt) };
+	struct syscom_notify_msg_gw_connected_s msg = { .addrcnt = htons(addrcnt) };
 
-	strncpy(msg.name, name, sizeof msg.name);
+	strbcpy(msg.name, name, sizeof msg.name);
 	syscom_addr_to_be(addr, addrsize);
 	syscom_notify_send(SYSCOM_NOTIFY_MSG_ID_GW_CONNECTED, &msg, sizeof msg,
 			addr, addrsize);
@@ -115,7 +116,7 @@ int syscom_notify_init(void)
 		.sun_family = AF_SYSCOM,
 		.cpid = htons(SOCKADDR_SYSCOM_CPID_NOTIFY),
 	};
-	struct sock_filter code[] = {{6}};
+	struct sock_filter __user code[] = {{6}};
 	struct sock_fprog bpf = { .len = 1, .filter = code };
 	int rtn, one = 1;
 
