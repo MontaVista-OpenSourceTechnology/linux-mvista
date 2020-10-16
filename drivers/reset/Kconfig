@@ -170,6 +170,12 @@ config RESET_ZYNQ
 	help
 	  This enables the reset controller driver for Xilinx Zynq SoCs.
 
+config RESET_AGIB
+	tristate "AGIB FSP Reset Driver"
+	depends on ARCH_KEYSTONE
+	help
+	  This enables the reset controller driver for AGIB SoCs.
+
 source "drivers/reset/sti/Kconfig"
 source "drivers/reset/hisilicon/Kconfig"
 source "drivers/reset/tegra/Kconfig"
