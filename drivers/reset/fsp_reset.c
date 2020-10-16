@@ -15,6 +15,8 @@
 #include <asm/cacheflush.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
+#include <linux/sched/signal.h>
+#include <linux/sched/task.h>
 #include <fsmddg_fpga-master.h>
 #include <fsmddg_slave_sup.h>
 
