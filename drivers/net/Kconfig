@@ -264,6 +264,11 @@ config NTB_NETDEV
 	tristate "Virtual Ethernet over NTB Transport"
 	depends on NTB_TRANSPORT
 
+config RIOPROXY 
+	tristate "Proxy RIO device"
+	help
+		Proxy RIO device to workaround AXM CPU bug
+
 config RIONET
 	tristate "RapidIO Ethernet over messaging driver support"
 	depends on RAPIDIO

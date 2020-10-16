@@ -364,6 +364,12 @@ source "net/strparser/Kconfig"
 config FIB_RULES
 	bool
 
+config AGIB_SYSCOM 
+	tristate "AGIB SRIO Driver"
+	depends on ARCH_KEYSTONE
+	help
+		AGIB SRIO Based Protocol Driver
+
 menuconfig WIRELESS
 	bool "Wireless"
 	depends on !S390
