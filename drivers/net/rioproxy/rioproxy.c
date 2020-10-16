@@ -23,7 +23,7 @@
 #include <linux/rtnetlink.h>
 #include <linux/netdevice.h>
 #include <linux/if_syscom_ether.h>
-#include <linux/if_rio.h>
+#include <uapi/linux/if_rio.h>
 #include <linux/if_arp.h>
 #include <linux/hash.h>
 #include <net/syscom.h>
