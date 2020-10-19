@@ -1775,6 +1775,20 @@ static void put_sprint_buf(int id, unsigned long flags)
 	local_irq_restore(flags);
 }
 
+int printk_delay_msec __read_mostly;
+
+static inline void printk_delay(void)
+{
+	if (unlikely(printk_delay_msec)) {
+		int m = printk_delay_msec;
+
+		while (m--) {
+			mdelay(1);
+			touch_nmi_watchdog();
+		}
+	}
+}
+
 /*
  * Special console_lock variants that help to reduce the risk of soft-lockups.
  * They allow to pass console_lock to another printk() call using a busy wait.
@@ -1959,20 +1973,6 @@ static void call_console_drivers(const char *ext_text, size_t ext_len,
 	}
 }
 
-int printk_delay_msec __read_mostly;
-
-static inline void printk_delay(void)
-{
-	if (unlikely(printk_delay_msec)) {
-		int m = printk_delay_msec;
-
-		while (m--) {
-			mdelay(1);
-			touch_nmi_watchdog();
-		}
-	}
-}
-
 static inline u32 printk_caller_id(void)
 {
 	return in_task() ? task_pid_nr(current) :
@@ -2143,17 +2143,17 @@ asmlinkage int vprintk_emit(int facility, int level,
 }
 EXPORT_SYMBOL(vprintk_emit);
 
-asmlinkage int vprintk(const char *fmt, va_list args)
-{
-	return vprintk_func(fmt, args);
-}
-EXPORT_SYMBOL(vprintk);
-
 int vprintk_default(const char *fmt, va_list args)
 {
 	return vprintk_emit(0, LOGLEVEL_DEFAULT, NULL, fmt, args);
 }
 EXPORT_SYMBOL_GPL(vprintk_default);
+
+asmlinkage int vprintk(const char *fmt, va_list args)
+{
+	return vprintk_func(fmt, args);
+}
+EXPORT_SYMBOL(vprintk);
 
 /**
  * printk - print a kernel message
