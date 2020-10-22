@@ -96,6 +96,8 @@
 		};
 };
 
+/omit-if-no-ref/ &clkgem0;
+
 &usb_phy {
 	status = "okay";
 };
