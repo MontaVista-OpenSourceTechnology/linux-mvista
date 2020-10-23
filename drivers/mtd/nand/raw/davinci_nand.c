@@ -23,6 +23,15 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifdef CONFIG_MACH_AGIB
+/*
+* AGIB board : spin lock replaced by a mutex. The mutex is
+* locked/unlocked in select_chip function so as to take into account
+* multi-chipselect management by this driver.
+*/
+#define AGIB_MULTI_CHIPSELECT 1
+#endif
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -71,8 +80,12 @@ struct davinci_nand_info {
 	struct davinci_aemif_timing	*timing;
 };
 
+#ifdef AGIB_MULTI_CHIPSELECT
+static DEFINE_MUTEX(davinci_nand_lock);
+#else
 static DEFINE_SPINLOCK(davinci_nand_lock);
 static bool ecc4_busy;
+#endif
 
 static inline struct davinci_nand_info *to_davinci_nand(struct mtd_info *mtd)
 {
@@ -122,6 +135,19 @@ static void nand_davinci_select_chip(struct mtd_info *mtd, int chip)
 {
 	struct davinci_nand_info	*info = to_davinci_nand(mtd);
 
+#ifdef AGIB_MULTI_CHIPSELECT
+       /* Manage mutex */
+       if ( chip != -1 ) {
+               /* Select new chip : acquire the mutex until the chip is deselected */
+               if ( !in_interrupt() && !oops_in_progress )
+                       mutex_lock(&davinci_nand_lock);
+       }
+       else {
+               /* Chip is deselected : release the mutex */
+               if ( !in_interrupt() && !oops_in_progress )
+                       mutex_unlock(&davinci_nand_lock);
+       }
+#endif
 	info->current_cs = info->vaddr;
 
 	/* maybe kick in a second chipselect */
@@ -150,21 +176,25 @@ static void nand_davinci_hwctl_1bit(struct mtd_info *mtd, int mode)
 {
 	struct davinci_nand_info *info;
 	uint32_t nandcfr;
+#if !AGIB_MULTI_CHIPSELECT
 	unsigned long flags;
-
+#endif
 	info = to_davinci_nand(mtd);
 
 	/* Reset ECC hardware */
 	nand_davinci_readecc_1bit(mtd);
 
+#if !AGIB_MULTI_CHIPSELECT
 	spin_lock_irqsave(&davinci_nand_lock, flags);
-
+#endif
 	/* Restart ECC hardware */
 	nandcfr = davinci_nand_readl(info, NANDFCR_OFFSET);
 	nandcfr |= BIT(8 + info->core_chipsel);
 	davinci_nand_writel(info, NANDFCR_OFFSET, nandcfr);
 
+#if !AGIB_MULTI_CHIPSELECT
 	spin_unlock_irqrestore(&davinci_nand_lock, flags);
+#endif
 }
 
 /*
@@ -234,13 +264,17 @@ static int nand_davinci_correct_1bit(struct mtd_info *mtd, u_char *dat,
 static void nand_davinci_hwctl_4bit(struct mtd_info *mtd, int mode)
 {
 	struct davinci_nand_info *info = to_davinci_nand(mtd);
+#if !AGIB_MULTI_CHIPSELECT
 	unsigned long flags;
+#endif
 	u32 val;
 
 	/* Reset ECC hardware */
 	davinci_nand_readl(info, NAND_4BIT_ECC1_OFFSET);
 
+#if !AGIB_MULTI_CHIPSELECT
 	spin_lock_irqsave(&davinci_nand_lock, flags);
+#endif
 
 	/* Start 4-bit ECC calculation for read/write */
 	val = davinci_nand_readl(info, NANDFCR_OFFSET);
@@ -250,7 +284,9 @@ static void nand_davinci_hwctl_4bit(struct mtd_info *mtd, int mode)
 
 	info->is_readmode = (mode == NAND_ECC_READ);
 
+#if !AGIB_MULTI_CHIPSELECT
 	spin_unlock_irqrestore(&davinci_nand_lock, flags);
+#endif
 }
 
 /* Read raw ECC code after writing to NAND. */
@@ -635,7 +671,7 @@ static int davinci_nand_attach_chip(struct nand_chip *chip)
 			 * No sanity checks:  CPUs must support this,
 			 * and the chips may not use NAND_BUSWIDTH_16.
 			 */
-
+#if !AGIB_MULTI_CHIPSELECT
 			/* No sharing 4-bit hardware between chipselects yet */
 			spin_lock_irq(&davinci_nand_lock);
 			if (ecc4_busy)
@@ -646,7 +682,7 @@ static int davinci_nand_attach_chip(struct nand_chip *chip)
 
 			if (ret == -EBUSY)
 				return ret;
-
+#endif
 			info->chip.ecc.calculate = nand_davinci_calculate_4bit;
 			info->chip.ecc.correct = nand_davinci_correct_4bit;
 			info->chip.ecc.hwctl = nand_davinci_hwctl_4bit;
@@ -796,14 +832,21 @@ static int nand_davinci_probe(struct platform_device *pdev)
 	/* Use board-specific ECC config */
 	info->chip.ecc.mode	= pdata->ecc_mode;
 
+#ifdef AGIB_MULTI_CHIPSELECT
+	mutex_lock(&davinci_nand_lock);
+#else
 	spin_lock_irq(&davinci_nand_lock);
-
+#endif
 	/* put CSxNAND into NAND mode */
 	val = davinci_nand_readl(info, NANDFCR_OFFSET);
 	val |= BIT(info->core_chipsel);
 	davinci_nand_writel(info, NANDFCR_OFFSET, val);
 
+#ifdef AGIB_MULTI_CHIPSELECT
+	mutex_unlock(&davinci_nand_lock);
+#else
 	spin_unlock_irq(&davinci_nand_lock);
+#endif
 
 	/* Scan to find existence of the device(s) */
 	info->chip.dummy_controller.ops = &davinci_nand_controller_ops;
@@ -836,11 +879,12 @@ static int nand_davinci_remove(struct platform_device *pdev)
 {
 	struct davinci_nand_info *info = platform_get_drvdata(pdev);
 
+#if !AGIB_MULTI_CHIPSELECT
 	spin_lock_irq(&davinci_nand_lock);
 	if (info->chip.ecc.mode == NAND_ECC_HW_SYNDROME)
 		ecc4_busy = false;
 	spin_unlock_irq(&davinci_nand_lock);
-
+#endif
 	nand_release(&info->chip);
 
 	return 0;
