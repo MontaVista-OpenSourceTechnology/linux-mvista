@@ -16,3 +16,6 @@ dtb-$(CONFIG_ARCH_MVEBU) += armada-8080-db.dtb
 dtb-$(CONFIG_ARCH_MVEBU) += cn9130-db.dtb
 dtb-$(CONFIG_ARCH_MVEBU) += cn9131-db.dtb
 dtb-$(CONFIG_ARCH_MVEBU) += cn9132-db.dtb
+dtb-$(CONFIG_ARCH_MVEBU) += cn9130-cex7.dtb
+dtb-$(CONFIG_ARCH_MVEBU) += cn9131-cex7.dtb
+dtb-$(CONFIG_ARCH_MVEBU) += cn9132-cex7.dtb
