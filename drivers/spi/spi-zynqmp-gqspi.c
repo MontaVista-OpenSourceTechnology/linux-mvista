@@ -576,7 +576,6 @@ static void zynqmp_qspi_fillgenfifo(struct zynqmp_qspi *xqspi, u8 nbits,
 		else
 			transfer_len = xqspi->bytes_to_receive;
 	} else {
-		/* Sending dummy circles here */
 		genfifoentry &= ~(GQSPI_GENFIFO_TX | GQSPI_GENFIFO_RX);
 		genfifoentry |= GQSPI_GENFIFO_DATA_XFER;
 		transfer_len = xqspi->bytes_to_transfer;
@@ -1002,13 +1001,14 @@ static int zynqmp_qspi_exec_op(struct spi_mem *mem,
 		xqspi->rxbuf = NULL;
 		/*
 		 * xqspi->bytes_to_transfer here represents the dummy circles
-		 * which need to be sent.
+		 * per data line.
 		 */
 		xqspi->bytes_to_transfer = op->dummy.nbytes * 8 / op->dummy.buswidth;
 		xqspi->bytes_to_receive = 0;
 		/*
-		 * Using op->data.buswidth instead of op->dummy.buswidth here because
-		 * we need to use it to configure the correct SPI mode.
+		 * Using op->data.buswidth instead of op->dummy.buswidth since
+		 * the specification requires that the dummy.buswidth should
+		 * be the same as data.buswidth.
 		 */
 		zynqmp_qspi_write_op(xqspi, op->data.buswidth,
 				     genfifoentry);
