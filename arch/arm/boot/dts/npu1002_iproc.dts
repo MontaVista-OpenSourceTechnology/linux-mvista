@@ -47,7 +47,7 @@
 	};
 
 	chosen {
-		bootargs = "ttyS1,115200n8 maxcpus=2 root=ubi0_0 ro rootfstype=ubifs user_debug=31 ubi.mtd=pbist_fs";
+		bootargs = "ttyS1,115200n8 noinitrd root=/dev/ram maxcpus=2 mem=496M ip=169.254.1.2:::255.255.255.0::eth1:off";
 	};
 };
 
@@ -72,8 +72,31 @@
 	serdes-handle = <&amac_serdes1>;
 };
 
+&usbphy0 {
+	status = "okay";
+	mdio-phy-handle = <&usb_phy>;
+};
+
+&ehci0 {
+	status = "okay";
+};
+
+&usbd {
+	status = "okay";
+};
+
 &gpio_cca {
 	status = "okay";
+};
+
+&pcie0 {
+	status = "okay";
+	mdio-phy-handle = <&pcie_phy0>;
+};
+
+&pcie1 {
+	status = "okay";
+	mdio-phy-handle = <&pcie_phy1>;
 };
 
 &i2c0 {
@@ -144,6 +167,31 @@
 
 &qspi {
 	status = "okay";
+		flash: m25p80@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "m25p80";
+		m25p,fast-read = <1>;
+		spi-max-frequency = <62500000>;
+		reg = <0x0>;
+		partition@0 {
+			label = "boot";
+			reg = <0x00000000 0x000c0000>;
+			/*read-only;*/
+		};
+		partition@1 {
+			label = "env";
+			reg = <0x000c0000 0x00040000>;
+		};
+		partition@2 {
+			label = "system";
+			reg = <0x00100000 0x00f00000>;
+		};
+		partition@3 {
+			label = "rootfs";
+			reg = <0x01000000 0x01000000>;
+		};
+	};
 };
 
 &mdio_int {
@@ -157,6 +205,9 @@
 	};
 	amac_serdes2: amac_serdes@2 {
 		reg = <3>;
+	};
+	usb_phy: usb_phy@0 {
+		reg = <6>;
 	};
 	pcie_phy0: pcie_phy@0 {
 		reg = <7>;
