@@ -435,6 +435,9 @@ static void xgs_serdes_init(struct phy_device *phy_dev)
 		data16 = IEEE0BLK_IEEECONTROL0_ENABLE_AN_MASK |
 				IEEE0BLK_IEEECONTROL0_RESTART_AN_MASK;
 #ifdef CONFIG_ML66_NPU_IPROC_PLATFORM
+        if ((phydev->mdio.addr == 2) && of_machine_is_compatible("ericsson,npu1002"))
+        data16 = 0;
+
 		/* Set Full-duplex */
 		data16 |= IEEE0BLK_IEEECONTROL0_FULL_DUPLEX;
 #endif
