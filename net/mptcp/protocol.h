@@ -214,9 +214,11 @@ struct mptcp_sock {
 	u64		rcv_data_fin_seq;
 	struct sock	*last_snd;
 	int		snd_burst;
+	int		old_wspace;
 	atomic64_t	snd_una;
 	unsigned long	timer_ival;
 	u32		token;
+	int		rmem_pending;
 	unsigned long	flags;
 	bool		can_ack;
 	bool		fully_established;
@@ -225,6 +227,7 @@ struct mptcp_sock {
 	bool		use_64bit_ack; /* Set when we received a 64-bit DSN */
 	bool		allow_infinite_fallback;
 	spinlock_t	join_list_lock;
+	struct sock	*ack_hint;
 	struct work_struct work;
 	struct sk_buff  *ooo_last_skb;
 	struct rb_root  out_of_order_queue;
@@ -250,6 +253,11 @@ struct mptcp_sock {
 static inline struct mptcp_sock *mptcp_sk(const struct sock *sk)
 {
 	return (struct mptcp_sock *)sk;
+}
+
+static inline int __mptcp_space(const struct sock *sk)
+{
+	return tcp_space(sk) + READ_ONCE(mptcp_sk(sk)->rmem_pending);
 }
 
 static inline struct mptcp_data_frag *mptcp_send_head(const struct sock *sk)
