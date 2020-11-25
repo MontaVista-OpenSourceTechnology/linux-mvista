@@ -115,6 +115,11 @@ struct nouveau_drm {
 
 	struct list_head clients;
 
+	/**
+	 * @clients_lock: Protects access to the @clients list of &struct nouveau_cli.
+	 */
+	struct mutex clients_lock;
+
 	struct {
 		struct agp_bridge_data *bridge;
 		u32 base;
