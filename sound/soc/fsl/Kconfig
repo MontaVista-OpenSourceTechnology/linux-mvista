@@ -415,6 +415,14 @@ config SND_SOC_IMX_AUDMIX
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  an Audio Mixer.
 
+config SND_SOC_IMX_XCVR
+	tristate "SoC Audio support for i.MX boards with XCVR"
+	select SND_SOC_FSL_XCVR
+	help
+	  SoC Audio support for i.MX boards with Audio Transceiver (XCVR)
+	  Say Y if you want to add support for SoC audio on an i.MX board with
+	  an Audio Transceiver (XCVR).
+
 config SND_SOC_IMX_PDM_MIC
 	tristate "SoC Audio support for i.MX boards with PDM mic on SAI"
 	depends on OF
@@ -425,13 +433,17 @@ config SND_SOC_IMX_PDM_MIC
 	  Say Y if you want to add support for SoC Audio support for i.MX boards
 	  with PDM microphones on SAI.
 
-config SND_SOC_IMX_XCVR
-	tristate "SoC Audio support for i.MX boards with XCVR"
-	select SND_SOC_FSL_XCVR
+config SND_SOC_IMX_PCM512X
+	tristate "SoC Audio support for i.MX boards with PCM512x"
+	depends on OF && I2C
+	select SND_SOC_PCM512x_I2C
+	select SND_SOC_IMX_PCM_DMA
+	select SND_SOC_FSL_SAI
+	select SND_SOC_FSL_UTILS
 	help
-	  SoC Audio support for i.MX boards with Audio Transceiver (XCVR)
+	  SoC Audio support for i.MX boards with pcm512x
 	  Say Y if you want to add support for SoC audio on an i.MX board with
-	  an Audio Transceiver (XCVR).
+	  an pcm512x codec.
 
 endif # SND_IMX_SOC
 
