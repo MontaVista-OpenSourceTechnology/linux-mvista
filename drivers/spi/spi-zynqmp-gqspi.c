@@ -819,10 +819,10 @@ static int zynqmp_qspi_read_op(struct zynqmp_qspi *xqspi, u8 rx_nbits,
 {
 	int ret;
 
+	zynqmp_qspi_fillgenfifo(xqspi, rx_nbits, genfifoentry);
 	ret = zynqmp_qspi_setuprxdma(xqspi);
 	if (ret)
 		return ret;
-	zynqmp_qspi_fillgenfifo(xqspi, rx_nbits, genfifoentry);
 
 	return 0;
 }
