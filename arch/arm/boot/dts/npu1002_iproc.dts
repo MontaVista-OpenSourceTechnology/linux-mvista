@@ -62,7 +62,6 @@
 
 &gmac0 {
 	status = "okay";
-	phy-handle = <&amac_phy0>;
 	phy-mode = "sgmii"; /* "gmii-id", "gmii-rxid", "sgmii" */
 	serdes-handle = <&amac_serdes0>;
 };
