@@ -784,7 +784,7 @@ static int ulite_probe(struct platform_device *pdev)
 		ret = uart_register_driver(&ulite_uart_driver);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "Failed to register driver\n");
-			return ret;
+			goto err_out_clk_disable;
 		}
 	}
 
@@ -792,6 +792,10 @@ static int ulite_probe(struct platform_device *pdev)
 
 	clk_disable(pdata->clk);
 
+	return ret;
+
+err_out_clk_disable:
+	clk_disable_unprepare(pdata->clk);
 	return ret;
 }
 
