@@ -281,7 +281,7 @@ static __init int parse_mem_property(struct device_node *node, const char *name,
 	if (!pint || (ret != 16)) {
 		pr_info("No %s property '%s', using memblock_alloc(%016zx)\n",
 				node->full_name, name, *sz);
-		*addr = memblock_alloc(*sz, *sz);
+		*addr = (unsigned long)memblock_alloc(*sz, *sz);
 		vaddr = (unsigned long)phys_to_virt(*addr);
 		if (zero)
 			memset((void *)vaddr, 0, *sz);
