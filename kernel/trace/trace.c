@@ -2601,7 +2601,7 @@ static unsigned short migration_disable_value(void)
 #endif
 }
 
-static unsigned int __tracing_gen_ctx_flags(unsigned long irqflags)
+unsigned int _tracing_gen_ctx_flags(unsigned long irqflags)
 {
 	unsigned int trace_flags = 0;
 	unsigned int pc;
@@ -2612,21 +2612,16 @@ static unsigned int __tracing_gen_ctx_flags(unsigned long irqflags)
 	if (irqs_disabled_flags(irqflags))
 		trace_flags |= TRACE_FLAG_IRQS_OFF;
 #else
-		trace_flags |= TRACE_FLAG_IRQS_NOSUPPORT;
+	trace_flags |= TRACE_FLAG_IRQS_NOSUPPORT;
 #endif
 
 	if (pc & NMI_MASK)
 		trace_flags |= TRACE_FLAG_NMI;
 	if (pc & HARDIRQ_MASK)
 		trace_flags |= TRACE_FLAG_HARDIRQ;
+	if (in_serving_softirq())
+		trace_flags |= TRACE_FLAG_SOFTIRQ;
 
-	if (IS_ENABLED(CONFIG_PREEMPT_RT)) {
-		if (in_serving_softirq())
-			trace_flags |= TRACE_FLAG_SOFTIRQ;
-	} else {
-		if (pc & SOFTIRQ_OFFSET)
-			trace_flags |= TRACE_FLAG_SOFTIRQ;
-	}
 	if (tif_need_resched())
 		trace_flags |= TRACE_FLAG_NEED_RESCHED;
 	if (test_preempt_need_resched())
@@ -2636,11 +2631,6 @@ static unsigned int __tracing_gen_ctx_flags(unsigned long irqflags)
 		(migration_disable_value() & 0xff) << 8 |
 		(preempt_lazy_count() & 0xff) << 16 |
 		(trace_flags << 24);
-}
-
-unsigned int _tracing_gen_ctx_flags(unsigned long irqflags)
-{
-	return __tracing_gen_ctx_flags(irqflags);
 }
 
 unsigned int tracing_gen_ctx_flags(void)
@@ -2904,7 +2894,7 @@ int tracepoint_printk_sysctl(struct ctl_table *table, int write,
 	return ret;
 }
 
-void trace_event_buffer_commit__(struct trace_event_buffer *fbuffer)
+void trace_event_buffer_commit(struct trace_event_buffer *fbuffer)
 {
 	if (static_key_false(&tracepoint_printk_key.key))
 		output_printk(fbuffer);
@@ -2915,7 +2905,7 @@ void trace_event_buffer_commit__(struct trace_event_buffer *fbuffer)
 				    fbuffer->event, fbuffer->entry,
 				    fbuffer->trace_ctx, fbuffer->regs);
 }
-EXPORT_SYMBOL_GPL(trace_event_buffer_commit__);
+EXPORT_SYMBOL_GPL(trace_event_buffer_commit);
 
 /*
  * Skip 3:
@@ -3107,12 +3097,8 @@ void __trace_stack(struct trace_array *tr, unsigned int trace_ctx,
  */
 void trace_dump_stack(int skip)
 {
-	unsigned long flags;
-
 	if (tracing_disabled || tracing_selftest_running)
 		return;
-
-	local_save_flags(flags);
 
 #ifndef CONFIG_UNWINDER_ORC
 	/* Skip 1 to skip this function. */
