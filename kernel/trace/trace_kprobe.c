@@ -1411,7 +1411,7 @@ __kprobe_trace_func(struct trace_kprobe *tk, struct pt_regs *regs,
 	entry->ip = (unsigned long)tk->rp.kp.addr;
 	store_trace_args(&entry[1], &tk->tp, regs, sizeof(*entry), dsize);
 
-	trace_event_buffer_commit__(&fbuffer);
+	trace_event_buffer_commit(&fbuffer);
 }
 
 static void
@@ -1458,7 +1458,7 @@ __kretprobe_trace_func(struct trace_kprobe *tk, struct kretprobe_instance *ri,
 	entry->ret_ip = (unsigned long)ri->ret_addr;
 	store_trace_args(&entry[1], &tk->tp, regs, sizeof(*entry), dsize);
 
-	trace_event_buffer_commit__(&fbuffer);
+	trace_event_buffer_commit(&fbuffer);
 }
 
 static void
