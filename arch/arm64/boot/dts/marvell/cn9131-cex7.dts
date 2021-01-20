@@ -19,7 +19,6 @@
 	};
 	cp1_reg_usb3_vbus0: cp1_usb3_vbus@0 {
 		compatible = "regulator-fixed";
-		pinctrl-names = "default";
 		regulator-name = "cp1-xhci0-vbus";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
@@ -27,16 +26,28 @@
 	};
 	cp1_usb3_0_phy0: cp1_usb3_phy0 {
 		compatible = "usb-nop-xceiv";
+		vcc-supply = <&cp1_reg_usb3_vbus0>;
 	};
-
-	cp1_sfp_eth0: sfp-eth0{
+	cp1_reg_usb3_vbus1: cp1_usb3_vbus@1 {
+		compatible = "regulator-fixed";
+		regulator-name = "cp1-xhci1-vbus";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		enable-active-high;
+	};
+	cp1_usb3_0_phy1: cp1_usb3_phy@1 {
+		compatible = "usb-nop-xceiv";
+		vcc-supply = <&cp1_reg_usb3_vbus1>;
+	};
+	cp1_sfp_eth0: sfp_eth0{
 		compatible = "sff,sfp";
 		i2c-bus = <&cp1_i2c1>;
 		mod-def0-gpio = <&cp1_gpio2 18  GPIO_ACTIVE_LOW>;
 		pinctrl-names = "default";
-		pinctrl-0 = <&cp1_sfp_pins>;
+		pinctrl-0 = <&cp1_sfp_present_pins>;
 		status = "okay";
 	};
+	
 };
 
 /* Instantiate the first slave CP115  */
@@ -70,9 +81,9 @@
 /* 5GE PHY0 */
 &cp1_eth0 {
 	status = "okay";
-	phy-mode = "10gbase-kr";
+	phy-mode = "55555gbase-r";
 	phys = <&cp1_comphy2 0>;
-	managed = "in-band-status";
+	phy = <&phy1>;
 	sfp = <&cp1_sfp_eth0>;
 };
 
@@ -84,11 +95,13 @@
 	status = "okay";
 };
 
-&cp1_i2c0 {
+&cp1_xmdio {
 	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&cp1_i2c0_pins>;
-	clock-frequency = <100000>;
+	pinctrl-0 = <&cp1_xmdio_pins>;
+	phy1: ethernet-phy@0 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <0>;
+	};
 };
 
 &cp1_i2c1 {
@@ -108,6 +121,7 @@
 		&cp1_comphy1 0>;
 };
 
+/* SATA 1 */
 &cp1_sata0 {
 	status = "okay";
 	sata-port@1 {
@@ -116,6 +130,7 @@
 	};
 };
 
+/* PCIE X1 WIFI0 */
 &cp1_pcie1 {
 	pinctrl-names = "default";
 	num-lanes = <1>;
@@ -124,6 +139,7 @@
 	phys = <&cp1_comphy4 1>;
 };
 
+/* PCIE X1 WIFI1 */
 &cp1_pcie2 {
 	pinctrl-names = "default";
 	num-lanes = <1>;
@@ -132,26 +148,34 @@
 	phys = <&cp1_comphy5 2>;
 };
 
+/* PIN Definition */
+
 &cp1_syscon0 {
 	cp1_pinctrl: pinctrl {
 		compatible = "marvell,cp115-standalone-pinctrl";
 
-		cp1_i2c0_pins: cp1-i2c-pins-0 {
-			marvell,pins = "mpp37", "mpp38";
-			marvell,function = "i2c0";
-		};
 		cp1_i2c1_pins: cp1-i2c-pins-1 {
 			marvell,pins = "mpp35", "mpp36";
 			marvell,function = "i2c1";
 		};
-		cp1_sfp_pins: sfp-pins {
+		cp1_xmdio_pins: cp1_xmdio_pins-0 {
+			marvell,pins = "mpp37", "mpp38";
+			marvell,function = "xg";
+		};
+		cp1_sfp_present_pins: cp1_sfp_present_pins-0 {
 			marvell,pins = "mpp50";
 			marvell,function = "gpio";
-		};
+                };
 	};
 };
 
-  &cp1_usb3_1 {
+&cp1_usb3_0 {
 	status = "okay";
+	sb-phy = <&cp1_usb3_0_phy0>;
 	phy-names = "usb";
+};
+&cp1_usb3_1 {
+        status = "okay";
+        usb-phy = <&cp1_usb3_0_phy1>;
+        phy-names = "usb";
 };

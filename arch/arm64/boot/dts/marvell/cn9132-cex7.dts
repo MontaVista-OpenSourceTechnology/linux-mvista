@@ -85,9 +85,9 @@
 /* 10GE Port */
 &cp2_eth0 {
 	status = "okay";
-	phy-mode = "10gbase-kr";
+	phy-mode = "5gbase-kr";
 	phys = <&cp2_comphy2 0>;
-	managed = "in-band-status";
+	phy = <&phy2>;
 	sfp = <&cp2_sfp_eth0>;
 };
 
@@ -99,19 +99,22 @@
 	status = "okay";
 };
 
-&cp2_i2c0 {
-	status = "okay";
-	pinctrl-names = "default";
-	pinctrl-0 = <&cp2_i2c0_pins>;
-	clock-frequency = <100000>;
-};
-
 &cp2_i2c1 {
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&cp2_i2c1_pins>;
 	clock-frequency = <100000>;
 };
+
+&cp2_xmdio {
+        status = "okay";
+        pinctrl-0 = <&cp2_xmdio_pins>;
+        phy2: ethernet-phy@0 {
+                compatible = "ethernet-phy-ieee802.3-c45";
+                reg = <0>;
+        };
+};
+
 
 /* PCIE0 X1 */
 &cp2_pcie0 {
@@ -149,9 +152,9 @@
 	cp2_pinctrl: pinctrl {
 		compatible = "marvell,cp115-standalone-pinctrl";
 
-		cp2_i2c0_pins: cp2-i2c-pins-0 {
+		cp2_xmdio_pins: cp2-xmdio-pins-0 {
 			marvell,pins = "mpp37", "mpp38";
-			marvell,function = "i2c0";
+			marvell,function = "xg";
 		};
 
 		cp2_i2c1_pins: cp2-i2c-pins-1 {
