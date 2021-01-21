@@ -718,7 +718,16 @@
 			reg = <0x110000 0x1000>;
 			interrupts = <0x35 0x2 0x0 0x0>;
 			fsl,espi-num-chipselects = <0x4>;
-		};
+
+			flash@0 {
+                                reg = <0>;
+                                compatible = "spansion,s25fl256s0", "jedec,spi-nor";
+                                spi-max-frequency = <4000000>;
+                                #address-cells = <1>;
+                                #size-cells = <1>;
+                        };
+
+                };
 
 		sdhc@114000 {
 			compatible = "fsl,t2080-esdhc", "fsl,esdhc";
