@@ -130,7 +130,6 @@
 &cp0_eth0 {
 	status = "okay";
 	phy-mode = "10gbase-kr";
-	vqmmc-supply = <&ap0_reg_sd_vccq>;
 	phys = <&cp0_comphy4 0>;
 	managed = "in-band-status";
 	sfp = <&cp0_sfp_eth0>;
@@ -338,7 +337,7 @@
 	pinctrl-0 = <&cp0_sdhci_pins
 			&cp0_sdhci_cd_pins>;
 	bus-width = <4>;
-	cd-gpios = <&cp0_gpio2 23 GPIO_ACTIVE_LOW>;
+	cd-gpios = <&cp0_gpio2 24 GPIO_ACTIVE_LOW>;
 	no-1-8-v;
 	vqmmc-supply = <&v_3_3>;
 	vmmc-supply = <&v_3_3>;
