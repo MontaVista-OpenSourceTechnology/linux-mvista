@@ -983,7 +983,7 @@ static int xhci_invalidate_cancelled_tds(struct xhci_virt_ep *ep)
  *     bit cleared) so that the HW will skip over them.
  */
 static void xhci_handle_cmd_stop_ep(struct xhci_hcd *xhci, int slot_id,
-		union xhci_trb *trb, struct xhci_event_cmd *event)
+		union xhci_trb *trb)
 {
 	unsigned int ep_index;
 	struct xhci_virt_ep *ep;
@@ -1401,7 +1401,7 @@ static void xhci_handle_cmd_disable_slot(struct xhci_hcd *xhci, int slot_id,
 }
 
 static void xhci_handle_cmd_config_ep(struct xhci_hcd *xhci, int slot_id,
-		struct xhci_event_cmd *event, u32 cmd_comp_code)
+		u32 cmd_comp_code)
 {
 	struct xhci_virt_device *virt_dev;
 	struct xhci_input_control_ctx *ctrl_ctx;
@@ -1467,8 +1467,7 @@ static void xhci_handle_cmd_addr_dev(struct xhci_hcd *xhci, int slot_id)
 	trace_xhci_handle_cmd_addr_dev(slot_ctx);
 }
 
-static void xhci_handle_cmd_reset_dev(struct xhci_hcd *xhci, int slot_id,
-		struct xhci_event_cmd *event)
+static void xhci_handle_cmd_reset_dev(struct xhci_hcd *xhci, int slot_id)
 {
 	struct xhci_virt_device *vdev;
 	struct xhci_slot_ctx *slot_ctx;
@@ -1641,8 +1640,7 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 		break;
 	case TRB_CONFIG_EP:
 		if (!cmd->completion)
-			xhci_handle_cmd_config_ep(xhci, slot_id, event,
-						  cmd_comp_code);
+			xhci_handle_cmd_config_ep(xhci, slot_id, cmd_comp_code);
 		break;
 	case TRB_EVAL_CONTEXT:
 		break;
@@ -1653,7 +1651,7 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 		WARN_ON(slot_id != TRB_TO_SLOT_ID(
 				le32_to_cpu(cmd_trb->generic.field[3])));
 		if (!cmd->completion)
-			xhci_handle_cmd_stop_ep(xhci, slot_id, cmd_trb, event);
+			xhci_handle_cmd_stop_ep(xhci, slot_id, cmd_trb);
 		break;
 	case TRB_SET_DEQ:
 		WARN_ON(slot_id != TRB_TO_SLOT_ID(
@@ -1676,7 +1674,7 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 		 */
 		slot_id = TRB_TO_SLOT_ID(
 				le32_to_cpu(cmd_trb->generic.field[3]));
-		xhci_handle_cmd_reset_dev(xhci, slot_id, event);
+		xhci_handle_cmd_reset_dev(xhci, slot_id);
 		break;
 	case TRB_NEC_GET_FW:
 		xhci_handle_cmd_nec_get_fw(xhci, event);
