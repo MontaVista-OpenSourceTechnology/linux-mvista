@@ -795,8 +795,10 @@ static int xhci_td_cleanup(struct xhci_hcd *xhci, struct xhci_td *td,
 		urb->actual_length = 0;
 		status = 0;
 	}
-	list_del_init(&td->td_list);
-	/* Was this TD slated to be cancelled but completed anyway? */
+	/* TD might be removed from td_list if we are giving back a cancelled URB */
+	if (!list_empty(&td->td_list))
+		list_del_init(&td->td_list);
+	/* Giving back a cancelled URB, or if a slated TD completed anyway */
 	if (!list_empty(&td->cancelled_td_list))
 		list_del_init(&td->cancelled_td_list);
 
@@ -813,7 +815,16 @@ static int xhci_td_cleanup(struct xhci_hcd *xhci, struct xhci_td *td,
 		/* set isoc urb status to 0 just as EHCI, UHCI, and OHCI */
 		if (usb_pipetype(urb->pipe) == PIPE_ISOCHRONOUS)
 			status = 0;
-		xhci_giveback_urb_in_irq(xhci, td, status);
+		if ((xhci->quirks & XHCI_STREAM_QUIRK) &&
+		    (ep_ring->stream_timeout_handler == true)) {
+			/* We get here if stream timer time-out and stop
+			 * command is issued. Send urb status as -EAGAIN
+			 * so that the same urb can be re-submitted.
+			 */
+			xhci_giveback_urb_in_irq(xhci, td, -EAGAIN);
+			ep_ring->stream_timeout_handler = false;
+		} else
+			xhci_giveback_urb_in_irq(xhci, td, status);
 	}
 
 	return 0;
@@ -995,27 +1006,11 @@ static void xhci_handle_cmd_stop_ep(struct xhci_hcd *xhci, int slot_id,
 				struct xhci_td, cancelled_td_list);
 		list_del_init(&cur_td->cancelled_td_list);
 
-		/* Clean up the cancelled URB */
 		/* Doesn't matter what we pass for status, since the core will
 		 * just overwrite it (because the URB has been unlinked).
 		 */
 		ep_ring = xhci_urb_to_transfer_ring(xhci, cur_td->urb);
-		xhci_unmap_td_bounce_buffer(xhci, ep_ring, cur_td);
-
-		inc_td_cnt(cur_td->urb);
-
-		if (last_td_in_urb(cur_td)) {
-			if ((xhci->quirks & XHCI_STREAM_QUIRK) &&
-				(ep_ring->stream_timeout_handler == true)) {
-				/* We get here if stream timer time-out and stop
-				 * command is issued. Send urb status as -EAGAIN
-				 * so that the same urb can be re-submitted.
-				 */
-				xhci_giveback_urb_in_irq(xhci, cur_td, -EAGAIN);
-				ep_ring->stream_timeout_handler = false;
-			} else
-				xhci_giveback_urb_in_irq(xhci, cur_td, 0);
-		}
+		xhci_td_cleanup(xhci, cur_td, ep_ring, 0);
 
 		/* Stop processing the cancelled list if the watchdog timer is
 		 * running.
