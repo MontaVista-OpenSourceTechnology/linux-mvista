@@ -165,6 +165,7 @@ void syscom_gw_unlock(void);
 
 int syscom_gw_add(const char *basename, char *genname,
 		int netid, int domain, int type, int protocol, int flags,
+		int dscp, int pri_802_1p,
 		struct sockaddr *addrs, int addrcnt, int addrsize);
 
 int syscom_gw_rename(const char *old_name, const char *new_name);

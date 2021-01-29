@@ -177,6 +177,7 @@ static int syscom_service_conf(void *buf, int len, struct msghdr *msghdr)
 			} ESAC
 			case syscom_service_msg_conf_op_id_gw_add: {
 				struct syscom_service_msg_conf_op_gw_add_s *op;
+				int dscp, pri_802_1p;
 				int addrcnt, addrsize;
 				void *storage;
 
@@ -185,6 +186,9 @@ static int syscom_service_conf(void *buf, int len, struct msghdr *msghdr)
 					rtn = -EINVAL;
 					break;
 				}
+
+				dscp = ntohl(op->req.reserved[0]) >> 16;
+				pri_802_1p = ntohl(op->req.reserved[0]) & 0xFFFF;
 
 				addrcnt = ntohs(op->req.addr_cnt);
 				addrsize = oplen - sizeof *op;
@@ -203,8 +207,9 @@ static int syscom_service_conf(void *buf, int len, struct msghdr *msghdr)
 				syscom_addr_from_be(storage, addrsize);
 				rtn = syscom_gw_add(op->req.name, op->rep.name, ntohl(op->req.net),
 						ntohl(op->req.domain), ntohl(op->req.type),
-						ntohl(op->req.protocol), ntohl(op->req.flags), storage,
-						addrcnt, addrsize);
+						ntohl(op->req.protocol), ntohl(op->req.flags),
+						dscp, pri_802_1p,
+						storage, addrcnt, addrsize);
 				if (storage != &op[1]) {
 					kfree(storage);
 				}

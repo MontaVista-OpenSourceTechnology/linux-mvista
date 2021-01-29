@@ -674,6 +674,7 @@ static struct syscom_gw *syscom_gw_alloc(void)
 
 int syscom_gw_add(const char *basename, char *genname,
 		int netid, int domain, int type, int protocol, int flags,
+		int dscp, int pri_802_1p,
 		struct sockaddr *addrs, int addrcnt, int addrsize)
 {
 	struct syscom_gw *gw;
@@ -723,6 +724,16 @@ int syscom_gw_add(const char *basename, char *genname,
 		goto err1;
 	}
 
+	if (dscp)
+	{
+		dscp <<= 2;
+		rtn = kernel_setsockopt(gw->sock, IPPROTO_IP, IP_TOS, (char*)&dscp, sizeof(dscp));
+	}
+
+	if (pri_802_1p)
+	{
+	rtn = kernel_setsockopt(gw->sock, SOL_SOCKET, SO_PRIORITY, (char*)&pri_802_1p, sizeof(pri_802_1p));
+	}
 
 	// Bind
 	if (addrcnt) {
@@ -2156,6 +2167,7 @@ static int syscom_gw_dgram_recv(struct syscom_gw *gw)
 			atomic_inc(&gw->err);
 			return recv;
 		}
+
 		if (unlikely(msg.msg_flags & MSG_NOTIFICATION)) {
 			rtn = syscom_gw_recv_notify(gw, vec.iov_base, recv);
 			if (rtn == -ENOTCONN && strchr(gw->name, SYSCOM_GW_DELIM)) {
