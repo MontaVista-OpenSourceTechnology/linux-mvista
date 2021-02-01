@@ -16,9 +16,6 @@ enum {
 	GOOD_STACK,
 };
 
-#include <linux/bitops.h>
-#include <asm/thread_info.h>
-
 #ifdef CONFIG_THREAD_INFO_IN_TASK
 /*
  * For CONFIG_THREAD_INFO_IN_TASK kernels we need <asm/current.h> for the
@@ -28,6 +25,9 @@ enum {
 #include <asm/current.h>
 #define current_thread_info() ((struct thread_info *)current)
 #endif
+
+#include <linux/bitops.h>
+#include <asm/thread_info.h>
 
 /*
  * flag set/clear/test wrappers
