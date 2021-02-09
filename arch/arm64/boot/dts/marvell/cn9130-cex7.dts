@@ -346,7 +346,8 @@
 &cp0_spi1 {
 	status = "okay";
 	pinctrl-names = "default";
-	pinctrl-0 = <&cp0_spi1_pins>;
+	pinctrl-0 = <&cp0_spi1_pins
+			&cp0_spi1_cs1_pins>;
 	reg = <0x700680 0x50>;
 	spi-flash@0 {
 		#address-cells = <0x1>;
@@ -361,7 +362,7 @@
 		compatible = "jedec,spi-nor";
 		reg = <0x1>;
 		/* On carrier MUX does not allow higher frequencies */
-		spi-max-frequency = <20000000>;
+		spi-max-frequency = <10000000>;
 	};
 };
 
@@ -399,9 +400,14 @@
 			marvell,function = "sdio";
 		};
 		cp0_spi1_pins: cp0-spi-pins-1 {
-			marvell,pins = "mpp13", "mpp14", "mpp15", "mpp16", "mpp12";
+			marvell,pins = "mpp13", "mpp14", "mpp15", "mpp16";
 			marvell,function = "spi1";
 		};
+		cp0_spi1_cs1_pins: cp0-spi-cs1-pins-1 {
+                        marvell,pins = "mpp12";
+                        marvell,function = "spi1";
+                };
+
 		cp0_sfp_present_pins: sfp-present-pins {
 			marvell,pins = "mpp24";
 			marvell,function = "gpio";
