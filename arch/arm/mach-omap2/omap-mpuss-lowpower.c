@@ -476,7 +476,7 @@ void __init omap4_mpuss_early_init(void)
 		ns_pa_addr = sar_base + OMAP5_CPU1_WAKEUP_NS_PA_ADDR_OFFSET;
 	old_cpu1_ns_pa_addr = readl_relaxed(ns_pa_addr);
 
-	if (soc_is_omap443x())
+	if (soc_is_omap443x() || soc_is_omap447x())
 		startup_pa = __pa_symbol(omap4_secondary_startup);
 	else if (soc_is_omap446x())
 		startup_pa = __pa_symbol(omap4460_secondary_startup);

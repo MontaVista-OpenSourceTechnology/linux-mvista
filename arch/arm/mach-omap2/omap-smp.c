@@ -355,8 +355,7 @@ static void __init omap4_smp_maybe_reset_cpu1(struct omap_smp_config *c)
 static void __init omap4_smp_prepare_cpus(unsigned int max_cpus)
 {
 	const struct omap_smp_config *c = NULL;
-
-	if (soc_is_omap443x())
+	if (soc_is_omap443x() || soc_is_omap447x())
 		c = &omap443x_cfg;
 	else if (soc_is_omap446x())
 		c = &omap446x_cfg;
