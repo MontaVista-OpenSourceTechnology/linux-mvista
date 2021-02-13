@@ -1368,7 +1368,7 @@ static void br_mc_router_state_change(struct net_bridge *p,
 		.u.mrouter = is_mc_router,
 	};
 
-	switchdev_port_attr_set(p->dev, &attr);
+	switchdev_port_attr_set(p->dev, &attr, NULL);
 }
 
 static void br_multicast_local_router_expired(struct timer_list *t)
@@ -1589,7 +1589,7 @@ static void br_mc_disabled_update(struct net_device *dev, bool value)
 		.u.mc_disabled = !value,
 	};
 
-	switchdev_port_attr_set(dev, &attr);
+	switchdev_port_attr_set(dev, &attr, NULL);
 }
 
 int br_multicast_add_port(struct net_bridge_port *port)
@@ -2563,7 +2563,7 @@ static void br_port_mc_router_state_change(struct net_bridge_port *p,
 		.u.mrouter = is_mc_router,
 	};
 
-	switchdev_port_attr_set(p->dev, &attr);
+	switchdev_port_attr_set(p->dev, &attr, NULL);
 }
 
 /*
