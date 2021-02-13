@@ -92,10 +92,11 @@ int br_switchdev_set_port_flag(struct net_bridge_port *p,
 	attr.flags = SWITCHDEV_F_DEFER;
 	attr.u.brport_flags = flags;
 
-	err = switchdev_port_attr_set(p->dev, &attr);
+	err = switchdev_port_attr_set(p->dev, &attr, extack);
 	if (err) {
-		br_warn(p->br, "error setting offload flag on port %u(%s)\n",
-			(unsigned int)p->port_no, p->dev->name);
+		if (extack && !extack->_msg)
+			br_warn(p->br, "error setting offload flag on port %u(%s)\n",
+				(unsigned int)p->port_no, p->dev->name);
 		return err;
 	}
 
