@@ -2664,7 +2664,7 @@ trace_recursive_lock(struct ring_buffer_per_cpu *cpu_buffer)
 		bit = pc & NMI_MASK ? RB_CTX_NMI :
 			pc & HARDIRQ_MASK ? RB_CTX_IRQ : RB_CTX_SOFTIRQ;
 
-	if (unlikely(val & (1 << (bit + cpu_buffer->nest))))
+	if (unlikely(val & (1 << (bit + cpu_buffer->nest)))) {
 		/*
 		 * It is possible that this was called by transitioning
 		 * between interrupt context, and preempt_count() has not
