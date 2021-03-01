@@ -361,8 +361,8 @@ static inline struct epitem *ep_item_from_wait(wait_queue_entry_t *p)
  *
  * @ep: Pointer to the eventpoll context.
  *
- * Returns: Returns a value different than zero if ready events are available,
- *          or zero otherwise.
+ * Return: a value different than %zero if ready events are available,
+ *          or %zero otherwise.
  */
 static inline int ep_events_available(struct eventpoll *ep)
 {
@@ -1011,7 +1011,7 @@ struct file *get_epoll_tfile_raw_ptr(struct file *file, int tfd,
 }
 #endif /* CONFIG_CHECKPOINT_RESTORE */
 
-/**
+/*
  * Adds a new entry to the tail of the list in a lockless way, i.e.
  * multiple CPUs are allowed to call this function concurrently.
  *
@@ -1023,10 +1023,10 @@ struct file *get_epoll_tfile_raw_ptr(struct file *file, int tfd,
  *         completed.
  *
  *        Also an element can be locklessly added to the list only in one
- *        direction i.e. either to the tail either to the head, otherwise
+ *        direction i.e. either to the tail or to the head, otherwise
  *        concurrent access will corrupt the list.
  *
- * Returns %false if element has been already added to the list, %true
+ * Return: %false if element has been already added to the list, %true
  * otherwise.
  */
 static inline bool list_add_tail_lockless(struct list_head *new,
@@ -1064,11 +1064,11 @@ static inline bool list_add_tail_lockless(struct list_head *new,
 	return true;
 }
 
-/**
+/*
  * Chains a new epi entry to the tail of the ep->ovflist in a lockless way,
  * i.e. multiple CPUs are allowed to call this function concurrently.
  *
- * Returns %false if epi element has been already chained, %true otherwise.
+ * Return: %false if epi element has been already chained, %true otherwise.
  */
 static inline bool chain_epi_lockless(struct epitem *epi)
 {
@@ -1093,8 +1093,8 @@ static inline bool chain_epi_lockless(struct epitem *epi)
  * mechanism. It is called by the stored file descriptors when they
  * have events to report.
  *
- * This callback takes a read lock in order not to content with concurrent
- * events from another file descriptors, thus all modifications to ->rdllist
+ * This callback takes a read lock in order not to contend with concurrent
+ * events from another file descriptor, thus all modifications to ->rdllist
  * or ->ovflist are lockless.  Read lock is paired with the write lock from
  * ep_scan_ready_list(), which stops all list modifications and guarantees
  * that lists state is seen correctly.
@@ -1326,8 +1326,8 @@ static int reverse_path_check_proc(struct hlist_head *refs, int depth)
  *                      paths such that we will spend all our time waking up
  *                      eventpoll objects.
  *
- * Returns: Returns zero if the proposed links don't create too many paths,
- *	    -1 otherwise.
+ * Return: %zero if the proposed links don't create too many paths,
+ *	    %-1 otherwise.
  */
 static int reverse_path_check(void)
 {
@@ -1726,7 +1726,7 @@ static int ep_autoremove_wake_function(struct wait_queue_entry *wq_entry,
 }
 
 /**
- * ep_poll - Retrieves ready events, and delivers them to the caller supplied
+ * ep_poll - Retrieves ready events, and delivers them to the caller-supplied
  *           event buffer.
  *
  * @ep: Pointer to the eventpoll context.
@@ -1739,7 +1739,7 @@ static int ep_autoremove_wake_function(struct wait_queue_entry *wq_entry,
  *           until at least one event has been retrieved (or an error
  *           occurred).
  *
- * Returns: Returns the number of ready events which have been fetched, or an
+ * Return: the number of ready events which have been fetched, or an
  *          error code, in case of error.
  */
 static int ep_poll(struct eventpoll *ep, struct epoll_event __user *events,
@@ -1887,15 +1887,15 @@ send_events:
 
 /**
  * ep_loop_check_proc - verify that adding an epoll file inside another
- *                      epoll structure, does not violate the constraints, in
+ *                      epoll structure does not violate the constraints, in
  *                      terms of closed loops, or too deep chains (which can
  *                      result in excessive stack usage).
  *
- * @priv: Pointer to the epoll file to be currently checked.
+ * @ep: the &struct eventpoll to be currently checked.
  * @depth: Current depth of the path being checked.
  *
- * Returns: Returns zero if adding the epoll @file inside current epoll
- *          structure @ep does not violate the constraints, or -1 otherwise.
+ * Return: %zero if adding the epoll @file inside current epoll
+ *          structure @ep does not violate the constraints, or %-1 otherwise.
  */
 static int ep_loop_check_proc(struct eventpoll *ep, int depth)
 {
@@ -1937,14 +1937,14 @@ static int ep_loop_check_proc(struct eventpoll *ep, int depth)
 
 /**
  * ep_loop_check - Performs a check to verify that adding an epoll file (@to)
- *                 into another epoll file (represented by @from) does not create
+ *                 into another epoll file (represented by @ep) does not create
  *                 closed loops or too deep chains.
  *
- * @from: Pointer to the epoll we are inserting into.
+ * @ep: Pointer to the epoll we are inserting into.
  * @to: Pointer to the epoll to be inserted.
  *
- * Returns: Returns zero if adding the epoll @to inside the epoll @from
- * does not violate the constraints, or -1 otherwise.
+ * Return: %zero if adding the epoll @to inside the epoll @from
+ * does not violate the constraints, or %-1 otherwise.
  */
 static int ep_loop_check(struct eventpoll *ep, struct eventpoll *to)
 {
@@ -2092,8 +2092,8 @@ int do_epoll_ctl(int epfd, int op, int fd, struct epoll_event *epds,
 	ep = f.file->private_data;
 
 	/*
-	 * When we insert an epoll file descriptor, inside another epoll file
-	 * descriptor, there is the change of creating closed loops, which are
+	 * When we insert an epoll file descriptor inside another epoll file
+	 * descriptor, there is the chance of creating closed loops, which are
 	 * better be handled here, than in more critical paths. While we are
 	 * checking for loops we also determine the list of files reachable
 	 * and hang them on the tfile_check_list, so we can check that we
@@ -2130,7 +2130,7 @@ int do_epoll_ctl(int epfd, int op, int fd, struct epoll_event *epds,
 	}
 
 	/*
-	 * Try to lookup the file inside our RB tree, Since we grabbed "mtx"
+	 * Try to lookup the file inside our RB tree. Since we grabbed "mtx"
 	 * above, we can be sure to be able to use the item looked up by
 	 * ep_find() till we release the mutex.
 	 */
