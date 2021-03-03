@@ -443,15 +443,15 @@ void __init bootmem_init(void)
 	zone_sizes_init(min, max);
 
 	/*
-	 * Reserve the CMA area after arm64_dma_phys_limit was initialised.
-	 */
-	dma_contiguous_reserve(arm64_dma_phys_limit);
-
-	/*
 	 * request_standard_resources() depends on crashkernel's memory being
 	 * reserved, so do it here.
 	 */
 	reserve_crashkernel();
+
+	/*
+	 * Reserve the CMA area after arm64_dma_phys_limit was initialised.
+	 */
+	dma_contiguous_reserve(arm64_dma_phys_limit);
 
 	memblock_dump_all();
 }
