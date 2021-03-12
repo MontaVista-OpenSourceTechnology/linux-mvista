@@ -362,6 +362,7 @@ enum rsc_handling_status {
  * @start:	power on the device and boot it
  * @stop:	power off the device
  * @attach:	attach to a device that his already powered up
+ * @detach:	detach from a device, leaving it powered up
  * @kick:	kick a virtqueue (virtqueue id given as a parameter)
  * @peek_remote_kick: check if remote has kicked
  * @ack_remote_kick: ack remote kick
@@ -387,6 +388,7 @@ struct rproc_ops {
 	int (*start)(struct rproc *rproc);
 	int (*stop)(struct rproc *rproc);
 	int (*attach)(struct rproc *rproc);
+	int (*detach)(struct rproc *rproc);
 	void (*kick)(struct rproc *rproc, int vqid);
 	bool (*peek_remote_kick)(struct rproc *rproc, char *buf, size_t *len);
 	void (*ack_remote_kick)(struct rproc *rproc);
