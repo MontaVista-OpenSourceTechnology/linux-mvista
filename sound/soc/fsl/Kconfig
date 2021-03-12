@@ -473,15 +473,12 @@ config SND_SOC_IMX_AUDMIX
 
 config SND_SOC_IMX_RPMSG
 	tristate "SoC Audio support for i.MX boards with rpmsg"
-	depends on HAVE_IMX_RPMSG
+	depends on RPMSG
 	select SND_SOC_IMX_PCM_RPMSG
-	select SND_SOC_FSL_RPMSG_I2S
-	select SND_SOC_RPMSG_WM8960
-	select SND_SOC_RPMSG_AK4497
-	select SND_SOC_RPMSG_CS42XX8
+	select SND_SOC_IMX_AUDIO_RPMSG
 	help
 	  SoC Audio support for i.MX boards with rpmsg.
-	  There should be rpmsg devices defined in other core
+	  There should be rpmsg devices defined in other core (M core)
 	  Say Y if you want to add support for SoC audio on an i.MX board with
 	  a rpmsg devices.
 
