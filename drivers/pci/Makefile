@@ -57,3 +57,5 @@ ccflags-$(CONFIG_PCI_DEBUG) := -DDEBUG
 # PCI host controller drivers
 obj-y += host/
 obj-y += switch/
+
+obj-$(CONFIG_PEX8XXX_I2C) += pex8xxx_i2c.o
