@@ -910,6 +910,7 @@ void gic_send_sgi(unsigned int cpu_id, unsigned int irq)
 	/* this always happens on GIC0 */
 	writel_relaxed((cpu_id << 16) | irq, gic_data_dist_base(&gic_data[0]) + GIC_DIST_SOFTINT);
 }
+EXPORT_SYMBOL(gic_send_sgi);
 
 /*
  * gic_get_cpu_id - get the CPU interface ID for the specified CPU
@@ -1085,6 +1086,9 @@ static int gic_irq_domain_translate(struct irq_domain *d,
 			break;
 		case 1:			/* PPI */
 			*hwirq = fwspec->param[1] + 16;
+			break;
+		case 2:			/* SGI */
+			*hwirq = fwspec->param[1];
 			break;
 		default:
 			return -EINVAL;
