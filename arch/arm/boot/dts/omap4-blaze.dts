@@ -149,6 +149,40 @@
 			"Digital Mic", "Digital Mic1 Bias";
 	};
 
+	/* HS USB Port 1 Power */
+	hsusb1_power: hsusb1_power_reg {
+		compatible = "regulator-fixed";
+		regulator-name = "hsusb1_vbus";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpios = <&gpio6 12 GPIO_ACTIVE_HIGH>;	/* gpio_172 */
+		startup-delay-us = <70000>;
+		enable-active-high;
+		/*
+		 * boot-on is required along with always-on as the
+		 * regulator framework doesn't enable the regulator
+		 * if boot-on is not there.
+		 */
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	/* HS USB Host PHY on PORT 1 */
+	hsusb1_phy: hsusb1_phy {
+		compatible = "usb-nop-xceiv";
+		pinctrl-names = "default";
+		pinctrl-0 = <
+			&hsusbb1_phy_clk_pins
+			&hsusbb1_phy_rst_pins
+		>;
+		reset-gpios = <&gpio6 14 GPIO_ACTIVE_LOW>;   /* gpio_174 */
+		#phy-cells = <0>;
+		vcc-supply = <&hsusb1_power>;
+		clocks = <&auxclk3_ck>;
+		clock-names = "main_clk";
+		clock-frequency = <19200000>;
+	};
+
 	/* regulator for wl12xx on sdio5 */
 	wl12xx_vmmc: wl12xx_vmmc {
 		pinctrl-names = "default";
@@ -210,6 +244,8 @@
 	pinctrl-0 = <
 			&dss_hdmi_pins
 			&tpd12s015_pins
+			&hsusbb1_pins
+			&hsusbb1_hub_rst_pins
 	>;
 
 	uart2_pins: pinmux_uart2_pins {
@@ -364,6 +400,47 @@
 			 * it as a reset GPIO for ks8851.
 			 */
 			OMAP4_IOPAD(0x13a, PIN_OUTPUT_PULLUP | MUX_MODE3)	/* mcspi1_cs1.gpio_138 */
+		>;
+	};
+
+	hsusbb1_pins: pinmux_hsusbb1_pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x0c2, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_clk.usbb1_ulpiphy_clk */
+			OMAP4_IOPAD(0x0c4, PIN_OUTPUT 		  | MUX_MODE4)	/* usbb1_ulpitll_stp.usbb1_ulpiphy_stp */
+			OMAP4_IOPAD(0x0c6, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_dir.usbb1_ulpiphy_dir */
+			OMAP4_IOPAD(0x0c8, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_nxt.usbb1_ulpiphy_nxt */
+			OMAP4_IOPAD(0x0ca, (PIN_INPUT_PULLDOWN | MUX_MODE4) & ~WAKEUP_EN)	/* usbb1_ulpitll_dat0.usbb1_ulpiphy_dat0 */
+			OMAP4_IOPAD(0x0cc, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_dat1.usbb1_ulpiphy_dat1 */
+			OMAP4_IOPAD(0x0ce, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_dat2.usbb1_ulpiphy_dat2 */
+			OMAP4_IOPAD(0x0d0, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_dat3.usbb1_ulpiphy_dat3 */
+			OMAP4_IOPAD(0x0d2, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_dat4.usbb1_ulpiphy_dat4 */
+			OMAP4_IOPAD(0x0d4, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_dat5.usbb1_ulpiphy_dat5 */
+			OMAP4_IOPAD(0x0d6, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_dat6.usbb1_ulpiphy_dat6 */
+			OMAP4_IOPAD(0x0d8, PIN_INPUT_PULLDOWN | MUX_MODE4)	/* usbb1_ulpitll_dat7.usbb1_ulpiphy_dat7 */
+		>;
+	};
+
+	hsusbb1_phy_rst_pins: pinmux_hsusbb1_phy_rst_pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x182, PIN_OUTPUT | MUX_MODE3)		/* kpd_row2.gpio_174 */
+
+		>;
+	};
+
+	hsusbb1_phy_clk_pins: pinmux_hsusbb1_phy_clk_pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x17e, PIN_OUTPUT | MUX_MODE3) /*gpio 172*/
+		>;
+	};
+
+	hsusbb1_hub_rst_pins: pinmux_hsusbb1_hub_rst_pins {
+		pinctrl-single,pins = <
+			OMAP4_IOPAD(0x74, PIN_OUTPUT | MUX_MODE3)
+			OMAP4_IOPAD(0x76, PIN_OUTPUT | MUX_MODE3)
+			OMAP4_IOPAD(0x78, PIN_OUTPUT | MUX_MODE3)
+			OMAP4_IOPAD(0x86, PIN_OUTPUT | MUX_MODE3)
+			OMAP4_IOPAD(0x88, PIN_OUTPUT | MUX_MODE3)
+			OMAP4_IOPAD(0x8a, PIN_OUTPUT | MUX_MODE3)
 		>;
 	};
 };
@@ -645,6 +722,24 @@
 	interface-type = <1>;
 	mode = <3>;
 	power = <50>;
+};
+
+&usbhshost {
+	port1-mode = "ehci-phy";
+};
+
+&usbhsehci {
+	phys = <&hsusb1_phy>;
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	hub@1 {
+		compatible = "usb424,9514";
+		reg = <1>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+	};
 };
 
 &dss {
