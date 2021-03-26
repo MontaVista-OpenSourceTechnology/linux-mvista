@@ -1584,6 +1584,29 @@ int zynqmp_pm_secure_load(const u64 src_addr, u64 key_addr, u64 *dst)
 EXPORT_SYMBOL_GPL(zynqmp_pm_secure_load);
 
 /**
+ * zynqmp_pm_register_notifier() - PM API for register a subsystem
+ *                                to be notified about specific
+ *                                event/error.
+ * @node:	Node ID to which the event is related.
+ * @event:	Event ID for which subsystem wants to get notified.
+ * @wake:	Wake subsystem upon capturing the event if value 1
+ * @enable:	Enable the registration for value 1, disable for value 0
+ *
+ * This function is used to register/un-register for particular node-event
+ * combination in firmware.
+ *
+ * Return: Returns status, either success or error+reason
+ */
+
+int zynqmp_pm_register_notifier(const u32 node, const u32 event,
+				const u32 wake, const u32 enable)
+{
+	return zynqmp_pm_invoke_fn(PM_REGISTER_NOTIFIER, node, event,
+				   wake, enable, NULL);
+}
+EXPORT_SYMBOL_GPL(zynqmp_pm_register_notifier);
+
+/**
  * zynqmp_pm_system_shutdown - PM call to request a system shutdown or restart
  * @type:	Shutdown or restart? 0 for shutdown, 1 for restart
  * @subtype:	Specifies which system should be restarted or shut down
