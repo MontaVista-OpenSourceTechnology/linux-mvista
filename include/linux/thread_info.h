@@ -14,6 +14,7 @@
 #include <linux/thread_bits.h>
 
 #include <linux/bitops.h>
+#include <linux/errno.h>
 #include <asm/thread_info.h>
 
 #ifdef __KERNEL__
