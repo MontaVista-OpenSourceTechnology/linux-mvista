@@ -1,0 +1,6 @@
+&soc0 {
+	vgem {
+		compatible = "ab,tetra_vgem";
+		interrupts-extended = <&kirq0 8>, <&kirq1 8>, <&kirq2 8>, <&kirq3 8>;
+	};
+};

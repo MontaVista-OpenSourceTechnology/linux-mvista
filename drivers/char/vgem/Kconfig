@@ -1,0 +1,6 @@
+config AGIB_VGEM
+       tristate "AGIB VGEM Driver"
+       help
+         Handles ARM-A15 and C66X CorePacks IPC
+	 on Airbus TB4 AGIB board
+

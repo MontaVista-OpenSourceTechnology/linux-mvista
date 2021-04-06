@@ -140,6 +140,33 @@
 				#gpio-cells = <2>;
 				gpio,syscon-dev = <&devctrl 0x25c>;
 			};
+
+			kirq1: keystone_irq@2a4 {
+				compatible = "ti,keystone-irq";
+				reg = <0x2a4 0x4>;
+				interrupts = <GIC_SPI 5 IRQ_TYPE_EDGE_RISING>;
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				ti,syscon-dev = <&devctrl 0x2a4>;
+			};
+
+			kirq2: keystone_irq@2a8 {
+				compatible = "ti,keystone-irq";
+				reg = <0x2a8 0x4>;
+				interrupts = <GIC_SPI 6 IRQ_TYPE_EDGE_RISING>;
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				ti,syscon-dev = <&devctrl 0x2a8>;
+			};
+
+			kirq3: keystone_irq@2ac {
+				compatible = "ti,keystone-irq";
+				reg = <0x2ac 0x4>;
+				interrupts = <GIC_SPI 7 IRQ_TYPE_EDGE_RISING>;
+				interrupt-controller;
+				#interrupt-cells = <1>;
+				ti,syscon-dev = <&devctrl 0x2ac>;
+			};
 		};
 
 		mdio: mdio@2090300 {
