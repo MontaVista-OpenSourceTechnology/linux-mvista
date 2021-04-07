@@ -102,7 +102,8 @@ struct sk_psock {
 	void (*saved_unhash)(struct sock *sk);
 	void (*saved_close)(struct sock *sk, long timeout);
 	void (*saved_write_space)(struct sock *sk);
-	int  (*psock_update_sk_prot)(struct sock *sk, bool restore);
+	int  (*psock_update_sk_prot)(struct sock *sk, struct sk_psock *psock,
+				     bool restore);
 	struct proto			*sk_proto;
 	struct sk_psock_work_state	work_state;
 	struct work_struct		work;
@@ -362,7 +363,7 @@ static inline void sk_psock_restore_proto(struct sock *sk,
 					  struct sk_psock *psock)
 {
 	if (psock->psock_update_sk_prot)
-		psock->psock_update_sk_prot(sk, true);
+		psock->psock_update_sk_prot(sk, psock, true);
 }
 
 static inline void sk_psock_set_state(struct sk_psock *psock,
