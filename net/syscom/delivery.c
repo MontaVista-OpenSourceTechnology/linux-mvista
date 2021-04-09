@@ -530,16 +530,16 @@ void syscom_delivery_raw_from_skb(struct syscom_delivery *d,
 
 struct delivery_work_struct {
 	struct work_struct work;
-	struct sk_buff *skb;
 	const char *name;
 };
 
 static void syscom_delivery_worker(struct work_struct *work)
 {
-	struct delivery_work_struct *dw = (struct delivery_work_struct *)work;
-	int truesize = dw->skb->truesize;
+	struct delivery_work_struct *dw = container_of(work, typeof(*dw), work);
+	struct sk_buff *skb = container_of((typeof(&skb->cb))dw, typeof(*skb), cb);
+	int truesize = skb->truesize;
 
-	_syscom_route_deliver_skb(dw->skb, HZ/10, GFP_KERNEL,
+	_syscom_route_deliver_skb(skb, HZ/10, GFP_KERNEL,
 			syscom_forward, dw->name);
 
 	atomic_sub(truesize, &syscom_stats.route_queue_bytes);
@@ -549,24 +549,21 @@ struct work_struct *syscom_delivery_get_work(struct syscom_delivery *d,
 		const char *name)
 {
 	struct delivery_work_struct *dw;
+	struct sk_buff *skb;
 
 	if (syscom_route_queue_bytes <
 			atomic_read(&syscom_stats.route_queue_bytes)) {
 		return NULL;
 	}
 
-	dw = kmalloc(sizeof *dw, d->gfp_mask);
-	if (!dw) {
-		return NULL;
-	}
-
-	if (syscom_delivery_get_skb(d, &dw->skb, NULL, NULL, 0,
+	if (syscom_delivery_get_skb(d, &skb, NULL, NULL, 0,
 			SYSCOM_MAX_MSGSIZE)) {
-		kfree(dw);
 		return NULL;
 	}
+	dw = (struct delivery_work_struct *)skb->cb;
+	BUILD_BUG_ON(sizeof *dw > sizeof skb->cb);
 
-	atomic_add(dw->skb->truesize, &syscom_stats.route_queue_bytes);
+	atomic_add(skb->truesize, &syscom_stats.route_queue_bytes);
 
 	dw->name = name;
 	INIT_WORK(&dw->work, syscom_delivery_worker);
