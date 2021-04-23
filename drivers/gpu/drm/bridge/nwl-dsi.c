@@ -1220,15 +1220,6 @@ static int nwl_dsi_bridge_atomic_check(struct drm_bridge *bridge,
 		adjusted->flags |= (DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC);
 	}
 
-	/*
-	 * Do a full modeset if crtc_state->active is changed to be true.
-	 * This ensures our ->mode_set() is called to get the DSI controller
-	 * and the PHY ready to send DCS commands, when only the connector's
-	 * DPMS is brought out of "Off" status.
-	 */
-	if (crtc_state->active_changed && crtc_state->active)
-		crtc_state->mode_changed = true;
-
 	return 0;
 }
 
@@ -1279,6 +1270,13 @@ nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
 	/* Save the new desired phy config */
 	memcpy(&dsi->phy_cfg, &new_cfg, sizeof(new_cfg));
 
+static void
+nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
+				 struct drm_bridge_state *old_bridge_state)
+{
+	struct nwl_dsi *dsi = bridge_to_dsi(bridge);
+	int ret;
+
 	pm_runtime_get_sync(dev);
 
 	dsi->pdata->dpi_reset(dsi, true);
@@ -1321,13 +1319,6 @@ nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
 		DRM_DEV_ERROR(dev, "Failed to deassert DSI: %d\n", ret);
 		return;
 	}
-}
-
-static void
-nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
-				 struct drm_bridge_state *old_bridge_state)
-{
-	struct nwl_dsi *dsi = bridge_to_dsi(bridge);
 
 	/*
 	 * We need to force call enable for the panel here, in order to
