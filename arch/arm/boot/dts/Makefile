@@ -773,6 +773,7 @@ dtb-$(CONFIG_ARCH_OMAP4) += \
 	omap4-panda-es.dtb \
 	omap4-sdp.dtb \
 	omap4-blaze.dtb \
+	omap4-zebra.dtb \
 	omap4-sdp-es23plus.dtb \
 	omap4-var-dvk-om44.dtb \
 	omap4-var-stk-om44.dtb
