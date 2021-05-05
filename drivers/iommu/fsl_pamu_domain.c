@@ -885,6 +885,16 @@ static int configure_domain_dma_state(struct fsl_dma_domain *dma_domain, bool en
 	return 0;
 }
 
+static void dma_domain_init_windows(struct fsl_dma_domain *dma_domain)
+{
+	int i;
+
+	for (i = 0; i < dma_domain->win_cnt; i++) {
+		dma_domain->win_arr[i].stash_id = ~(u32)0;
+		dma_domain->win_arr[i].omi = ~(u32)0;
+	}
+}
+
 static int fsl_pamu_set_windows(struct iommu_domain *domain, u32 w_count)
 {
 	struct fsl_dma_domain *dma_domain = to_fsl_dma_domain(domain);
@@ -928,6 +938,7 @@ static int fsl_pamu_set_windows(struct iommu_domain *domain, u32 w_count)
 			return -ENOMEM;
 		}
 		dma_domain->win_cnt = w_count;
+		dma_domain_init_windows(dma_domain);
 	}
 	spin_unlock_irqrestore(&dma_domain->domain_lock, flags);
 
@@ -952,6 +963,7 @@ static int fsl_pamu_set_domain_attr(struct iommu_domain *domain,
 		break;
 	case DOMAIN_ATTR_WINDOWS:
 		ret = fsl_pamu_set_windows(domain, *(u32 *)data);
+		break;
 	case DOMAIN_ATTR_FSL_PAMU_OP_MAP:
 		ret = configure_domain_op_map(dma_domain, data);
 		break;
@@ -1141,16 +1153,6 @@ static void fsl_pamu_remove_device(struct device *dev)
 {
 	iommu_device_unlink(&pamu_iommu, dev);
 	iommu_group_remove_device(dev);
-}
-
-static void dma_domain_init_windows(struct fsl_dma_domain *dma_domain)
-{
-	int i;
-
-	for (i = 0; i < dma_domain->win_cnt; i++) {
-		dma_domain->win_arr[i].stash_id = ~(u32)0;
-		dma_domain->win_arr[i].omi = ~(u32)0;
-	}
 }
 
 static const struct iommu_ops fsl_pamu_ops = {
