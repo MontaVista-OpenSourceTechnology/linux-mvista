@@ -37,7 +37,7 @@ struct machdep_calls {
 #endif
 #endif /* CONFIG_PPC64 */
 
-	void		(*dma_set_mask)(struct device *dev, u64 dma_mask);
+	void		(*dma_set_mask)(struct device *dev, u64 *dma_mask);
 
 	int		(*probe)(void);
 	void		(*setup_arch)(void); /* Optional, may be NULL */

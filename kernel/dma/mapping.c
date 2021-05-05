@@ -360,7 +360,7 @@ int dma_supported(struct device *dev, u64 mask)
 EXPORT_SYMBOL(dma_supported);
 
 #ifdef CONFIG_ARCH_HAS_DMA_SET_MASK
-void arch_dma_set_mask(struct device *dev, u64 mask);
+void arch_dma_set_mask(struct device *dev, u64 *mask);
 #else
 #define arch_dma_set_mask(dev, mask)	do { } while (0)
 #endif
@@ -376,7 +376,7 @@ int dma_set_mask(struct device *dev, u64 mask)
 	if (!dev->dma_mask || !dma_supported(dev, mask))
 		return -EIO;
 
-	arch_dma_set_mask(dev, mask);
+	arch_dma_set_mask(dev, &mask);
 	*dev->dma_mask = mask;
 	return 0;
 }
