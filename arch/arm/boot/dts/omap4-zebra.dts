@@ -398,7 +398,7 @@
 	/* wl12xx GPIO inputs and SDIO pins */
 	wl12xx_pins: pinmux_wl12xx_pins {
 		pinctrl-single,pins = <
-			OMAP4_IOPAD(0x07a, PIN_INPUT | MUX_MODE3)		/* gpmc_ncs3.gpio_53 */
+			OMAP4_IOPAD(0x07a, PIN_INPUT | PIN_OFF_WAKEUPENABLE | MUX_MODE3)		/* gpmc_ncs3.gpio_53 */
 			OMAP4_IOPAD(0x148, PIN_INPUT_PULLUP | MUX_MODE0)	/* sdmmc5_clk.sdmmc5_clk */
 			OMAP4_IOPAD(0x14a, PIN_INPUT_PULLUP | MUX_MODE0)	/* sdmmc5_cmd.sdmmc5_cmd */
 			OMAP4_IOPAD(0x14c, PIN_INPUT_PULLUP | MUX_MODE0)	/* sdmmc5_dat0.sdmmc5_dat0 */
@@ -643,9 +643,9 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	wlcore: wlcore@2 {
-		compatible = "ti,wl1281";
+		compatible = "ti,wl1283";
 		reg = <2>;
-		interrupt-parent = <&gpio1>;
+		interrupt-parent = <&gpio2>;
 		interrupts = <21 IRQ_TYPE_LEVEL_HIGH>; /* gpio 53 */
 		ref-clock-frequency = <26000000>;
 		tcxo-clock-frequency = <26000000>;
