@@ -202,6 +202,7 @@ static void setup_pci_atmu(struct pci_controller *hose)
 	const u64 *reg;
 	int len;
 	bool setup_inbound;
+	const u32 *ranges;
 
 	/*
 	 * If this is kdump, we don't want to trigger a bunch of PCI
@@ -341,6 +342,32 @@ static void setup_pci_atmu(struct pci_controller *hose)
 		}
 	}
 
+	ranges = of_get_property(hose->dn, "dma-ranges", &len);
+	if (ranges) {
+		u64 dma_addr, paddr, size;
+		int naddr, nsize;
+
+		naddr = of_n_addr_cells(hose->dn);
+		nsize = of_n_size_cells(hose->dn);
+
+		len /= sizeof(u32);
+		if (len < 7) {
+			pr_warn("%pOF: Invalid dma-ranges size: %d\n",
+				hose->dn, len);
+			goto no_dma_range;
+		}
+
+		dma_addr = of_read_number(ranges + 1, naddr);
+		paddr = of_read_number(ranges + 3, naddr);
+		size = of_read_number(ranges + 5, naddr);
+
+		hose->dma_window_base_cur = paddr;
+		paddr_lo = size + 1;
+	} else {
+no_dma_range:
+		hose->dma_window_base_cur = 0x00000000;
+	}
+
 	sz = min(mem, paddr_lo);
 	mem_log = ilog2(sz);
 
@@ -364,7 +391,6 @@ static void setup_pci_atmu(struct pci_controller *hose)
 		}
 
 		win_idx--;
-		hose->dma_window_base_cur = 0x00000000;
 		hose->dma_window_size = (resource_size_t)sz;
 
 		/*
@@ -431,7 +457,6 @@ static void setup_pci_atmu(struct pci_controller *hose)
 			paddr += 1ull << mem_log;
 		}
 
-		hose->dma_window_base_cur = 0x00000000;
 		hose->dma_window_size = (resource_size_t)paddr;
 	}
 
