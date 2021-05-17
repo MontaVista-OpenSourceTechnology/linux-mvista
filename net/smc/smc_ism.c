@@ -301,11 +301,20 @@ EXPORT_SYMBOL_GPL(smcd_alloc_dev);
 
 int smcd_register_dev(struct smcd_dev *smcd)
 {
+	int rc;
+
 	mutex_lock(&smcd_dev_list.mutex);
 	list_add_tail(&smcd->list, &smcd_dev_list.list);
 	mutex_unlock(&smcd_dev_list.mutex);
 
-	return device_add(&smcd->dev);
+	rc = device_add(&smcd->dev);
+	if (rc) {
+		mutex_lock(&smcd_dev_list.mutex);
+		list_del(&smcd->list);
+		mutex_unlock(&smcd_dev_list.mutex);
+	}
+
+	return rc;
 }
 EXPORT_SYMBOL_GPL(smcd_register_dev);
 
