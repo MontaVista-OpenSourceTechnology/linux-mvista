@@ -31,6 +31,8 @@
  * @fw: the ELF firmware image
  *
  * Make sure this fw image is sane (ie a correct ELF32/ELF64 file).
+ *
+ * Return: 0 on success and -EINVAL upon any failure
  */
 int rproc_elf_sanity_check(struct rproc *rproc, const struct firmware *fw)
 {
@@ -117,11 +119,11 @@ EXPORT_SYMBOL(rproc_elf_sanity_check);
  * @rproc: the remote processor handle
  * @fw: the ELF firmware image
  *
- * This function returns the entry point address of the ELF
- * image.
- *
  * Note that the boot address is not a configurable property of all remote
  * processors. Some will always boot at a specific hard-coded address.
+ *
+ * Return: entry point address of the ELF image
+ *
  */
 u64 rproc_elf_get_boot_addr(struct rproc *rproc, const struct firmware *fw)
 {
@@ -168,6 +170,8 @@ static void rproc_elf_memset(struct rproc *rproc, void *s, int c, size_t count)
  * might be different: they might not have iommus, and would prefer to
  * directly allocate memory for every segment/resource. This is not yet
  * supported, though.
+ *
+ * Return: 0 on success and an appropriate error code otherwise
  */
 int rproc_elf_load_segments(struct rproc *rproc, const struct firmware *fw)
 {
@@ -369,7 +373,7 @@ EXPORT_SYMBOL(rproc_elf_load_rsc_table);
  * This function finds the location of the loaded resource table. Don't
  * call this function if the table wasn't loaded yet - it's a bug if you do.
  *
- * Returns the pointer to the resource table if it is found or NULL otherwise.
+ * Return: pointer to the resource table if it is found or NULL otherwise.
  * If the table wasn't loaded yet the result is unspecified.
  */
 struct resource_table *rproc_elf_find_loaded_rsc_table(struct rproc *rproc,
