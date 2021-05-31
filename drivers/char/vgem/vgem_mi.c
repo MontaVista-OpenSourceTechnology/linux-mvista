@@ -35,6 +35,7 @@
 
 /* IPCGRX register start address */
 #define IPC_GEN_REG_START	0x02620240
+#define IPCGR(n)		(4 * (n))
 
 #define MODULE_NAME		"vgem"
 
@@ -183,7 +184,7 @@ static ssize_t vgem_write(struct file *filp, const char __user *buf, size_t coun
 	gem_hdr = (struct gem_header *)&dev->msm->buffers[wbi].dm_buf[0];
 	if (gem_hdr->magic_word != 0x0) {
 		pr_err("%s Buffer NULL\n", __func__);
-		count = -BUSY;
+		count = -EBUSY;
 		goto end;
 	}
 
@@ -335,7 +336,7 @@ static int vgem_init(struct device *dev_parent)
 		}
 
 		if (i >= 4) {
-			vgem_devices[i].ipcgrx = ioremap(IPC_GEN_REG_START + i-4, 4);
+			vgem_devices[i].ipcgrx = ioremap(IPC_GEN_REG_START + IPCGR(i-4), 4);
 			if (!vgem_devices[i].ipcgrx) {
 				result = PTR_ERR(vgem_devices[i].ipcgrx);
 				goto x_err;
@@ -450,4 +451,3 @@ module_platform_driver(tetra_vgem_driver);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Isidro Gonzalez Cuxiart");
 MODULE_DESCRIPTION("TETRA vGEM driver");
-
