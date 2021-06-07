@@ -203,9 +203,15 @@
 			nand-on-flash-bbt;
 
 			partition@0 {
-				label = "save core dumps and kernel dumps";
-				reg = <0x0 0x40000000>; // The whole chip 1GB
+				label = "certificate storage";
+				reg = <0x0 0x6400000>; // 100MB
 			};
+
+			partition@1 {
+				label = "save core dumps and kernel dumps";
+				reg = <0x6400000 0x39C00000>; // 1GB - 100MB
+			};
+
 		};
 	};
 };
