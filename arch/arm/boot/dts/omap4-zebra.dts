@@ -274,6 +274,7 @@
 			&hsusbb1_pins
 			&hsusbb1_hub_rst_pins
 			&hsusbb2_pins
+			&hsusbb2_hub_rst_pins
 	>;
 
 	uart2_pins: pinmux_uart2_pins {
@@ -450,7 +451,7 @@
 
 	hsusbb1_phy_rst_pins: pinmux_hsusbb1_phy_rst_pins {
 		pinctrl-single,pins = <
-			OMAP4_IOPAD(0x182, PIN_OUTPUT | MUX_MODE3)		/* kpd_row2.gpio_174 */
+			OMAP4_IOPAD(0x182, PIN_OUTPUT_PULLUP | MUX_MODE3)		/* kpd_row2.gpio_174 */
 
 		>;
 	};
@@ -463,12 +464,10 @@
 
 	hsusbb1_hub_rst_pins: pinmux_hsusbb1_hub_rst_pins {
 		pinctrl-single,pins = <
-			OMAP4_IOPAD(0x74, PIN_OUTPUT | MUX_MODE3)
-			OMAP4_IOPAD(0x76, PIN_OUTPUT | MUX_MODE3)
-			OMAP4_IOPAD(0x78, PIN_OUTPUT | MUX_MODE3)
-			OMAP4_IOPAD(0x86, PIN_OUTPUT | MUX_MODE3)
-			OMAP4_IOPAD(0x88, PIN_OUTPUT | MUX_MODE3)
-			OMAP4_IOPAD(0x8a, PIN_OUTPUT | MUX_MODE3)
+			OMAP4_IOPAD(0x74, PIN_OUTPUT_PULLUP | MUX_MODE3) /* PWR2_EN gpio_50 */
+			OMAP4_IOPAD(0x76, PIN_OUTPUT_PULLUP | MUX_MODE3) /* PWR3_EN gpio_51 */
+			OMAP4_IOPAD(0x78, PIN_OUTPUT_PULLUP | MUX_MODE3) /* PWR4_EN gpio_52 */
+			OMAP4_IOPAD(0x86, PIN_OUTPUT_PULLUP | MUX_MODE3) /* PWR1_EN gpio_59 */
 		>;
 	};
 
@@ -491,13 +490,20 @@
 
 	hsusbb2_phy_rst_pins: pinmux_hsusbb2_phy_rst_pins {
 		pinctrl-single,pins = <
-			OMAP4_IOPAD(0x180, PIN_OUTPUT | MUX_MODE3)		/* kpd_row2.gpio_173 */
+			OMAP4_IOPAD(0x180, PIN_OUTPUT_PULLUP | MUX_MODE3)		/* kpd_row2.gpio_173 */
 		>;
 	};
 
 	hsusbb2_phy_clk_pins: pinmux_hsusbb2_phy_clk_pins {
 		pinctrl-single,pins = <
 			OMAP4_IOPAD(0x17c, PIN_OUTPUT | MUX_MODE3) /*gpio 171*/
+		>;
+	};
+
+	hsusbb2_hub_rst_pins: pinmux_hsusbb2_hub_rst_pins {
+		pinctrl-single,pins = <
+		OMAP4_IOPAD(0x88, PIN_OUTPUT_PULLUP | MUX_MODE3) /* PWR5_EN gpio_60 */
+		OMAP4_IOPAD(0x8a, PIN_OUTPUT_PULLUP | MUX_MODE3) /* PWR6_EN gpio_61 */
 		>;
 	};
 };
@@ -793,14 +799,14 @@
 	#size-cells = <0>;
 
 	hub@1 {
-		compatible = "usb424,9514";
+		compatible = "usb1a40,0101";
 		reg = <1>;
 		#address-cells = <1>;
 		#size-cells = <0>;
 	};
 
 	hub@2 {
-		compatible = "usb424,9514";
+		compatible = "usb1a40,0101";
 		reg = <2>;
 		#address-cells = <1>;
 		#size-cells = <0>;
