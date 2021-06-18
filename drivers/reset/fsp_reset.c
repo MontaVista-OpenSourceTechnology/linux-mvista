@@ -33,10 +33,6 @@
 #define PLL_RESET_WRITE_KEY		 0x5a69
 #define PLL_RESET			 BIT(16)
 
-static void __iomem *pmctl_reg;
-static void __iomem *stat_reg;
-static void __iomem *keystone_rstctrl;
-
 struct fsp_reset_data {
 	struct device *dev;
 	struct regmap *rm;
@@ -52,74 +48,7 @@ struct fsp_reset_match_data {
 	int (*init)(struct fsp_reset_data*);
 };
 
-static void enter_self_refresh_mode_immediately(void)
-{
-	writel(K2_DDR3_CTRL_PMCTL_LP_MODE | K2_DDR3_CTRL_PMCTL_SR_TIM, pmctl_reg);
-	udelay(300);
-}
-
 DEFINE_SPINLOCK(slock);
-
-/* this module is shared between arm and arm64 machines - build would fail on
- * arm64, as flush_cache_all and outer_flush_all does not exists there */
-#if defined(CONFIG_ARM)
-static void k2_flush_cache_all(void)
-{
-	unsigned long flags;
-	local_irq_save(flags);
-	flush_cache_all();
-	outer_flush_all();
-	local_irq_restore(flags);
-}
-#endif
-
-/* XXX this is a workaround; fix me */
-static int fsp_reset_k2(struct notifier_block *this, unsigned long mode, void *cmd)
-{
-	register u32 val;
-
-/* dsb and dmb are using a different semantics on arm and arm64 - build would
- * fail on arm64 */
-#if defined(CONFIG_ARM)
-	asm volatile ("dsb" : : : "memory");
-	asm volatile ("dmb" : : : "memory");
-
-	k2_flush_cache_all();
-#endif
-
-	//  Enable write access to RSTCTRL
-	val = readl(keystone_rstctrl);
-	val &= PLL_RESET_WRITE_KEY_MASK;
-	val |= PLL_RESET_WRITE_KEY;
-	writel(val, keystone_rstctrl);
-
-	val = readl(keystone_rstctrl);
-	val &= ~PLL_RESET;
-
-	while(1) {
-		spin_lock_irq(&slock);
-		enter_self_refresh_mode_immediately();
-
-		if (readl(stat_reg) & K2_DDR3_CTRL_STAT_SELF_REF) {
-			asm volatile ("isb" : : : "memory");
-			writel(val, keystone_rstctrl);
-			spin_unlock_irq(&slock);
-			break;
-		}
-
-		spin_unlock_irq(&slock);
-
-		/* give it a little break before the next try */
-		mdelay(5);
-	}
-
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block fsp_restart_k2 = {
-	.notifier_call = fsp_reset_k2,
-	.priority = 192,
-};
 
 static irqreturn_t fsp_reset_call_rapid_reboot(struct fsp_reset_data *fr)
 {
@@ -155,23 +84,7 @@ static irqreturn_t fsp_reset_irq_k2(int irq, void *data)
 static int keystone_reset_init(struct fsp_reset_data *fr)
 {
 	struct device *dev = fr->dev;
-
-	pmctl_reg = devm_ioremap(dev, K2_DDR3_CTRL_PMCTL_REG,
-                            K2_DDR3A_EMIF_CONFIG_REGS_SIZE);
-	if (!pmctl_reg) {
-		pr_err("ioremap failure\n");
-		return -ENOMEM;
-	}
-
-	stat_reg = devm_ioremap(dev, K2_DDR3_CTRL_STAT_REG,
-                            K2_DDR3A_EMIF_CONFIG_REGS_SIZE);
-	if (!stat_reg) {
-		pr_err("ioremap failure (stat_reg)\n");
-		return -ENOMEM;
-       	}
-	fr->irq_callback = fsp_reset_irq_k2;
-
-	return register_restart_handler(&fsp_restart_k2);
+	return 0;
 }
 
 static int fsp_reset_probe(struct platform_device *pdev)
