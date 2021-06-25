@@ -871,7 +871,12 @@ static int nwl_pcie_probe(struct platform_device *pdev)
 	pcie->clk = devm_clk_get(dev, NULL);
 	if (IS_ERR(pcie->clk))
 		return PTR_ERR(pcie->clk);
-	clk_prepare_enable(pcie->clk);
+
+	err = clk_prepare_enable(pcie->clk);
+	if (err) {
+		dev_err(dev, "can't enable PCIe ref clock\n");
+		return err;
+	}
 
 	err = nwl_pcie_bridge_init(pcie);
 	if (err) {
