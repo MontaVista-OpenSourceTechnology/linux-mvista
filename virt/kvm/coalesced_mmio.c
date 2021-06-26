@@ -187,8 +187,6 @@ int kvm_vm_ioctl_unregister_coalesced_mmio(struct kvm *kvm,
 			r = kvm_io_bus_unregister_dev(kvm,
 				zone->pio ? KVM_PIO_BUS : KVM_MMIO_BUS, &dev->dev);
 
-			kvm_iodevice_destructor(&dev->dev);
-
 			/*
 			 * On failure, unregister destroys all devices on the
 			 * bus _except_ the target device, i.e. coalesced_zones
@@ -198,6 +196,7 @@ int kvm_vm_ioctl_unregister_coalesced_mmio(struct kvm *kvm,
 			 */
 			if (r)
 				break;
+			kvm_iodevice_destructor(&dev->dev);
 		}
 	}
 
