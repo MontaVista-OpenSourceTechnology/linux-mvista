@@ -1036,6 +1036,12 @@ static inline struct mem_cgroup *get_mem_cgroup_from_mm(struct mm_struct *mm)
 	return NULL;
 }
 
+static inline
+struct mem_cgroup *mem_cgroup_from_css(struct cgroup_subsys_state *css)
+{
+	return NULL;
+}
+
 static inline struct mem_cgroup *get_mem_cgroup_from_page(struct page *page)
 {
 	return NULL;
