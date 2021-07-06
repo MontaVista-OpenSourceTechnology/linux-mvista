@@ -710,11 +710,6 @@ static int fsl_espi_probe(struct device *dev, struct resource *mem,
 		goto err_probe;
 	}
 
-	/* Register for SPI Interrupt */
-	ret = devm_request_irq(dev, irq, fsl_espi_irq, 0, "fsl_espi", espi);
-	if (ret)
-		goto err_probe;
-
 	fsl_espi_init_regs(dev, true);
 
 	pm_runtime_set_autosuspend_delay(dev, AUTOSUSPEND_TIMEOUT);
@@ -722,6 +717,11 @@ static int fsl_espi_probe(struct device *dev, struct resource *mem,
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
 	pm_runtime_get_sync(dev);
+
+        /* Register for SPI Interrupt */
+        ret = devm_request_irq(dev, irq, fsl_espi_irq, 0, "fsl_espi", espi);
+        if (ret)
+                goto err_probe;
 
 	ret = devm_spi_register_master(dev, master);
 	if (ret < 0)
