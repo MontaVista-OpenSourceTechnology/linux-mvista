@@ -1,3 +1,10 @@
+&gpio0 {
+	/delete-property/ reg;
+	reg = <0x0260bf00 0x10 0x0260bf10 0x28>;
+	interrupt-controller;
+	#interrupt-cells = <2>;
+};
+
 / {
 	aliases {
 		gpio0 = &gpio0;
