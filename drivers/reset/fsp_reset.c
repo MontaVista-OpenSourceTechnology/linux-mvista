@@ -17,21 +17,6 @@
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 
-#define K2_DDR3A_EMIF_CONFIG		 0x21010000
-#define K2_DDR3A_EMIF_CONFIG_REGS_SIZE	 0x04
-#define K2_DDR3_CTRL_STAT_REG		 (K2_DDR3A_EMIF_CONFIG | 0x004)
-#define K2_DDR3_CTRL_PMCTL_REG		 (K2_DDR3A_EMIF_CONFIG | 0x038)
-#define K2_DDR3_CTRL_STAT_SELF_REF	 BIT(27)
-#define K2_DDR3_CTRL_PMCTL_LP_MODE	 0x0200 /* self-refresh (SR) mode */
-#define K2_DDR3_CTRL_PMCTL_SR_TIM	 0x00 /* enter SR mode immediately */
-#define LFA_IRQA_ENABLE			 0x90
-#define LFA_IRQA_STATUS			 0x0B
-#define IRQA_MASK			 BIT(3) | BIT(2) | BIT(0)
-#define SYNC_WAIT_TIME			 (20 * HZ)
-
-#define PLL_RESET_WRITE_KEY_MASK	 0xffff0000
-#define PLL_RESET_WRITE_KEY		 0x5a69
-#define PLL_RESET			 BIT(16)
 
 struct fsp_reset_data {
 	struct device *dev;
@@ -48,7 +33,6 @@ struct fsp_reset_match_data {
 	int (*init)(struct fsp_reset_data*);
 };
 
-DEFINE_SPINLOCK(slock);
 
 static irqreturn_t fsp_reset_call_rapid_reboot(struct fsp_reset_data *fr)
 {
@@ -83,7 +67,8 @@ static irqreturn_t fsp_reset_irq_k2(int irq, void *data)
 
 static int keystone_reset_init(struct fsp_reset_data *fr)
 {
-	struct device *dev = fr->dev;
+	fr->irq_callback = fsp_reset_irq_k2;
+
 	return 0;
 }
 
