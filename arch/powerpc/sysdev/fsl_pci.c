@@ -220,7 +220,7 @@ static void setup_pci_atmu(struct pci_controller *hose)
 	struct ccsr_pci __iomem *pci = hose->private_data;
 	int i, j, n, mem_log, win_idx = 3, start_idx = 1, end_idx = 4;
 	u64 mem, sz, paddr_hi = 0;
-	u64 offset = 0, paddr_lo = ULLONG_MAX;
+	u64 paddr_lo = ULLONG_MAX;
 	u32 pcicsrbar = 0, pcicsrbar_sz;
 	u32 piwar = PIWAR_EN | PIWAR_PF | PIWAR_TGI_LOCAL |
 			PIWAR_READ_SNOOP | PIWAR_WRITE_SNOOP;
@@ -270,14 +270,17 @@ static void setup_pci_atmu(struct pci_controller *hose)
 
 	/* Setup outbound MEM window */
 	for(i = 0, j = 1; i < 3; i++) {
+		u64 offset;
+
 		if (!(hose->mem_resources[i].flags & IORESOURCE_MEM))
 			continue;
 
-		paddr_lo = min(paddr_lo, (u64)hose->mem_resources[i].start);
-		paddr_hi = max(paddr_hi, (u64)hose->mem_resources[i].end);
-
-		/* We assume all memory resources have the same offset */
 		offset = hose->mem_offset[i];
+		paddr_lo = min(paddr_lo,
+			       (u64)hose->mem_resources[i].start - offset);
+		paddr_hi = max(paddr_hi,
+			       (u64)hose->mem_resources[i].end - offset);
+
 		n = setup_one_atmu(pci, j, &hose->mem_resources[i], offset);
 
 		if (n < 0 || j >= 5) {
@@ -306,10 +309,6 @@ static void setup_pci_atmu(struct pci_controller *hose)
 				- hose->io_resource.start + 1) - 1));
 		}
 	}
-
-	/* convert to pci address space */
-	paddr_hi -= offset;
-	paddr_lo -= offset;
 
 	if (paddr_hi == paddr_lo) {
 		pr_err("%pOF: No outbound window space\n", hose->dn);
