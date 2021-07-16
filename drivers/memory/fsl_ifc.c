@@ -35,6 +35,9 @@ unsigned int convert_ifc_address(phys_addr_t addr_base)
 }
 EXPORT_SYMBOL(convert_ifc_address);
 
+int fsl_ifc_config(struct platform_device *dev,
+		   struct fsl_ifc_global __iomem *gregs);
+
 /*
  * fsl_ifc_find - find IFC bank
  * @addr_base:	base address of the memory bank
@@ -264,6 +267,11 @@ static int fsl_ifc_ctrl_probe(struct platform_device *dev)
 	ret = fsl_ifc_ctrl_init(fsl_ifc_ctrl_dev);
 	if (ret < 0)
 		goto err_unmap_nandirq;
+
+	if (fsl_ifc_config(dev, fsl_ifc_ctrl_dev->gregs) != 0) {
+		dev_err(&dev->dev, "failed to configure ifc\n");
+		goto err;
+	}
 
 	init_waitqueue_head(&fsl_ifc_ctrl_dev->nand_wait);
 
