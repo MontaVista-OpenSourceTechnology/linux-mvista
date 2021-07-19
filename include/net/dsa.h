@@ -649,6 +649,12 @@ struct dsa_switch_ops {
 	int	(*port_change_mtu)(struct dsa_switch *ds, int port,
 				   int new_mtu);
 	int	(*port_max_mtu)(struct dsa_switch *ds, int port);
+	/*
+	 * tag_8021q operations
+	 */
+	int	(*tag_8021q_vlan_add)(struct dsa_switch *ds, int port, u16 vid,
+				      u16 flags);
+	int	(*tag_8021q_vlan_del)(struct dsa_switch *ds, int port, u16 vid);
 };
 
 #define DSA_DEVLINK_PARAM_DRIVER(_id, _name, _type, _cmodes)		\
