@@ -16,16 +16,6 @@ if NET_DSA
 
 # Drivers must select the appropriate tagging format(s)
 
-config NET_DSA_TAG_8021Q
-	tristate
-	select VLAN_8021Q
-	help
-	  Unlike the other tagging protocols, the 802.1Q config option simply
-	  provides helpers for other tagging implementations that might rely on
-	  VLAN in one way or another. It is not a complete solution.
-
-	  Drivers which use these helpers should select this as dependency.
-
 config NET_DSA_TAG_AR9331
 	tristate "Tag driver for Atheros AR9331 SoC with built-in switch"
 	help
@@ -95,7 +85,6 @@ config NET_DSA_TAG_OCELOT
 	help
 	  Say Y or M if you want to enable support for tagging frames for the
 	  Ocelot switches (VSC7511, VSC7512, VSC7513, VSC7514, VSC9959).
-
 config NET_DSA_TAG_QCA
 	tristate "Tag driver for Qualcomm Atheros QCA8K switches"
 	help
@@ -110,7 +99,6 @@ config NET_DSA_TAG_LAN9303
 
 config NET_DSA_TAG_SJA1105
 	tristate "Tag driver for NXP SJA1105 switches"
-	select NET_DSA_TAG_8021Q
 	select PACKING
 	help
 	  Say Y or M if you want to enable support for tagging frames with the
