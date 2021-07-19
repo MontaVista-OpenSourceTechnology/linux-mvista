@@ -253,6 +253,12 @@ int dsa_switch_register_notifier(struct dsa_switch *ds);
 void dsa_switch_unregister_notifier(struct dsa_switch *ds);
 
 /* dsa2.c */
+/* tag_8021q.c */
+int dsa_tag_8021q_bridge_join(struct dsa_switch *ds,
+			      struct dsa_notifier_bridge_info *info);
+int dsa_tag_8021q_bridge_leave(struct dsa_switch *ds,
+			       struct dsa_notifier_bridge_info *info);
+
 extern struct list_head dsa_tree_list;
 
 #endif
