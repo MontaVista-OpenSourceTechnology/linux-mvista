@@ -97,6 +97,23 @@ struct br_vlan_stats {
 	struct u64_stats_sync syncp;
 };
 
+/* net_bridge_mcast_port must be always defined due to forwarding stubs */
+struct net_bridge_mcast_port {
+#ifdef CONFIG_BRIDGE_IGMP_SNOOPING
+	struct net_bridge_port		*port;
+
+	struct bridge_mcast_own_query	ip4_own_query;
+	struct timer_list		ip4_mc_router_timer;
+	struct hlist_node		ip4_rlist;
+#if IS_ENABLED(CONFIG_IPV6)
+	struct bridge_mcast_own_query	ip6_own_query;
+	struct timer_list		ip6_mc_router_timer;
+	struct hlist_node		ip6_rlist;
+#endif /* IS_ENABLED(CONFIG_IPV6) */
+	unsigned char			multicast_router;
+#endif /* CONFIG_BRIDGE_IGMP_SNOOPING */
+};
+
 struct br_tunnel_info {
 	__be64				tunnel_id;
 	struct metadata_dst __rcu	*tunnel_dst;
@@ -311,16 +328,9 @@ struct net_bridge_port {
 	struct kobject			kobj;
 	struct rcu_head			rcu;
 
+	struct net_bridge_mcast_port	multicast_ctx;
+
 #ifdef CONFIG_BRIDGE_IGMP_SNOOPING
-	struct bridge_mcast_own_query	ip4_own_query;
-	struct timer_list		ip4_mc_router_timer;
-	struct hlist_node		ip4_rlist;
-#if IS_ENABLED(CONFIG_IPV6)
-	struct bridge_mcast_own_query	ip6_own_query;
-	struct timer_list		ip6_mc_router_timer;
-	struct hlist_node		ip6_rlist;
-#endif /* IS_ENABLED(CONFIG_IPV6) */
-	unsigned char			multicast_router;
 	struct bridge_mcast_stats	__percpu *mcast_stats;
 	struct hlist_head		mglist;
 #endif
@@ -863,11 +873,21 @@ br_multicast_get_first_rport_node(struct net_bridge *b, struct sk_buff *skb) {
 
 static inline struct net_bridge_port *
 br_multicast_rport_from_node_skb(struct hlist_node *rp, struct sk_buff *skb) {
+	struct net_bridge_mcast_port *mctx;
+
 #if IS_ENABLED(CONFIG_IPV6)
 	if (skb->protocol == htons(ETH_P_IPV6))
-		return hlist_entry_safe(rp, struct net_bridge_port, ip6_rlist);
+		mctx = hlist_entry_safe(rp, struct net_bridge_mcast_port,
+					ip6_rlist);
+	else
 #endif
-	return hlist_entry_safe(rp, struct net_bridge_port, ip4_rlist);
+		mctx = hlist_entry_safe(rp, struct net_bridge_mcast_port,
+					ip4_rlist);
+
+	if (mctx)
+		return mctx->port;
+	else
+		return NULL;
 }
 
 static inline bool br_ip4_multicast_is_router(struct net_bridge *br)
