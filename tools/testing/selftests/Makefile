@@ -37,6 +37,7 @@ TARGETS += mincore
 TARGETS += mount
 TARGETS += mqueue
 TARGETS += net
+TARGETS += net/af_unix
 TARGETS += net/forwarding
 TARGETS += net/mptcp
 TARGETS += netfilter
