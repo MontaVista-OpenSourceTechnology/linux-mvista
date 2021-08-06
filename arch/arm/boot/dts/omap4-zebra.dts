@@ -389,10 +389,12 @@
 		>;
 	};
 
-	/* wl12xx GPIO output for WLAN_EN */
+	/* wl12xx GPIO output for WLAN_EN, BT_EN, BT_WAKEUP */
 	wl12xx_gpio: pinmux_wl12xx_gpio {
 		pinctrl-single,pins = <
 			OMAP4_IOPAD(0x07c, PIN_OUTPUT | MUX_MODE3)		/* gpmc_nwp.gpio_54 */
+			OMAP4_IOPAD(0x07e, PIN_OUTPUT | MUX_MODE3)		/* gpmc_nwp.gpio_55 BT_EN */
+			OMAP4_IOPAD(0x072, PIN_OUTPUT | MUX_MODE3)		/* gpmc_a25.gpio_49 BT_WAKEUP*/
 		>;
 	};
 
@@ -743,6 +745,12 @@
 			       &omap4_pmx_core OMAP4_UART2_RX>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&uart2_pins>;
+
+	bluetooth {
+		compatible = "ti,wl1283-st";
+		enable-gpios = <&gpio2 23 GPIO_ACTIVE_HIGH>; /* gpio 55 */
+		max-speed = <3686400>;
+	};
 };
 
 &uart3 {
