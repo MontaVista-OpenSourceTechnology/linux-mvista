@@ -23,7 +23,7 @@
 #include <linux/platform_device.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>
-#include <linux/wait.h>
+#include <linux/completion.h>
 #include <linux/platform_data/i2c-xiic.h>
 #include <linux/io.h>
 #include <linux/slab.h>
@@ -50,7 +50,7 @@ enum xiic_endian {
  * struct xiic_i2c - Internal representation of the XIIC I2C bus
  * @dev: Pointer to device structure
  * @base: Memory base of the HW registers
- * @wait: Wait queue for callers
+ * @completion:	Completion for callers
  * @adap: Kernel adapter representation
  * @tx_msg: Messages from above to be sent
  * @lock: Mutual exclusion
@@ -72,7 +72,7 @@ enum xiic_endian {
 struct xiic_i2c {
 	struct device *dev;
 	void __iomem *base;
-	wait_queue_head_t wait;
+	struct completion completion;
 	struct i2c_adapter adap;
 	struct i2c_msg *tx_msg;
 	struct mutex lock;
@@ -209,6 +209,9 @@ struct timing_regs {
 #define XIIC_PM_TIMEOUT		1000	/* ms */
 /* timeout waiting for the controller to respond */
 #define XIIC_I2C_TIMEOUT	(msecs_to_jiffies(1000))
+/* timeout waiting for the controller finish transfers */
+#define XIIC_XFER_TIMEOUT	(msecs_to_jiffies(10000))
+
 /*
  * The following constant is used for the device global interrupt enable
  * register, to enable all interrupts for the device, this is the only bit
@@ -594,7 +597,7 @@ static void xiic_wakeup(struct xiic_i2c *i2c, enum xilinx_i2c_state code)
 	i2c->rx_msg = NULL;
 	i2c->nmsgs = 0;
 	i2c->state = code;
-	wake_up(&i2c->wait);
+	complete(&i2c->completion);
 }
 
 static irqreturn_t xiic_process(int irq, void *dev_id)
@@ -1109,6 +1112,7 @@ static int xiic_start_xfer(struct xiic_i2c *i2c, struct i2c_msg *msgs, int num)
 	i2c->tx_msg = msgs;
 	i2c->rx_msg = NULL;
 	i2c->nmsgs = num;
+	init_completion(&i2c->completion);
 
 	ret = xiic_reinit(i2c);
 	if (!ret)
@@ -1136,23 +1140,23 @@ static int xiic_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 	err = xiic_start_xfer(i2c, msgs, num);
 	if (err < 0) {
 		dev_err(adap->dev.parent, "Error xiic_start_xfer\n");
-		goto out;
+		return err;
 	}
 
-	if (wait_event_timeout(i2c->wait, (i2c->state == STATE_ERROR) ||
-		(i2c->state == STATE_DONE), HZ)) {
-		mutex_lock(&i2c->lock);
-		err = (i2c->state == STATE_DONE) ? num : -EIO;
-		goto out;
-	} else {
-		mutex_lock(&i2c->lock);
+	err = wait_for_completion_timeout(&i2c->completion, XIIC_XFER_TIMEOUT);
+	mutex_lock(&i2c->lock);
+	if (err == 0) {	/* Timeout */
 		i2c->tx_msg = NULL;
 		i2c->rx_msg = NULL;
 		i2c->nmsgs = 0;
 		err = -ETIMEDOUT;
-		goto out;
+	} else if (err < 0) {	/* Completion error */
+		i2c->tx_msg = NULL;
+		i2c->rx_msg = NULL;
+		i2c->nmsgs = 0;
+	} else {
+		err = (i2c->state == STATE_DONE) ? num : -EIO;
 	}
-out:
 	mutex_unlock(&i2c->lock);
 	pm_runtime_mark_last_busy(i2c->dev);
 	pm_runtime_put_autosuspend(i2c->dev);
@@ -1329,7 +1333,6 @@ static int xiic_i2c_probe(struct platform_device *pdev)
 		 DRIVER_NAME " %s", pdev->name);
 
 	mutex_init(&i2c->lock);
-	init_waitqueue_head(&i2c->wait);
 
 	i2c->clk = devm_clk_get_enabled(&pdev->dev, NULL);
 	if (IS_ERR(i2c->clk))
