@@ -219,7 +219,7 @@ struct timing_regs {
 #define xiic_tx_space(i2c) ((i2c)->tx_msg->len - (i2c)->tx_pos)
 #define xiic_rx_space(i2c) ((i2c)->rx_msg->len - (i2c)->rx_pos)
 
-static int xiic_start_xfer(struct xiic_i2c *i2c);
+static int xiic_start_xfer(struct xiic_i2c *i2c, struct i2c_msg *msgs, int num);
 static void __xiic_start_xfer(struct xiic_i2c *i2c);
 static int xiic_setclk(struct xiic_i2c *i2c);
 
@@ -1096,16 +1096,25 @@ static void __xiic_start_xfer(struct xiic_i2c *i2c)
 		xiic_irq_clr_en(i2c, XIIC_INTR_TX_HALF_MASK);
 }
 
-static int xiic_start_xfer(struct xiic_i2c *i2c)
+static int xiic_start_xfer(struct xiic_i2c *i2c, struct i2c_msg *msgs, int num)
 {
 	int ret;
 
 	mutex_lock(&i2c->lock);
 
+	ret = xiic_busy(i2c);
+	if (ret)
+		goto out;
+
+	i2c->tx_msg = msgs;
+	i2c->rx_msg = NULL;
+	i2c->nmsgs = num;
+
 	ret = xiic_reinit(i2c);
 	if (!ret)
 		__xiic_start_xfer(i2c);
 
+out:
 	mutex_unlock(&i2c->lock);
 
 	return ret;
@@ -1124,52 +1133,19 @@ static int xiic_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 	if (err < 0)
 		return err;
 
-	err = xiic_busy(i2c);
-	if (err)
-		goto out;
-
-	i2c->tx_msg = msgs;
-	i2c->nmsgs = num;
-
-	/* Decide standard mode or Dynamic mode */
-	i2c->dynamic = true;
-
-	/* Initialize prev message type */
-	i2c->prev_msg_tx = false;
-
-	/*
-	 * Scan through nmsgs, use dynamic mode when none of the below three
-	 * conditions occur. We need standard mode even if one condition holds
-	 * true in the entire array of messages in a single transfer.
-	 * If read transaction as dynamic mode is broken for delayed reads
-	 * in xlnx,axi-iic-2.0 / xlnx,xps-iic-2.00.a IP versions.
-	 * If read length is > 255 bytes.
-	 * If smbus_block_read transaction.
-	 */
-	for (count = 0; count < i2c->nmsgs; count++) {
-		broken_read = (i2c->quirks & DYNAMIC_MODE_READ_BROKEN_BIT) &&
-			       (i2c->tx_msg[count].flags & I2C_M_RD);
-		max_read_len = (i2c->tx_msg[count].flags & I2C_M_RD) &&
-				(i2c->tx_msg[count].len > MAX_READ_LENGTH_DYNAMIC);
-		smbus_blk_read = (i2c->tx_msg[count].flags & I2C_M_RECV_LEN);
-
-		if (broken_read || max_read_len || smbus_blk_read) {
-			i2c->dynamic = false;
-			break;
-		}
-	}
-
-	err = xiic_start_xfer(i2c);
+	err = xiic_start_xfer(i2c, msgs, num);
 	if (err < 0) {
 		dev_err(adap->dev.parent, "Error xiic_start_xfer\n");
 		goto out;
 	}
 
-	if (wait_event_timeout(i2c->wait, i2c->state == STATE_ERROR ||
-			       i2c->state == STATE_DONE, HZ)) {
+	if (wait_event_timeout(i2c->wait, (i2c->state == STATE_ERROR) ||
+		(i2c->state == STATE_DONE), HZ)) {
+		mutex_lock(&i2c->lock);
 		err = (i2c->state == STATE_DONE) ? num : -EIO;
 		goto out;
 	} else {
+		mutex_lock(&i2c->lock);
 		i2c->tx_msg = NULL;
 		i2c->rx_msg = NULL;
 		i2c->nmsgs = 0;
@@ -1177,6 +1153,7 @@ static int xiic_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs, int num)
 		goto out;
 	}
 out:
+	mutex_unlock(&i2c->lock);
 	pm_runtime_mark_last_busy(i2c->dev);
 	pm_runtime_put_autosuspend(i2c->dev);
 	return err;
