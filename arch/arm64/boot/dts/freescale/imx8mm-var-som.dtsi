@@ -127,6 +127,7 @@
 		ti,lvds-format = <1>;
 		ti,lvds-bpp = <24>;
 		ti,lvds-channels = <1>;
+		ti,even-odd-swap = <1>;
 		ti,width-mm = <154>;
 		ti,height-mm = <87>;
 		enable-gpios = <&gpio2 11 GPIO_ACTIVE_HIGH>;
