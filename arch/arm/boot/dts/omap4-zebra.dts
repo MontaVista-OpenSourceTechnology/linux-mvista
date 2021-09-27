@@ -554,6 +554,7 @@
 
 #include "twl6030.dtsi"
 #include "twl6030_omap4.dtsi"
+#include <dt-bindings/thermal/thermal.h>
 
 &i2c2 {
 	pinctrl-names = "default";
@@ -568,13 +569,10 @@
 
 	clock-frequency = <400000>;
 
-	/*
-	 * Temperature Sensor
-	 * http://www.ti.com/lit/ds/symlink/tmp105.pdf
-	 */
-	tmp105@48 {
-		compatible = "ti,tmp105";
+	tmp102@48 {
+		compatible = "ti,tmp102";
 		reg = <0x48>;
+		#thermal-sensor-cells = <0>;
 	};
 
 	/*
