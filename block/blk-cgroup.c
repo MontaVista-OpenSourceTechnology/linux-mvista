@@ -31,6 +31,7 @@
 #include <linux/tracehook.h>
 #include <linux/psi.h>
 #include "blk.h"
+#include "blk-throttle.h"
 
 #define MAX_KEY_LEN 100
 
