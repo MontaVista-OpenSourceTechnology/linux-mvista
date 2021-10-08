@@ -1331,7 +1331,7 @@ static int ads7846_probe(struct spi_device *spi)
 			0, 0);
 	if (ts->model != 7845)
 		input_set_abs_params(input_dev, ABS_PRESSURE,
-				pdata->pressure_min, ts->pressure_max, 0, 0);
+				pdata->pressure_min, pdata->pressure_max, 0, 0);
 
 	/*
 	 * Parse common framework properties. Must be done here to ensure the
