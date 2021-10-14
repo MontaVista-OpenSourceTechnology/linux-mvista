@@ -550,6 +550,11 @@
 			ti,vibrmotor-res = <10>;
 		};
 	};
+
+	bq24150@6a {
+		compatible = "ti,bq24150";
+		reg = <0x6a>;
+	};
 };
 
 #include "twl6030.dtsi"
@@ -561,6 +566,13 @@
 	pinctrl-0 = <&i2c2_pins>;
 
 	clock-frequency = <400000>;
+
+	/* pressure sensor */
+        bmp085@77 {
+                compatible = "bosch,bmp085";
+                reg = <0x77>;
+                pinctrl-names = "default";
+        };
 };
 
 &i2c3 {
@@ -569,6 +581,10 @@
 
 	clock-frequency = <400000>;
 
+	/*
+         * Temperature Sensor
+         * http://www.ti.com/lit/ds/symlink/tmp102.pdf
+         */
 	tmp102@48 {
 		compatible = "ti,tmp102";
 		reg = <0x48>;
