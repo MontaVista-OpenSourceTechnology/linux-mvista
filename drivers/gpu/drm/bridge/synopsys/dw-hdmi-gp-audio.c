@@ -114,16 +114,6 @@ static int audio_mute_stream(struct device *dev, void *data,
 	return ret;
 }
 
-static int audio_get_eld(struct device *dev, void *data,
-			 u8 *buf, size_t len)
-{
-	struct snd_dw_hdmi *dw = dev_get_drvdata(dev);
-
-	memcpy(buf, dw->data.eld, min_t(size_t, MAX_ELD_BYTES, len));
-
-	return 0;
-}
-
 static int audio_hook_plugged_cb(struct device *dev, void *data,
 				 hdmi_codec_plugged_cb fn,
 				 struct device *codec_dev)
@@ -137,7 +127,6 @@ static const struct hdmi_codec_ops audio_codec_ops = {
 	.hw_params = audio_hw_params,
 	.audio_shutdown = audio_shutdown,
 	.mute_stream = audio_mute_stream,
-	.get_eld = audio_get_eld,
 	.hook_plugged_cb = audio_hook_plugged_cb,
 };
 
