@@ -185,7 +185,6 @@ struct nwl_dsi {
 	struct list_head valid_modes;
 	u32 clk_drop_lvl;
 	bool use_dcss;
-	bool modeset_done;
 };
 
 static const struct regmap_config nwl_dsi_regmap_config = {
@@ -798,7 +797,7 @@ static irqreturn_t nwl_dsi_irq_handler(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static int nwl_dsi_mode_set(struct nwl_dsi *dsi)
+static int nwl_dsi_enable(struct nwl_dsi *dsi)
 {
 	struct device *dev = dsi->dev;
 	union phy_configure_opts *phy_cfg = &dsi->phy_cfg;
@@ -926,8 +925,6 @@ nwl_dsi_bridge_atomic_post_disable(struct drm_bridge *bridge,
 		clk_disable_unprepare(dsi->lcdif_clk);
 
 	pm_runtime_put(dsi->dev);
-
-	dsi->modeset_done = false;
 }
 
 static unsigned long nwl_dsi_get_bit_clock(struct nwl_dsi *dsi,
@@ -1263,9 +1260,6 @@ nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
 	struct mode_config *config;
 	int ret;
 
-	if (dsi->modeset_done)
-		return;
-
 	DRM_DEV_DEBUG_DRIVER(dsi->dev, "Setting mode:\n");
 	drm_mode_debug_printmodeline(adjusted_mode);
 
@@ -1300,6 +1294,7 @@ nwl_dsi_bridge_mode_set(struct drm_bridge *bridge,
  
 	/* Save the new desired phy config */
 	memcpy(&dsi->phy_cfg, &new_cfg, sizeof(new_cfg));
+}
 
 static void
 nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
@@ -1308,7 +1303,7 @@ nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
 	struct nwl_dsi *dsi = bridge_to_dsi(bridge);
 	int ret;
 
-	pm_runtime_get_sync(dev);
+	pm_runtime_get_sync(dsi->dev);
 
 	dsi->pdata->dpi_reset(dsi, true);
 	dsi->pdata->mipi_reset(dsi, true);
@@ -1337,17 +1332,17 @@ nwl_dsi_bridge_atomic_pre_enable(struct drm_bridge *bridge,
 	/* Step 1 from DSI reset-out instructions */
 	ret = dsi->pdata->pclk_reset(dsi, false);
 	if (ret < 0) {
-		DRM_DEV_ERROR(dev, "Failed to deassert PCLK: %d\n", ret);
+		DRM_DEV_ERROR(dsi->dev, "Failed to deassert PCLK: %d\n", ret);
 		return;
 	}
 
 	/* Step 2 from DSI reset-out instructions */
-	nwl_dsi_mode_set(dsi);
+	nwl_dsi_enable(dsi);
 
 	/* Step 3 from DSI reset-out instructions */
 	ret = dsi->pdata->mipi_reset(dsi, false);
 	if (ret < 0) {
-		DRM_DEV_ERROR(dev, "Failed to deassert DSI: %d\n", ret);
+		DRM_DEV_ERROR(dsi->dev, "Failed to deassert DSI: %d\n", ret);
 		return;
 	}
 
