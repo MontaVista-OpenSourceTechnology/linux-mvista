@@ -6229,6 +6229,8 @@ static int ufshcd_abort(struct scsi_cmnd *cmd)
 		goto out;
 	}
 
+	lrbp->cmd = NULL;
+
 cleanup:
 	scsi_dma_unmap(cmd);
 
