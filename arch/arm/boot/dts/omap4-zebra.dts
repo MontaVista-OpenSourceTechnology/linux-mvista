@@ -566,13 +566,6 @@
 	pinctrl-0 = <&i2c2_pins>;
 
 	clock-frequency = <400000>;
-
-	/* pressure sensor */
-        bmp085@77 {
-                compatible = "bosch,bmp085";
-                reg = <0x77>;
-                pinctrl-names = "default";
-        };
 };
 
 &i2c3 {
@@ -606,15 +599,6 @@
 	pinctrl-0 = <&i2c4_pins>;
 
 	clock-frequency = <400000>;
-
-	/*
-	 * 3-Axis Digital Compass
-	 * http://www.sparkfun.com/datasheets/Sensors/Magneto/HMC5843.pdf
-	 */
-	hmc5843@1e {
-		compatible = "honeywell,hmc5843";
-		reg = <0x1e>;
-	};
 };
 
 &mcspi1 {
