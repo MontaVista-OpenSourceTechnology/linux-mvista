@@ -432,6 +432,7 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	unsigned long rsslim = 0;
 	char tcomm[sizeof(task->comm)];
 	unsigned long flags;
+	int exit_code = task->exit_code;
 
 	state = *get_task_state(task);
 	vsize = eip = esp = 0;
@@ -497,6 +498,9 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 			min_flt += sig->min_flt;
 			maj_flt += sig->maj_flt;
 			gtime += sig->gtime;
+
+			if (sig->flags & (SIGNAL_GROUP_EXIT | SIGNAL_STOP_STOPPED))
+				exit_code = sig->group_exit_code;
 		}
 
 		sid = task_session_nr_ns(task, ns);
@@ -597,7 +601,7 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 		seq_puts(m, " 0 0 0 0 0 0 0");
 
 	if (permitted)
-		seq_put_decimal_ll(m, " ", task->exit_code);
+		seq_put_decimal_ll(m, " ", exit_code);
 	else
 		seq_puts(m, " 0");
 
