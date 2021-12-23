@@ -232,7 +232,7 @@ static int ehci_orion_drv_probe(struct platform_device *pdev)
 	 * set. Since shared usb code relies on it, set it here for
 	 * now. Once we have dma capability bindings this can go away.
 	 */
-	err = dma_coerce_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+	err = dma_coerce_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
 	if (err)
 		goto err;
 
@@ -341,7 +341,8 @@ static int ehci_orion_drv_remove(struct platform_device *pdev)
 static const struct of_device_id ehci_orion_dt_ids[] = {
 	{ .compatible = "marvell,orion-ehci", },
 	{ .compatible = "marvell,armada-3700-ehci", },
-	{},
+	{ .compatible = "marvell,ac5-ehci", },
+	{ },
 };
 MODULE_DEVICE_TABLE(of, ehci_orion_dt_ids);
 
