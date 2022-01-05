@@ -397,6 +397,8 @@ static int imx_ldb_panel_ddc(struct device *dev,
 		edidp = of_get_property(child, "edid", &edid_len);
 		if (edidp) {
 			imx_ldb_ch->edid = kmemdup(edidp, edid_len, GFP_KERNEL);
+			if (!imx_ldb_ch->edid)
+				return -ENOMEM;
 		} else if (!ldb_ch->panel) {
 			/* fallback to display-timings node */
 			ret = of_get_drm_display_mode(child,
