@@ -1793,11 +1793,11 @@ static void nf_conntrack_attach(struct sk_buff *nskb, const struct sk_buff *skb)
 
 static int nf_conntrack_update(struct net *net, struct sk_buff *skb)
 {
+	const struct nf_nat_hook *nat_hook;
 	const struct nf_conntrack_l4proto *l4proto;
 	struct nf_conntrack_tuple_hash *h;
 	struct nf_conntrack_tuple tuple;
 	enum ip_conntrack_info ctinfo;
-	struct nf_nat_hook *nat_hook;
 	unsigned int status;
 	struct nf_conn *ct;
 	int dataoff;
@@ -2398,7 +2398,7 @@ err_cachep:
 	return ret;
 }
 
-static struct nf_ct_hook nf_conntrack_hook = {
+static const struct nf_ct_hook nf_conntrack_hook = {
 	.update		= nf_conntrack_update,
 	.destroy	= destroy_conntrack,
 	.get_tuple_skb  = nf_conntrack_get_tuple_skb,
