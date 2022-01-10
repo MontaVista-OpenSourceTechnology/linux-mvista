@@ -387,14 +387,14 @@ static struct rpmsg_eptdev *__rpmsg_chrdev_eptdev_create(struct rpmsg_device *rp
 	dev->id = ret;
 	dev_set_name(dev, "rpmsg%d", ret);
 
-	ret = cdev_device_add(&eptdev->cdev, dev);
+	ret = cdev_device_add(&eptdev->cdev, &eptdev->dev);
 	if (ret)
 		goto free_ept_ida;
 
 	/* We can now rely on the release function for cleanup */
 	dev->release = rpmsg_eptdev_release_device;
 
-	return eptdev;
+	return ret;
 
 free_ept_ida:
 	ida_simple_remove(&rpmsg_ept_ida, dev->id);
