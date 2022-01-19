@@ -527,6 +527,11 @@ static int phylink_register_sfp(struct phylink *pl,
 		return ret;
 	}
 
+	if (!of_device_is_available(ref.fwnode)) {
+		of_node_put(ref.fwnode);
+		return 0;
+	}
+
 	pl->sfp_bus = sfp_register_upstream(ref.fwnode, pl->netdev, pl,
 					    &sfp_phylink_ops);
 	if (!pl->sfp_bus)
