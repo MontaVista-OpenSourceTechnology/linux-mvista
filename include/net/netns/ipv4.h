@@ -67,7 +67,6 @@ struct netns_ipv4 {
 	bool			fib_offload_disabled;
 	struct sock		*fibnl;
 
-	struct sock  * __percpu	*icmp_sk;
 	struct sock		*mc_autojoin_sk;
 
 	struct inet_peer_base	*peers;
