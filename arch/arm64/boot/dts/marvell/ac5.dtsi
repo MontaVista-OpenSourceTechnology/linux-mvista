@@ -117,6 +117,12 @@
 				interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
 				clock-frequency=<100000>;
 				status="okay";
+				pinctrl-names = "i2c-mpp-state", "i2c-gpio-state";
+				pinctrl-0 = <&i2c_mpps>;
+				pinctrl-1 = <&i2c_gpio>;
+
+				scl_gpio = <&gpio0 26 GPIO_ACTIVE_HIGH>;
+				sda_gpio = <&gpio0 27 GPIO_ACTIVE_HIGH>;
 			};
 
 			i2c1: i2c@11100{
@@ -128,6 +134,14 @@
 				interrupts = <GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>;
 				clock-frequency=<100000>;
 				status="okay";
+			};
+			gpio0: gpio@18100 {
+				compatible = "marvell,ac5-gpio";
+				#gpio-cells = <2>;
+				gpio-controller;
+				reg = <0x18100 0x200>;
+				// gpio-ranges = <&pinctrl0 0 0 46>;
+				ngpios = <46>;
 			};
 		};
 
@@ -183,6 +197,22 @@
 				reg = <0x0 0xA0000 0x0 0x500>;
 				interrupts = <GIC_SPI 69 IRQ_TYPE_LEVEL_HIGH>;
 				status = "okay";
+			};
+		};
+		
+		pinctrl0: pinctrl@80020100 {
+			compatible = "marvell,ac5-pinctrl",
+				     "syscon", "simple-mfd";
+			reg = <0 0x80020100 0 0x20>;
+
+			i2c_mpps: i2c-mpps {
+				marvell,pins = "mpp26", "mpp27";
+				marvell,function = "i2c0-opt";
+			};
+
+			i2c_gpio: i2c-gpio {
+				marvell,pins = "mpp26", "mpp27";
+				marvell,function = "gpio";
 			};
 		};
 
