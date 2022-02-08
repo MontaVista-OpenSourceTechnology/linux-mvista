@@ -86,10 +86,16 @@
 #define GPIO_EDGE_MASK_ARMADAXP_OFF(cpu)  (0x10 + (cpu) * 0x4)
 #define GPIO_LEVEL_MASK_ARMADAXP_OFF(cpu) (0x20 + (cpu) * 0x4)
 
+#define AC5_HIGH_GPIO_OFF		0x40
+#define GPIO_AC5_REG_OFF(pin)   (((pin)/32)*AC5_HIGH_GPIO_OFF)
+
+
 #define MVEBU_GPIO_SOC_VARIANT_ORION	0x1
 #define MVEBU_GPIO_SOC_VARIANT_MV78200	0x2
 #define MVEBU_GPIO_SOC_VARIANT_ARMADAXP 0x3
-#define MVEBU_GPIO_SOC_VARIANT_A8K	0x4
+#define MVEBU_GPIO_SOC_VARIANT_A8K		0x4
+#define MVEBU_GPIO_SOC_VARIANT_AC5		0x5
+
 
 #define MVEBU_MAX_GPIO_PER_BANK		32
 
@@ -299,46 +305,59 @@ static void __iomem *mvebu_pwmreg_blink_off_duration(struct mvebu_pwm *mvpwm)
 static void mvebu_gpio_set(struct gpio_chip *chip, unsigned int pin, int value)
 {
 	struct mvebu_gpio_chip *mvchip = gpiochip_get_data(chip);
+	u32 reg_offset = 0;
 
-	regmap_update_bits(mvchip->regs, GPIO_OUT_OFF + mvchip->offset,
-			   BIT(pin), value ? BIT(pin) : 0);
+	if (mvchip->soc_variant == MVEBU_GPIO_SOC_VARIANT_AC5)
+		reg_offset = GPIO_AC5_REG_OFF(pin);
+
+	regmap_update_bits(mvchip->regs, GPIO_OUT_OFF + reg_offset + mvchip->offset,
+			BIT(pin%32), value ? BIT(pin%32) : 0);
 }
 
 static int mvebu_gpio_get(struct gpio_chip *chip, unsigned int pin)
 {
 	struct mvebu_gpio_chip *mvchip = gpiochip_get_data(chip);
 	u32 u;
+	u32 reg_offset = 0;
 
-	regmap_read(mvchip->regs, GPIO_IO_CONF_OFF + mvchip->offset, &u);
+	if (mvchip->soc_variant == MVEBU_GPIO_SOC_VARIANT_AC5)
+		reg_offset = GPIO_AC5_REG_OFF(pin);
 
-	if (u & BIT(pin)) {
+	regmap_read(mvchip->regs, GPIO_IO_CONF_OFF + reg_offset + mvchip->offset, &u);
+
+	if (u & BIT(pin%32)) {
 		u32 data_in, in_pol;
 
-		regmap_read(mvchip->regs, GPIO_DATA_IN_OFF + mvchip->offset,
+		regmap_read(mvchip->regs, GPIO_DATA_IN_OFF + reg_offset + mvchip->offset,
 			    &data_in);
-		regmap_read(mvchip->regs, GPIO_IN_POL_OFF + mvchip->offset,
+		regmap_read(mvchip->regs, GPIO_IN_POL_OFF + reg_offset + mvchip->offset,
 			    &in_pol);
 		u = data_in ^ in_pol;
 	} else {
-		regmap_read(mvchip->regs, GPIO_OUT_OFF + mvchip->offset, &u);
+		regmap_read(mvchip->regs, GPIO_OUT_OFF + reg_offset + mvchip->offset, &u);
 	}
 
-	return (u >> pin) & 1;
+	return (u >> (pin%32)) & 1;
 }
 
 static void mvebu_gpio_blink(struct gpio_chip *chip, unsigned int pin,
 			     int value)
 {
 	struct mvebu_gpio_chip *mvchip = gpiochip_get_data(chip);
+	u32 reg_offset = 0;
 
-	regmap_update_bits(mvchip->regs, GPIO_BLINK_EN_OFF + mvchip->offset,
-			   BIT(pin), value ? BIT(pin) : 0);
+	if (mvchip->soc_variant == MVEBU_GPIO_SOC_VARIANT_AC5)
+		reg_offset = GPIO_AC5_REG_OFF(pin);
+
+	regmap_update_bits(mvchip->regs, GPIO_BLINK_EN_OFF + reg_offset +
+			mvchip->offset, BIT(pin%32), value ? BIT(pin%32) : 0);
 }
 
 static int mvebu_gpio_direction_input(struct gpio_chip *chip, unsigned int pin)
 {
 	struct mvebu_gpio_chip *mvchip = gpiochip_get_data(chip);
 	int ret;
+	u32 reg_offset = 0;
 
 	/*
 	 * Check with the pinctrl driver whether this pin is usable as
@@ -348,8 +367,11 @@ static int mvebu_gpio_direction_input(struct gpio_chip *chip, unsigned int pin)
 	if (ret)
 		return ret;
 
-	regmap_update_bits(mvchip->regs, GPIO_IO_CONF_OFF + mvchip->offset,
-			   BIT(pin), BIT(pin));
+	if (mvchip->soc_variant == MVEBU_GPIO_SOC_VARIANT_AC5)
+		reg_offset = GPIO_AC5_REG_OFF(pin);
+
+	regmap_update_bits(mvchip->regs, GPIO_IO_CONF_OFF + mvchip->offset +
+			reg_offset, BIT(pin%32), BIT(pin%32));
 
 	return 0;
 }
@@ -359,6 +381,7 @@ static int mvebu_gpio_direction_output(struct gpio_chip *chip, unsigned int pin,
 {
 	struct mvebu_gpio_chip *mvchip = gpiochip_get_data(chip);
 	int ret;
+	u32 reg_offset = 0;
 
 	/*
 	 * Check with the pinctrl driver whether this pin is usable as
@@ -371,8 +394,11 @@ static int mvebu_gpio_direction_output(struct gpio_chip *chip, unsigned int pin,
 	mvebu_gpio_blink(chip, pin, 0);
 	mvebu_gpio_set(chip, pin, value);
 
-	regmap_update_bits(mvchip->regs, GPIO_IO_CONF_OFF + mvchip->offset,
-			   BIT(pin), 0);
+	if (mvchip->soc_variant == MVEBU_GPIO_SOC_VARIANT_AC5)
+		reg_offset = GPIO_AC5_REG_OFF(pin);
+
+	regmap_update_bits(mvchip->regs, GPIO_IO_CONF_OFF + reg_offset +
+			mvchip->offset, BIT(pin%32), 0);
 
 	return 0;
 }
@@ -381,10 +407,14 @@ static int mvebu_gpio_get_direction(struct gpio_chip *chip, unsigned int pin)
 {
 	struct mvebu_gpio_chip *mvchip = gpiochip_get_data(chip);
 	u32 u;
+	u32 reg_offset = 0;
 
-	regmap_read(mvchip->regs, GPIO_IO_CONF_OFF + mvchip->offset, &u);
+	if (mvchip->soc_variant == MVEBU_GPIO_SOC_VARIANT_AC5)
+		reg_offset = GPIO_AC5_REG_OFF(pin);
 
-	return !!(u & BIT(pin));
+	regmap_read(mvchip->regs, GPIO_IO_CONF_OFF + reg_offset + mvchip->offset, &u);
+
+	return !!(u & BIT(pin%32));
 }
 
 static int mvebu_gpio_to_irq(struct gpio_chip *chip, unsigned int pin)
@@ -657,8 +687,9 @@ static void mvebu_pwm_get_state(struct pwm_chip *chip,
 
 	spin_lock_irqsave(&mvpwm->lock, flags);
 
-	u = readl_relaxed(mvebu_pwmreg_blink_on_duration(mvpwm));
-	val = (unsigned long long) u * NSEC_PER_SEC;
+	val = (unsigned long long)
+		readl_relaxed(mvebu_pwmreg_blink_on_duration(mvpwm));
+	val *= NSEC_PER_SEC;
 	do_div(val, mvpwm->clk_rate);
 	if (val > UINT_MAX)
 		state->duty_cycle = UINT_MAX;
@@ -667,17 +698,21 @@ static void mvebu_pwm_get_state(struct pwm_chip *chip,
 	else
 		state->duty_cycle = 1;
 
-	val = (unsigned long long) u; /* on duration */
-	/* period = on + off duration */
-	val += readl_relaxed(mvebu_pwmreg_blink_off_duration(mvpwm));
+	val = (unsigned long long)
+		readl_relaxed(mvebu_pwmreg_blink_off_duration(mvpwm));
 	val *= NSEC_PER_SEC;
 	do_div(val, mvpwm->clk_rate);
-	if (val > UINT_MAX)
-		state->period = UINT_MAX;
-	else if (val)
-		state->period = val;
-	else
+	if (val < state->duty_cycle) {
 		state->period = 1;
+	} else {
+		val -= state->duty_cycle;
+		if (val > UINT_MAX)
+			state->period = UINT_MAX;
+		else if (val)
+			state->period = val;
+		else
+			state->period = 1;
+	}
 
 	regmap_read(mvchip->regs, GPIO_BLINK_EN_OFF + mvchip->offset, &u);
 	if (u)
@@ -910,6 +945,10 @@ static const struct of_device_id mvebu_gpio_of_match[] = {
 	{
 		.compatible = "marvell,armada-8k-gpio",
 		.data       = (void *) MVEBU_GPIO_SOC_VARIANT_A8K,
+	},
+	{
+		.compatible = "marvell,ac5-gpio",
+		.data       = (void *) MVEBU_GPIO_SOC_VARIANT_AC5,
 	},
 	{
 		/* sentinel */
@@ -1154,6 +1193,14 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 	 * Mask and clear GPIO interrupts.
 	 */
 	switch (soc_variant) {
+	case MVEBU_GPIO_SOC_VARIANT_AC5:
+		regmap_write(mvchip->regs,
+				 AC5_HIGH_GPIO_OFF + GPIO_EDGE_CAUSE_OFF + mvchip->offset, 0);
+		regmap_write(mvchip->regs,
+				 AC5_HIGH_GPIO_OFF + GPIO_EDGE_MASK_OFF + mvchip->offset, 0);
+		regmap_write(mvchip->regs,
+				 AC5_HIGH_GPIO_OFF + GPIO_LEVEL_MASK_OFF + mvchip->offset, 0);
+		/* Fall through - AC5 has 46 GPIOs, that requires 2 registers */
 	case MVEBU_GPIO_SOC_VARIANT_ORION:
 	case MVEBU_GPIO_SOC_VARIANT_A8K:
 		regmap_write(mvchip->regs,
@@ -1191,13 +1238,6 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 
 	devm_gpiochip_add_data(&pdev->dev, &mvchip->chip, mvchip);
 
-	/* Some MVEBU SoCs have simple PWM support for GPIO lines */
-	if (IS_ENABLED(CONFIG_PWM)) {
-		err = mvebu_pwm_probe(pdev, mvchip, id);
-		if (err)
-			return err;
-	}
-
 	/* Some gpio controllers do not provide irq support */
 	if (!have_irqs)
 		return 0;
@@ -1207,8 +1247,7 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 	if (!mvchip->domain) {
 		dev_err(&pdev->dev, "couldn't allocate irq domain %s (DT).\n",
 			mvchip->chip.label);
-		err = -ENODEV;
-		goto err_pwm;
+		return -ENODEV;
 	}
 
 	err = irq_alloc_domain_generic_chips(
@@ -1256,12 +1295,14 @@ static int mvebu_gpio_probe(struct platform_device *pdev)
 						 mvchip);
 	}
 
+	/* Some MVEBU SoCs have simple PWM support for GPIO lines */
+	if (IS_ENABLED(CONFIG_PWM))
+		return mvebu_pwm_probe(pdev, mvchip, id);
+
 	return 0;
 
 err_domain:
 	irq_domain_remove(mvchip->domain);
-err_pwm:
-	pwmchip_remove(&mvchip->mvpwm->chip);
 
 	return err;
 }
