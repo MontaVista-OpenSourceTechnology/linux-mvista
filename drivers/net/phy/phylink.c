@@ -527,8 +527,8 @@ static int phylink_register_sfp(struct phylink *pl,
 		return ret;
 	}
 
-	if (!of_device_is_available(ref.fwnode)) {
-		of_node_put(ref.fwnode);
+	if (!fwnode_device_is_available(ref.fwnode)) {
+		fwnode_handle_put(ref.fwnode);
 		return 0;
 	}
 
