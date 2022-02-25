@@ -36,3 +36,9 @@
 	dr_mode = "peripheral";
 };
 
+&i2c0 {
+	eeprom: eeprom@52 {
+		compatible = "at,24c64";
+		reg = <0x52>;
+	};
+};
