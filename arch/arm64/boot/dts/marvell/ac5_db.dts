@@ -26,7 +26,7 @@
 };
 
 &eth1 {
-	status = "okay";
+	status = "disabled";
 };
 
 &usb1 {
