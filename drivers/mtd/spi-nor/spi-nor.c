@@ -2504,6 +2504,10 @@ static const struct flash_info spi_nor_ids[] = {
 	{ "3S700AN", S3AN_INFO(0x1f2500, 512, 264) },
 	{ "3S1400AN", S3AN_INFO(0x1f2600, 512, 528) },
 
+	/* cypress F-RAM */
+	{ "cy15b102q", INFO(0x7f7f7f, 0, 256, 1024, 0) },
+	{ "cy15b104q", INFO(0x7f7f7f, 0, 512, 1024, 0) },
+
 	/* XMC (Wuhan Xinxin Semiconductor Manufacturing Corp.) */
 	{ "XM25QH64A", INFO(0x207017, 0, 64 * 1024, 128, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
 	{ "XM25QH128A", INFO(0x207018, 0, 64 * 1024, 256, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ) },
