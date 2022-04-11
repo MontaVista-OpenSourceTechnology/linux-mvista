@@ -426,6 +426,11 @@ void panic_smp_self_stop(void)
 }
 
 #if defined(CONFIG_SMP) || defined(CONFIG_KEXEC_CORE)
+
+#ifdef CONFIG_E6500_SEC_REL
+int release_sec(void);
+#endif
+
 static bool use_spinloop(void)
 {
 	if (IS_ENABLED(CONFIG_PPC_BOOK3S)) {
@@ -451,6 +456,14 @@ void smp_release_cpus(void)
 	unsigned long *ptr;
 	int i;
 
+#ifdef CONFIG_E6500_SEC_REL
+	i = release_sec();
+	if (i == 0) /* Secondary CPUs are released, we are done. */
+	    return;
+	/* EAGAIN means CPUs are already running, use spinloop. */
+	if (i != -EAGAIN)
+	    return;
+#endif
 	if (!use_spinloop())
 		return;
 

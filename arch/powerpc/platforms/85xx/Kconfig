@@ -307,6 +307,12 @@ config  MFCC_8558
 	help
 	This option enables support for the MFCC-8558 SBC
 
+config  E6500_SEC_REL
+	bool "E6500 secondary cores release"
+	depends on CORENET_GENERIC && MFCC_8558
+	help
+	  This option allows the kernel to start the secondary cores.
+
 endif # FSL_SOC_BOOKE
 
 config TQM85xx
