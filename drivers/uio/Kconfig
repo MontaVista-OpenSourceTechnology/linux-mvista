@@ -165,4 +165,12 @@ config UIO_HV_GENERIC
 	  to network and storage devices from userspace.
 
 	  If you compile this as a module, it will be called uio_hv_generic.
+
+config UIO_MICROCHIP_CAN
+	tristate "Generic driver for Microchip CAN"
+	depends on UIO
+	help
+	  Userspace I/O interface for the Microchip CAN device.
+	  If compiled as a module, it will be called uio-microchip-can.
+
 endif
