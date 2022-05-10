@@ -970,7 +970,7 @@ static inline int axienet_check_tx_bd_space(struct axienet_dma_q *q,
 	if (CIRC_SPACE(q->tx_bd_tail, q->tx_bd_ci, lp->tx_bd_num) < (num_frag + 1))
 		return NETDEV_TX_BUSY;
 
-	cur_p = &lp->tx_bd_v[(lp->tx_bd_tail + num_frag) % lp->tx_bd_num];
+	cur_p = &q->tx_bd_v[(q->tx_bd_tail + num_frag) % lp->tx_bd_num];
 	if (cur_p->cntrl)
 		return NETDEV_TX_BUSY;
 #endif
@@ -989,8 +989,8 @@ static inline int axienet_check_tx_bd_space(struct axienet_dma_q *q,
  * buffer. It finally invokes "netif_wake_queue" to restart transmission if
  * required.
  */
-static void axienet_start_xmit_done(struct net_device *ndev
-				    struct axienet_dma_q *q)
+void axienet_start_xmit_done(struct net_device *ndev,
+			     struct axienet_dma_q *q)
 {
 	u32 size = 0;
 	u32 packets = 0;
@@ -1067,7 +1067,7 @@ static void axienet_start_xmit_done(struct net_device *ndev
 	 * We should wake only the particular queue
 	 * instead of waking all ndev queues.
 	 */
-	if (!axienet_check_tx_bd_space(lp, MAX_SKB_FRAGS + 1))
+	if (!axienet_check_tx_bd_space(q, MAX_SKB_FRAGS + 1))
 		netif_tx_wake_all_queues(ndev);
 }
 
@@ -1454,14 +1454,14 @@ out:
 		q->tx_bd_tail = 0;
 
 	/* Stop queue if next transmit may not have space */
-	if (axienet_check_tx_bd_space(lp, MAX_SKB_FRAGS + 1)) {
+	if (axienet_check_tx_bd_space(q, MAX_SKB_FRAGS + 1)) {
 		netif_stop_queue(ndev);
 
 		/* Matches barrier in axienet_start_xmit_done */
 		smp_mb();
 
 		/* Space might have just been freed - check again */
-		if (!axienet_check_tx_bd_space(lp, MAX_SKB_FRAGS + 1))
+		if (!axienet_check_tx_bd_space(q, MAX_SKB_FRAGS + 1))
 			netif_wake_queue(ndev);
 	}
 	spin_unlock_irqrestore(&q->tx_lock, flags);
@@ -3640,25 +3640,11 @@ static int axienet_probe(struct platform_device *pdev)
 
 	lp->phy_node = of_parse_phandle(pdev->dev.of_node, "phy-handle", 0);
 	if (lp->phy_node) {
-		lp->clk = devm_clk_get(&pdev->dev, NULL);
-		if (IS_ERR(lp->clk)) {
-			dev_warn(&pdev->dev, "Failed to get clock: %ld\n",
-				 PTR_ERR(lp->clk));
-			lp->clk = NULL;
-		} else {
-			ret = clk_prepare_enable(lp->clk);
-			if (ret) {
-				dev_err(&pdev->dev, "Unable to enable clock: %d\n",
-					ret);
-				goto free_netdev;
-			}
-		}
 		lp->pcs_phy = of_mdio_find_device(lp->phy_node);
 		if (!lp->pcs_phy) {
 			ret = -EPROBE_DEFER;
 			goto cleanup_mdio;
 		}
-		lp->phylink_config.pcs_poll = true;
 
 		ret = axienet_mdio_setup(lp);
 		if (ret)
@@ -3679,13 +3665,10 @@ static int axienet_probe(struct platform_device *pdev)
 	if (ret) {
 		dev_err(lp->dev, "register_netdev() error (%i)\n", ret);
 		axienet_mdio_teardown(lp);
-		goto cleanup_phylink;
+		goto cleanup_mdio;
 	}
 
 	return 0;
-
-cleanup_phylink:
-	phylink_destroy(lp->phylink);
 
 cleanup_mdio:
 	if (lp->pcs_phy)
