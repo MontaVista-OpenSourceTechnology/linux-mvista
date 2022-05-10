@@ -26,12 +26,13 @@
 #include <linux/rio.h>
 #include <linux/rio_drv.h>
 #include <linux/fs.h>
+#include <asm/cacheflush.h>
 
 #include "mi_defines.h"
 
 // MSM base address
-#define MCU_BA			0x0C500800
-#define DSP_BA			0x0C502800
+#define MCU_BA			0x0C501000
+#define DSP_BA			0x0C508000
 
 /* IPCGRX register start address */
 #define IPC_GEN_REG_START	0x02620240
@@ -39,18 +40,32 @@
 
 #define MODULE_NAME		"vgem"
 
+#define GET_LOCK(l, id, r) \
+({ \
+sync_cache_r(l); \
+if (ioread32(l) != 0x0) {r = -EBUSY; goto end; } \
+iowrite32(id, l); \
+sync_cache_w(l); \
+if (ioread32(l) != id) {r = -EBUSY; goto end; } \
+})
+
+#define REL_LOCK(l) ({iowrite32(0, l); sync_cache_w(l); })
+
+#define GET_READ_LOCK(l, id, r) GET_LOCK(l, id, r)
+#define REL_READ_LOCK(l) REL_LOCK(l)
+#define GET_WRITE_LOCK(l, id, r) GET_LOCK(l, id, r)
+#define REL_WRITE_LOCK(l) REL_LOCK(l)
+
+
 static int vgem_devs = 12;
 static int vgem_major;
 
 struct mi_dev {
-	struct dsp_mcu_mi	*msm;
-	void __iomem		*ipcgrx;
-	int			irq;
-	unsigned long		data_ready;
-	u16			mid;
-
-	struct			mutex lock;
-	struct			cdev cdev;
+	struct dsp_mcu_mi __iomem *msm;
+	void __iomem    *ipcgrx;
+	int		irq;
+	u16		mid;
+	struct  cdev cdev;
 
 	wait_queue_head_t	read_wait;
 	wait_queue_head_t	write_wait;
@@ -65,12 +80,7 @@ static irqreturn_t vgem_ipcgr_handler(int irq, void *_dev)
 {
 	struct mi_dev *dev = _dev;
 
-	mutex_lock(&dev->lock);
-	dev->data_ready += 1;
-	mutex_unlock(&dev->lock);
-
 	wake_up_interruptible(&dev->read_wait);
-
 	return IRQ_HANDLED;
 }
 
@@ -87,11 +97,31 @@ static int vgem_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+static bool data_ready(struct mi_dev *dev, struct gem_header *gem_hdr, u32 *rbi)
+{
+	u32 c = 0;
+
+	GET_READ_LOCK(&dev->msm->read_lock, dev->mid, c);
+
+	sync_cache_r(&dev->msm->read_index);
+	*rbi = ioread32(&dev->msm->read_index);
+
+	sync_cache_r(&dev->msm->buffers[*rbi].dm_buf[0]);
+	memcpy_fromio(gem_hdr, &dev->msm->buffers[*rbi].dm_buf[0], sizeof(struct gem_header));
+
+	REL_READ_LOCK(&dev->msm->read_lock);
+
+	return (gem_hdr->magic_word == MAGIC_WORD);
+end:
+	return false;
+}
+
+
 static ssize_t vgem_read(struct file *filp, char __user *buf, size_t count,
 			loff_t *f_pos)
 {
 	struct mi_dev *dev = filp->private_data;
-	struct gem_header *gem_hdr = 0;
+	struct gem_header gem_hdr;
 	u32 rbi = 0;
 	int wr;
 	struct dsp_mcu_buffer data;
@@ -99,54 +129,52 @@ static ssize_t vgem_read(struct file *filp, char __user *buf, size_t count,
 	if (count == 0)
 		return 0;
 
-	mutex_lock(&dev->lock);
-
-	while (dev->data_ready == 0) {
+	if (!data_ready(dev, &gem_hdr, &rbi)) {
 
 		if (filp->f_flags & O_NONBLOCK) {
 			count = -EAGAIN;
 			goto end;
 		}
 
-		mutex_unlock(&dev->lock);
-		wr = wait_event_interruptible(dev->read_wait, !(dev->data_ready == 0));
-		mutex_lock(&dev->lock);
+		wr = wait_event_interruptible(dev->read_wait, data_ready(dev, &gem_hdr, &rbi));
 
 		if (wr) {
+			pr_err("%s wait_event_interruptible %d\n", __func__, wr);
 			count = wr;
 			goto end;
 		}
-
-		continue;
 	}
 
-	rbi = dev->msm->read_index;
-	gem_hdr = (struct gem_header *)&dev->msm->buffers[rbi].dm_buf[0];
-	if (gem_hdr->magic_word != MAGIC_WORD) {
+	GET_READ_LOCK(&dev->msm->read_lock, dev->mid, count);
+
+	if (gem_hdr.magic_word != MAGIC_WORD) {
+		memcpy_fromio(&data.dm_buf[0], &dev->msm->buffers[rbi].dm_buf[0], 256);
+		pr_err("%s gem_hdr.magic_word 0x%04x rbi=%d\n", __func__, gem_hdr.magic_word, rbi);
 		count = 0;
 		goto end;
 	}
 
-	if (count > gem_hdr->size)
-		count = gem_hdr->size;
+	if (count > gem_hdr.size) count = gem_hdr.size;
+	if (count > sizeof(data)) count = sizeof(data);
 
 	memcpy_fromio(&data.dm_buf[0], &dev->msm->buffers[rbi].dm_buf[0], count);
 	if (copy_to_user(buf, &data.dm_buf[0], count)) {
 		count = -EFAULT;
+		pr_err("%s copy_to_user\n", __func__);
 		goto end;
 	}
 
-	dev->data_ready--;
-
 	/* Clear the magic word */
-	iowrite16(0, &dev->msm->buffers[rbi].dm_buf[0]);
+	iowrite32(0, &dev->msm->buffers[rbi].dm_buf[0]);
+	sync_cache_w(&dev->msm->buffers[rbi].dm_buf[0]);
 
 	/*Update read buffer index to next buffer */
 	rbi += 1;
-	iowrite32((rbi % 6), &dev->msm->read_index);
+	iowrite32((rbi % 15), &dev->msm->read_index);
+	sync_cache_w(&dev->msm->read_index);
 
 end:
-	mutex_unlock(&dev->lock);
+	REL_READ_LOCK(&dev->msm->read_lock);
 	return count;
 }
 
@@ -154,78 +182,78 @@ static ssize_t vgem_write(struct file *filp, const char __user *buf, size_t coun
 			loff_t *f_pos)
 {
 	struct mi_dev *dev = filp->private_data;
-	struct gem_header *gem_hdr = 0;
-	u32 wbi = 0;
+	struct gem_header gem_hdr;
+	u32 wbi;
 	struct dsp_mcu_buffer data;
+	struct dsp_mcu_buffer vwdata;
 
 	if (count == 0)
 		return count;
 
-	if (mutex_lock_interruptible(&dev->lock))
-		return -ERESTARTSYS;
+	GET_WRITE_LOCK(&dev->msm->write_lock, dev->mid, count);
 
-	if (dev->msm->write_lock != 0x00) {
-		count = -EAGAIN;
-		goto end;
-	}
-
-	/* Lock target dsp for writing
-	 * Retry if write lock cant be acquired then
-	 */
-	iowrite32(dev->mid, &dev->msm->write_lock);
-	if (dev->msm->write_lock != dev->mid) {
-		count = -EAGAIN;
-		goto end;
-	}
-
-	wbi = dev->msm->write_index;
+	sync_cache_r(&dev->msm->write_index);
+	wbi = ioread32(&dev->msm->write_index);
 
 	/* Check DSP buffer available for writing */
-	gem_hdr = (struct gem_header *)&dev->msm->buffers[wbi].dm_buf[0];
-	if (gem_hdr->magic_word != 0x0) {
-		pr_err("%s Buffer NULL\n", __func__);
+	memcpy_fromio(&gem_hdr,  &dev->msm->buffers[wbi].dm_buf[0], sizeof(gem_hdr));
+
+	if (gem_hdr.magic_word != 0x0) {
+		pr_err("%s Buffer NULL ==>\n", __func__);
+		memcpy_fromio(&data.dm_buf[0], &dev->msm->buffers[wbi].dm_buf[0], 256);
+		print_hex_dump_debug("", DUMP_PREFIX_NONE, 16, 4, &data.dm_buf[0], 256, false);
 		count = -EBUSY;
 		goto end;
 	}
 
-	if (count > sizeof(u32) * 0x40)
+	if (count > sizeof(u32) * 0x40) {
+		pr_info("%s Requested to write %d exceedes maximum. Chop %d\n",
+			__func__, count, sizeof(u32) * 0x40);
 		count = sizeof(u32) * 0x40;
+	}
 
 	if (copy_from_user(&data.dm_buf[0], buf, count)) {
 		count = -EFAULT;
+		pr_err("%s, failed to copy user data\n", __func__);
 		goto end;
 	}
 
 	memcpy_toio(&dev->msm->buffers[wbi].dm_buf[0], &data.dm_buf[0], count);
+	sync_cache_w(&dev->msm->buffers[wbi].dm_buf[0]);
 
 	wbi += 1;
-	iowrite32(wbi % 6, &dev->msm->write_index);
+	iowrite32(wbi % 15, &dev->msm->write_index);
+	sync_cache_w(&dev->msm->write_index);
+
+	iowrite32(0x0, &dev->msm->write_lock);
+	sync_cache_w(&dev->msm->write_lock);
+
 	iowrite32(1, dev->ipcgrx);
+	ioread32(dev->ipcgrx);
+
+	REL_WRITE_LOCK(&dev->msm->write_lock);
+	return count;
 
 end:
+	REL_WRITE_LOCK(&dev->msm->write_lock);
 	iowrite32(0x0, &dev->msm->write_lock);
-	mutex_unlock(&dev->lock);
+	ioread32(&dev->msm->write_lock);
+
 	return count;
 }
 
 static __poll_t vgem_mcu_poll(struct file *filp, poll_table *wait)
 {
 	struct mi_dev *dev = filp->private_data;
-	struct gem_header *gem_hdr = 0;
+	struct gem_header gem_hdr;
 	u32 rbi;
+
 	__poll_t res = 0;
 
 	poll_wait(filp, &dev->read_wait, wait);
 
-	mutex_lock(&dev->lock);
-
-	rbi = dev->msm->read_index;
-	gem_hdr = (struct gem_header *)&dev->msm->buffers[rbi].dm_buf[0];
-
-	if (dev->data_ready > 0)
+	if (data_ready(dev, &gem_hdr, &rbi))
 		res = EPOLLIN | EPOLLRDNORM;
-
-	mutex_unlock(&dev->lock);
 
 	return res;
 }
@@ -282,6 +310,12 @@ static void vgem_cleanup(void)
 	}
 
 	unregister_chrdev_region(MKDEV(vgem_major, 0), vgem_devs);
+
+	pr_info("%s removing class\n", __func__);
+	if (vgem_mcu_class)
+		class_destroy(vgem_mcu_class);
+	if (vgem_dsp_class)
+		class_destroy(vgem_dsp_class);
 }
 
 static int vgem_exit(struct platform_device *pdev)
@@ -329,11 +363,16 @@ static int vgem_init(struct device *dev_parent)
 	for (i = 0; i < 12; i++) {
 		memset(&vgem_devices[i], 0x0, sizeof(struct mi_dev));
 
-		vgem_devices[i].msm = ioremap(MCU_BA + (0x800 * i), 0x800);
+		if (i < 4)
+			vgem_devices[i].msm = ioremap(MCU_BA + (0x1000 * i), 0x1000);
+		else
+			vgem_devices[i].msm = ioremap(DSP_BA + (0x1000 * (i-4)), 0x1000);
+
 		if (!vgem_devices[i].msm) {
 			result = PTR_ERR(vgem_devices[i].msm);
 			goto x_err;
 		}
+		memset_io(vgem_devices[i].msm, 0, 0x1000);
 
 		if (i >= 4) {
 			vgem_devices[i].ipcgrx = ioremap(IPC_GEN_REG_START + IPCGR(i-4), 4);
@@ -344,8 +383,6 @@ static int vgem_init(struct device *dev_parent)
 		}
 
 		vgem_devices[i].mid = 1 << i;
-
-		mutex_init(&vgem_devices[i].lock);
 
 		init_waitqueue_head(&vgem_devices[i].read_wait);
 		init_waitqueue_head(&vgem_devices[i].write_wait);
@@ -451,3 +488,4 @@ module_platform_driver(tetra_vgem_driver);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Isidro Gonzalez Cuxiart");
 MODULE_DESCRIPTION("TETRA vGEM driver");
+MODULE_VERSION("1.0");

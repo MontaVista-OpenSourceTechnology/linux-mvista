@@ -42,11 +42,12 @@ struct dsp_mcu_buffer {
 
 struct dsp_mcu_mi {
 	u32	write_lock;
-	u32	read_lock;
 	u32	write_index;
+	u32	unused1[0x1E];
+	u32	read_lock;
 	u32	read_index;
-	u32	unused[0x3C];
-	struct	dsp_mcu_buffer buffers[6];
+	u32	unused2[0x1E];
+	struct	dsp_mcu_buffer buffers[15];
 };
 
 #endif
