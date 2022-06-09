@@ -303,4 +303,24 @@ int iov_iter_for_each_range(struct iov_iter *i, size_t bytes,
 			    int (*f)(struct kvec *vec, void *context),
 			    void *context);
 
+static inline ssize_t iov_iter_get_pages2(struct iov_iter *i, struct page **pages,
+			size_t maxsize, unsigned maxpages, size_t *start)
+{
+	ssize_t res = iov_iter_get_pages(i, pages, maxsize, maxpages, start);
+
+	if (res >= 0)
+		iov_iter_advance(i, res);
+	return res;
+}
+
+static inline ssize_t iov_iter_get_pages_alloc2(struct iov_iter *i, struct page ***pages,
+			size_t maxsize, size_t *start)
+{
+	ssize_t res = iov_iter_get_pages_alloc(i, pages, maxsize, start);
+
+	if (res >= 0)
+		iov_iter_advance(i, res);
+	return res;
+}
+
 #endif
