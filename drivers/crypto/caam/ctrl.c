@@ -612,6 +612,13 @@ static void caam_dma_dev_unregister(void *data)
 	platform_device_unregister(data);
 }
 
+static bool needs_entropy_delay_adjustment(void)
+{
+	if (of_machine_is_compatible("fsl,imx6sx"))
+		return true;
+	return false;
+}
+
 static int caam_ctrl_rng_init(struct device *dev)
 {
 	struct caam_drv_private *ctrlpriv = dev_get_drvdata(dev);
@@ -685,15 +692,15 @@ static int caam_ctrl_rng_init(struct device *dev)
 			 */
 			ret = instantiate_rng(dev, inst_handles,
 					      gen_sk);
-            /*
-            * Entropy delay is determined via TRNG characterization.
-            * TRNG characterization is run across different voltages
-            * and temperatures.
-            * If worst case value for ent_dly is identified,
-            * the loop can be skipped for that platform.
-            */
-            if (needs_entropy_delay_adjustment())
-                    break;
+			/*
+			 * Entropy delay is determined via TRNG characterization.
+			 * TRNG characterization is run across different voltages
+			 * and temperatures.
+			 * If worst case value for ent_dly is identified,
+			 * the loop can be skipped for that platform.
+			 */
+			if (needs_entropy_delay_adjustment())
+				break;
 			if (ret == -EAGAIN)
 				/*
 				 * if here, the loop will rerun,
@@ -846,13 +853,6 @@ static bool check_version(struct fsl_mc_version *mc_version, u32 major,
 	return false;
 }
 #endif
-
-static bool needs_entropy_delay_adjustment(void)
-{
-	if (of_machine_is_compatible("fsl,imx6sx"))
-		return true;
-	return false;
-}
 
 /* Probe routine for CAAM top (controller) level */
 static int caam_probe(struct platform_device *pdev)
