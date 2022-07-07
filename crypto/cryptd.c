@@ -137,7 +137,6 @@ static int cryptd_enqueue_request(struct cryptd_queue *queue,
 
 	cpu_queue = raw_cpu_ptr(queue->cpu_queue);
 	spin_lock_bh(&cpu_queue->qlock);
-	cpu = smp_processor_id();
 
 	err = crypto_enqueue_request(&cpu_queue->queue, request);
 
@@ -153,7 +152,7 @@ static int cryptd_enqueue_request(struct cryptd_queue *queue,
 
 	refcount_inc(refcnt);
 
-out_put_cpu:
+out:
 	spin_unlock_bh(&cpu_queue->qlock);
 
 	return err;
@@ -171,17 +170,10 @@ static void cryptd_queue_worker(struct work_struct *work)
 	/*
 	 * Only handle one request at a time to avoid hogging crypto workqueue.
 	 */
-<<<<<<< HEAD
 	spin_lock_bh(&cpu_queue->qlock);
 	backlog = crypto_get_backlog(&cpu_queue->queue);
 	req = crypto_dequeue_request(&cpu_queue->queue);
 	spin_unlock_bh(&cpu_queue->qlock);
-=======
-	local_bh_disable();
-	backlog = crypto_get_backlog(&cpu_queue->queue);
-	req = crypto_dequeue_request(&cpu_queue->queue);
-	local_bh_enable();
->>>>>>> 2b06b0b3040d... crypto: cryptd - Protect per-CPU resource by disabling BH.
 
 	if (!req)
 		return;
