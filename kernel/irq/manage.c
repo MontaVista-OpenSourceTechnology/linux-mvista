@@ -1162,7 +1162,7 @@ static int irq_thread(void *data)
 
 #ifdef CONFIG_PREEMPT_RT
 		migrate_disable();
-		add_interrupt_randomness(action->irq, 0,
+		add_interrupt_randomness(action->irq,
 				 desc->random_ip ^ (unsigned long) action);
 		migrate_enable();
 #endif
