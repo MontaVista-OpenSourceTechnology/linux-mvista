@@ -981,16 +981,17 @@ static void mix_interrupt_randomness(struct work_struct *work)
 	memzero_explicit(pool, sizeof(pool));
 }
 
-void add_interrupt_randomness(int irq)
+void add_interrupt_randomness(int irq, __u64 ip)
 {
 	enum { MIX_INFLIGHT = 1U << 31 };
 	unsigned long entropy = random_get_entropy();
 	struct fast_pool *fast_pool = this_cpu_ptr(&irq_randomness);
-	struct pt_regs *regs = get_irq_regs();
 	unsigned int new_count;
 
+	if (!ip)
+		ip = _RET_IP_;
 	fast_mix(fast_pool->pool, entropy,
-		 (regs ? instruction_pointer(regs) : _RET_IP_) ^ swab(irq));
+		 ip ^ swab(irq));
 	new_count = ++fast_pool->count;
 
 	if (new_count & MIX_INFLIGHT)
