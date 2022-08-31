@@ -1,0 +1,18 @@
+/*
+ * Copyright 2022 SECO Northern Europe GmbH
+ *
+ */
+
+/dts-v1/;
+
+#include "tanaro.dtsi"
+#include "scx1001255ggu06.dtsi"
+
+/ {
+	model      = "Garz & Fricke GmbH Tanaro SCX1001255GGU06 i.MX8MM";
+	compatible = "kk,trizeps8", "kk,trizeps8mini", "fsl,imx8mm-evk", "fsl,imx8mm";
+
+	chosen {
+		stdout-path = &uart1;
+	};
+};
