@@ -37,6 +37,7 @@ config XILINX_AXI_EMAC_HWTSTAMP
 	default n
 	help
 	  Generate hardware packet timestamps. This is to facilitate IEE 1588.
+
 config  AXIENET_HAS_MCDMA
 	bool "AXI Ethernet is configured with MCDMA"
 	depends on XILINX_AXI_EMAC
@@ -53,6 +54,7 @@ config XILINX_LL_TEMAC
 
 config XILINX_TSN
 	bool "Enable Xilinx's TSN IP"
+	depends on AXIENET_HAS_MCDMA
 	default n
 	help
 	  Enable Xilinx's TSN IP.
