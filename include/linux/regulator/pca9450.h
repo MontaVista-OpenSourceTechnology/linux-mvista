@@ -226,4 +226,11 @@ enum {
 #define WDOG_B_CFG_COLD_LDO12		0x80
 #define WDOG_B_CFG_COLD			0xC0
 
+/* I2C level translator bits */
+#define I2C_LT_EN_MASK			0x03
+#define I2C_LT_EN_FORCE_DISABLE		0x00
+#define I2C_LT_EN_STANDBY_AND_RUN	0x01
+#define I2C_LT_EN_RUN			0x02
+#define I2C_LT_EN_FORCE_ENABLE		0x03
+
 #endif /* __LINUX_REG_PCA9450_H__ */

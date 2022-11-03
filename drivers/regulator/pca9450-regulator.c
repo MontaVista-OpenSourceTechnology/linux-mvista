@@ -714,8 +714,16 @@ static int pca9450_i2c_probe(struct i2c_client *i2c,
 	const struct pca9450_regulator_desc	*regulator_desc;
 	struct regulator_config config = { };
 	struct pca9450 *pca9450;
+	struct device_node *np = i2c->dev.of_node;
 	unsigned int device_id, i;
 	int ret;
+	const char *i2c_lt_str;
+	u32 i2c_lt_en;
+
+	if (!np) {
+		dev_err(&i2c->dev, "of_node node not available\n");
+		return -EINVAL;
+	}
 
 	if (!i2c->irq) {
 		dev_warn(&i2c->dev, "No IRQ configured?\n");
@@ -834,6 +842,29 @@ static int pca9450_i2c_probe(struct i2c_client *i2c,
 	if (IS_ERR(pca9450->sd_vsel_gpio)) {
 		dev_err(&i2c->dev, "Failed to get SD_VSEL GPIO\n");
 		return ret;
+	}
+
+	/* Check if i2c level tranlator should be enabled */
+	if (of_property_read_string(np, "i2c-lt-en", &i2c_lt_str) >= 0) {
+		if (strcasecmp(i2c_lt_str, "force-disable") == 0)
+			i2c_lt_en = I2C_LT_EN_FORCE_DISABLE;
+		else if (strcasecmp(i2c_lt_str, "standby-and-run") == 0)
+			i2c_lt_en = I2C_LT_EN_STANDBY_AND_RUN;
+		else if (strcasecmp(i2c_lt_str, "run") == 0)
+			i2c_lt_en = I2C_LT_EN_RUN;
+		else if (strcasecmp(i2c_lt_str, "force-enable") == 0)
+			i2c_lt_en = I2C_LT_EN_FORCE_ENABLE;
+		else {
+			pr_err("%pOF: unsupported i2c LT value: %s\n", np, i2c_lt_str);
+			return -EINVAL;
+		}
+
+		ret = regmap_update_bits(pca9450->regmap, PCA9450_REG_CONFIG2,
+					I2C_LT_EN_MASK, i2c_lt_en);
+		if (ret) {
+			dev_err(&i2c->dev, "Failed to set I2C_LT behavior\n");
+			return ret;
+		}
 	}
 
 	dev_info(&i2c->dev, "%s probed.\n",
