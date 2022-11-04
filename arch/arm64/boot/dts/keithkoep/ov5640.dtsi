@@ -1,0 +1,74 @@
+/*
+ * Copyright 2020 Keith & Koep GmbH
+ *
+ */
+
+&i2c1 {
+    clock-frequency = <100000>;
+	ov5640_mipi: ov5640_mipi@3c {
+		compatible             = "ovti,ov5640_mipi";
+		reg                    = <0x3c>;
+		status                 = "okay";
+		clock-names            = "csi_mclk";
+		assigned-clock-rates   = <24000000>;
+		csi_id                 = <0>;
+		pwn-gpios              = <camera_pwdn 1>; /* Active Low  GPIO_ACTIVE_LOW>; */
+		rst-gpios              = <camera_reset 0>; /* Active High GPIO_ACTIVE_HIGH>; */
+		mclk                   = <24000000>;
+		mclk_source            = <0>;
+		port {
+			ov5640_mipi1_ep: endpoint {
+				remote-endpoint = <&mipi1_sensor_ep>;
+			};
+		};
+	};
+};
+
+
+/************************************************************************/
+#if defined (__DTS_IMX8MM_PINFUNC_H) || defined (__DTS_IMX8MN_PINFUNC_H)
+&csi1_bridge {
+	fsl,mipi-mode;
+	status = "okay";
+	port {
+		csi1_ep: endpoint {
+			remote-endpoint = <&csi1_mipi_ep>;
+		};
+	};
+};
+
+&mipi_csi_1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+	port {
+		mipi1_sensor_ep: endpoint@1 {
+			remote-endpoint = <&ov5640_mipi1_ep>;
+			data-lanes = <2>;
+			csis-hs-settle = <13>;
+			csis-clk-settle = <2>;
+			csis-wclk;
+		};
+
+		csi1_mipi_ep: endpoint@2 {
+			remote-endpoint = <&csi1_ep>;
+		};
+	};
+};
+
+&i2c1 {
+	ov5640_mipi: ov5640_mipi@3c {
+#if defined (__DTS_IMX8MM_PINFUNC_H)
+		clocks                 = <&clk IMX8MM_CLK_CLKO1>;
+		assigned-clocks        = <&clk IMX8MM_CLK_CLKO1>;
+		assigned-clock-parents = <&clk IMX8MM_CLK_24M>;
+#endif        
+#if defined (__DTS_IMX8MN_PINFUNC_H)
+		clocks                 = <&clk IMX8MN_CLK_CLKO1>;
+		assigned-clocks        = <&clk IMX8MN_CLK_CLKO1>;
+		assigned-clock-parents = <&clk IMX8MN_CLK_24M>;
+#endif        
+	};
+};
+#endif
+/************************************************************************/

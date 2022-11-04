@@ -1,0 +1,30 @@
+/*
+ * Copyright 2020 Keith & Koep GmbH
+ *
+ */
+
+/dts-v1/;
+
+// Add defines here, which control behaviour of .dtsi:
+
+
+#include "tanaro.dtsi"
+#include "fg0700w0dsswagl1.dtsi"
+#include "ov5640.dtsi"
+
+/ {
+	model      = "Garz & Fricke GmbH Tanaro FG0700W0DSSWAGL1 i.MX8MM";
+	compatible = "kk,trizeps8", "kk,trizeps8mini", "fsl,imx8mm-evk", "fsl,imx8mm";
+
+	chosen {
+		stdout-path = &uart1;
+	};
+};
+
+
+
+
+
+
+
+

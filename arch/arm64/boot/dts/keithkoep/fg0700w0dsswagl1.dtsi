@@ -1,0 +1,188 @@
+/*
+ * Copyright 2020 Keith & Koep GmbH
+ *
+ */
+
+/*
+Defines:
+    TOUCH_USE_INT2  Set if alternate touch-interrupt should be used.
+
+    TOUCH_INT      Defined in xxx_pinfunc.h. (SODIMM-pin: 45: pConXS)
+    TOUCH_INT2     Defined in xxx_pinfunc.h. (SODIMM-pin: 55: i-PANT7, i-PAN T10)
+    TOUCH_RESET    Defined in xxx_pinfunc.h. (SODIMM-pin: 75)
+*/
+
+&iomuxc {
+	pinctrl_captouch: captouchgrp {
+		fsl,pins = <
+				 TOUCH_RESET	PAD_GPIO /* WAKE */
+#if defined(TOUCH_USE_INT2) && (TOUCH_USE_INT2==1)
+				 TOUCH_INT2 	PAD_GPIO /* IRQ */
+#else
+				 TOUCH_INT  	PAD_GPIO /* IRQ */
+#endif
+			>;
+	};
+
+	pinctrl_display_enable: display-enable {
+		fsl,pins = < DISPLAY_ENABLE	PAD_GPIO_PD >; /* DISPLAY_ENABLE */
+	};
+};
+
+&i2c2 {
+	eeti@2a {
+		reg = <0x2a>;
+		compatible = "eeti,exc3000_ts"; // out of tree driver
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_captouch>;
+		interrupt-parent = <touch_int_parent>;
+		interrupts = <touch_int_pin IRQ_TYPE_LEVEL_HIGH>;
+		irq-gpio = <touch_int GPIO_ACTIVE_HIGH>;
+
+		// Reset pol unklar, da Reset gar nicht funktioniert
+		reset-gpio = <touch_reset GPIO_ACTIVE_LOW>;
+		reset-low-active = <0>;
+		irq-low-active = <0>;
+
+		status = "okay";
+	};
+};
+
+&i2c3 {
+	sn65dsi84@2c {
+		compatible = "ti,sn65dsi83";
+		reg = <0x2c>;
+		status = "okay";
+		/* Enable pin is shared with the panel */
+		pinctrl-names = "default";
+		pinctrl-0       = <&pinctrl_display_enable>;
+		enable-gpios    = <display_enable GPIO_ACTIVE_HIGH>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				dsi_bridge_in: endpoint {
+					remote-endpoint = <&mipi_dsi_out>;
+					data-lanes = <1 2 3 4>;
+				};
+			};
+			port@2 {
+				reg = <2>;
+				dsi_bridge_out: endpoint {
+					remote-endpoint = <&panel1_in>;
+				};
+			};
+		};
+	};
+};
+
+/ {
+	panel_lvds: panel {
+		status          = "okay";
+		compatible      = "panel-lvds";
+		data-mapping = "vesa-24";
+		width-mm = <154>;
+		height-mm = <86>;
+		backlight = <&backlight1>;
+
+		panel-timing {
+			clock-frequency = <51206400>;
+			hactive = <1024>;
+			vactive = <600>;
+			hfront-porch = <159>;
+			hsync-len = <2>;
+			hback-porch = <159>;
+			vfront-porch = <17>;
+			vsync-len = <1>;
+			vback-porch = <17>;
+		};
+
+		port {
+			panel1_in: endpoint {
+				remote-endpoint = <&dsi_bridge_out>;
+			};
+		};
+	};
+};
+
+/************************************************************************/
+#if defined (__DTS_TRIZEPS8_PINFUNC_H)
+&hdmi {
+	status = "disabled";
+};
+
+&lcdif {
+	status = "disabled";
+};
+
+&dcss {
+	status = "okay";
+
+	clocks = <&clk IMX8MQ_CLK_DISP_APB_ROOT>,
+		 <&clk IMX8MQ_CLK_DISP_AXI_ROOT>,
+		 <&clk IMX8MQ_CLK_DISP_RTRM_ROOT>,
+		 <&clk IMX8MQ_CLK_DC_PIXEL>,
+		 <&clk IMX8MQ_CLK_DISP_DTRC>;
+	clock-names = "apb", "axi", "rtrm", "pix", "dtrc";
+	assigned-clocks = <&clk IMX8MQ_CLK_DC_PIXEL>,
+					  <&clk IMX8MQ_VIDEO_PLL1_BYPASS>,
+					  <&clk IMX8MQ_VIDEO_PLL1_REF_SEL>,
+					  <&clk IMX8MQ_CLK_DISP_AXI>,
+					  <&clk IMX8MQ_CLK_DISP_RTRM>;
+	assigned-clock-parents = <&clk IMX8MQ_VIDEO_PLL1_OUT>,
+							 <&clk IMX8MQ_VIDEO_PLL1>,
+							 <&clk IMX8MQ_CLK_27M>,
+							 <&clk IMX8MQ_SYS1_PLL_800M>,
+							 <&clk IMX8MQ_SYS1_PLL_800M>;
+	assigned-clock-rates = <600000000>, <0>, <0>,
+						   <800000000>,
+						   <400000000>;
+
+	port@0 {
+		dcss_out: endpoint {
+			remote-endpoint = <&mipi_dsi_in>;
+		};
+	};
+};
+
+&mipi_dsi {
+	status = "okay";
+	fsl,clock-drop-level = <2>;
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			mipi_dsi_in: endpoint {
+				remote-endpoint = <&dcss_out>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			mipi_dsi_out: endpoint {
+				remote-endpoint = <&dsi_bridge_in>;
+				attach-bridge;
+			};
+		};
+	};
+};
+#endif
+/************************************************************************/
+#if defined (__DTS_IMX8MM_PINFUNC_H) || defined (__DTS_IMX8MN_PINFUNC_H)
+&mipi_dsi {
+	status = "okay";
+
+	port@1 {
+		mipi_dsi_out: endpoint {
+			remote-endpoint = <&dsi_bridge_in>;
+			attach-bridge;
+		};
+	};
+};
+#endif
+/************************************************************************/
