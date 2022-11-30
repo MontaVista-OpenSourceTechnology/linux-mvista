@@ -10,7 +10,7 @@
 #include <dt-bindings/gpio/gpio.h>
 
 / {
-	model = "SolidRun CN9130 based COM Express type 7";
+	model = "SolidRun CN9130 based SOM Clearfog Pro";
 
 	chosen {
 		stdout-path = "serial0:115200n8";
@@ -353,13 +353,21 @@
 	reset-gpios = <&expander0 1 GPIO_ACTIVE_LOW>;
 };
 
+/* GE PHY RGMII */
+&cp0_eth2 {
+        status = "okay";
+	phy = <&phy0>;
+        phy-mode = "rgmii-id";
+	pinctrl-0 = <&cp0_ge2_rgmii_pins>;
+};
+
 &cp0_sdhci0 {
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&cp0_sdhci_pins
 			&cp0_sdhci_cd_pins>;
 	bus-width = <4>;
-	cd-gpios = <&cp0_gpio2 23 GPIO_ACTIVE_LOW>;
+	cd-gpios = <&cp0_gpio2 11 GPIO_ACTIVE_LOW>;
 	no-1-8-v;
 	vqmmc-supply = <&v_3_3>;
 	vmmc-supply = <&v_3_3>;
@@ -398,15 +406,15 @@
 			marvell,pins = "mpp35", "mpp36";
 			marvell,function = "i2c1";
 		};
-		cp0_ge1_rgmii_pins: cp0-ge-rgmii-pins-0 {
-			marvell,pins =	"mpp0", "mpp1", "mpp2",
-					"mpp3", "mpp4", "mpp5",
-					"mpp6", "mpp7", "mpp8",
-					"mpp9", "mpp10", "mpp11";
-			marvell,function = "ge0";
+		cp0_ge2_rgmii_pins: cp0-ge-rgmii-pins-0 {
+			marvell,pins =	"mpp44", "mpp45", "mpp46",
+					"mpp47", "mpp48", "mpp49",
+					"mpp50", "mpp51", "mpp52",
+					"mpp53", "mpp54", "mpp55";
+			marvell,function = "ge1";
 		};
 		cp0_sdhci_cd_pins: cp0-sdhci-cd-pins-0 {
-			marvell,pins = "mpp55";
+			marvell,pins = "mpp43";
 			marvell,function = "sdio";
 		};
 		cp0_sdhci_pins: cp0-sdhi-pins-0 {
@@ -419,7 +427,7 @@
 			marvell,function = "spi1";
 		};
 		cp0_dsa0_pins: cp0-dsa0-pins {
-			marvell,pins = "mpp31", "mpp24"; /* was mpp23, mpp41 */
+			marvell,pins = "mpp29", "mpp27";
 			marvell,function = "gpio";
 		};
 	};
