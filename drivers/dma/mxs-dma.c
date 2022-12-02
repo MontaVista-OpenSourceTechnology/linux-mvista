@@ -959,15 +959,8 @@ static struct platform_driver mxs_dma_driver = {
 		.pm = &mxs_dma_pm_ops,
 		.of_match_table = mxs_dma_dt_ids,
 	},
-<<<<<<< HEAD
 	.id_table	= mxs_dma_ids,
 	.remove		= mxs_dma_remove,
 	.probe = mxs_dma_probe,
 };
 module_platform_driver(mxs_dma_driver);
-=======
-	.probe = mxs_dma_probe,
-};
-
-builtin_platform_driver(mxs_dma_driver);
->>>>>>> 6120f66a3c7c... dmaengine: mxs: use platform_driver_register
