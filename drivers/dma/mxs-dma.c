@@ -959,7 +959,6 @@ static struct platform_driver mxs_dma_driver = {
 		.pm = &mxs_dma_pm_ops,
 		.of_match_table = mxs_dma_dt_ids,
 	},
-	.id_table	= mxs_dma_ids,
 	.remove		= mxs_dma_remove,
 	.probe = mxs_dma_probe,
 };
