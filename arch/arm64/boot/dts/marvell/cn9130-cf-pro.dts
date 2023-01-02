@@ -318,6 +318,11 @@
 	phy-names = "usb";
 };
 
+&cp0_usb3_1 {
+       status = "okay";
+       usb-phy = <&cp0_usb3_0_phy1>;
+};
+
 /* SRDS #2 - SFP+ 10GE */
 &cp0_eth0 {
 	status = "okay";
