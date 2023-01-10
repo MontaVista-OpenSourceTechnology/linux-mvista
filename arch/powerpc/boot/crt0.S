@@ -10,40 +10,6 @@
 RELA = 7
 RELACOUNT = 0x6ffffff9
 
-	.data
-	/* A procedure descriptor used when booting this as a COFF file.
-	 * When making COFF, this comes first in the link and we're
-	 * linked at 0x500000.
-	 */
-	.globl	_zimage_start_opd
-_zimage_start_opd:
-	.long	0x500000, 0, 0, 0
-	.text
-	b	_zimage_start
-
-#ifdef __powerpc64__
-.balign 8
-p_start:	.8byte	_start
-p_etext:	.8byte	_etext
-p_bss_start:	.8byte	__bss_start
-p_end:		.8byte	_end
-
-p_toc:		.8byte	__toc_start + 0x8000 - p_base
-p_dyn:		.8byte	__dynamic_start - p_base
-p_rela:		.8byte	__rela_dyn_start - p_base
-p_prom:		.8byte	0
-	.weak	_platform_stack_top
-p_pstack:	.8byte	_platform_stack_top
-#else
-p_start:	.long	_start
-p_etext:	.long	_etext
-p_bss_start:	.long	__bss_start
-p_end:		.long	_end
-
-	.weak	_platform_stack_top
-p_pstack:	.long	_platform_stack_top
-#endif
-
 	.weak	_zimage_start
 _zimage_start:
 	.globl	_zimage_start_lib
@@ -222,6 +188,39 @@ p_base:	mflr	r10		/* r10 now points to runtime addr of p_base */
 
 	/* Call start */
 	b	start
+
+	.data
+	/* A procedure descriptor used when booting this as a COFF file.
+	 * When making COFF, this comes first in the link and we're
+	 * linked at 0x500000.
+	 */
+	.globl	_zimage_start_opd
+_zimage_start_opd:
+	.long	0x500000, 0, 0, 0
+	.text
+	b	_zimage_start
+#ifdef __powerpc64__
+.balign 8
+p_start:	.8byte	_start
+p_etext:	.8byte	_etext
+p_bss_start:	.8byte	__bss_start
+p_end:		.8byte	_end
+
+p_toc:		.8byte	__toc_start + 0x8000 - p_base
+p_dyn:		.8byte	__dynamic_start - p_base
+p_rela:		.8byte	__rela_dyn_start - p_base
+p_prom:		.8byte	0
+	.weak	_platform_stack_top
+p_pstack:	.8byte	_platform_stack_top
+#else
+p_start:	.long	_start
+p_etext:	.long	_etext
+p_bss_start:	.long	__bss_start
+p_end:		.long	_end
+
+	.weak	_platform_stack_top
+p_pstack:	.long	_platform_stack_top
+#endif
 
 #ifdef __powerpc64__
 

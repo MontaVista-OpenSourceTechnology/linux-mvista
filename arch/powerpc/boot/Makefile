@@ -162,6 +162,7 @@ src-plat-$(CONFIG_PPC_PSERIES) += pseries-head.S
 src-plat-$(CONFIG_PPC_POWERNV) += pseries-head.S
 src-plat-$(CONFIG_PPC_IBM_CELL_BLADE) += pseries-head.S
 src-plat-$(CONFIG_MVME7100) += motload-head.S mvme7100.c
+src-plat-$(CONFIG_MMSI_IMAGE) += mmsi_main.c mmsi_puts.S zImage.S
 
 src-wlib := $(sort $(src-wlib-y))
 src-plat := $(sort $(src-plat-y))
@@ -250,8 +251,13 @@ endif
 
 compressor-$(CONFIG_KERNEL_GZIP) := gz
 compressor-$(CONFIG_KERNEL_XZ)   := xz
-compressor-$(CONFIG_KERNEL_LZMA)   := lzma
-compressor-$(CONFIG_KERNEL_LZO) := lzo
+compressor-$(CONFIG_KERNEL_LZMA) := lzma
+compressor-$(CONFIG_KERNEL_LZO)  := lzo
+
+compress-$(CONFIG_KERNEL_GZIP) := gzip
+compress-$(CONFIG_KERNEL_XZ)   := xzkern
+compress-$(CONFIG_KERNEL_LZMA) := lzma
+compress-$(CONFIG_KERNEL_LZO)  := lzo
 
 # args (to if_changed): 1 = (this rule), 2 = platform, 3 = dts 4=dtb 5=initrd
 quiet_cmd_wrap	= WRAP    $@
@@ -270,6 +276,7 @@ image-$(CONFIG_PPC_PMAC)		+= zImage.pmac
 image-$(CONFIG_PPC_HOLLY)		+= dtbImage.holly
 image-$(CONFIG_DEFAULT_UIMAGE)		+= uImage
 image-$(CONFIG_EPAPR_BOOT)		+= zImage.epapr
+image-$(CONFIG_MMSI_IMAGE)		+= mmsiImage.bin
 
 #
 # Targets which embed a device tree blob
@@ -429,7 +436,7 @@ $(obj)/vmlinux.bin: vmlinux FORCE
 	$(call if_changed,objcopy)
 
 $(obj)/zImage.rio: $(obj)/vmlinux.bin FORCE
-	$(call if_changed,gzip)
+	$(call if_changed,$(compress-y))
 
 # Needed for the above targets to work with dts/fsl/ files
 $(obj)/dts/%.dtb: $(obj)/dts/fsl/%.dtb
@@ -444,6 +451,24 @@ $(obj)/zImage:		$(addprefix $(obj)/, $(image-y))
 	$(Q)rm -f $@; ln $< $@
 $(obj)/zImage.initrd:	$(addprefix $(obj)/, $(initrd-y))
 	$(Q)rm -f $@; ln $< $@
+
+src-mmsi = crt0.S string.S div64.S stdio.c elf_util.c decompress.c \
+      mmsi_puts.S zImage.S simple_alloc.c mmsi_main.c
+
+obj-mmsi := $(addsuffix .o, $(basename $(addprefix $(obj)/, $(src-mmsi))))
+
+# zImage.S includes the zImage.rio, the compressed vmlinux.bin
+# Note that DTB is embedded in vmlinux.bin (CONFIG_BUILTIN_DTB).
+$(obj)/zImage.o: $(obj)/zImage.rio
+
+# Fixed loadable and entry point address
+link_addr='0x3d00000'
+
+$(obj)/mmsiImage: $(obj-mmsi)
+	$(LD) -m elf32ppc -T $(srctree)/$(src)/mmsi_image.lds -Ttext $(link_addr) $^ -o $@
+
+$(obj)/%.bin: $(obj)/%
+	$(OBJCOPY) -S -g -R .comment -O binary $^ $@
 
 # Only install the vmlinux
 install: $(CONFIGURE) $(addprefix $(obj)/, $(image-y))

@@ -206,7 +206,7 @@ config PPC
 	select HAVE_KERNEL_GZIP
 	select HAVE_KERNEL_LZMA			if DEFAULT_UIMAGE
 	select HAVE_KERNEL_LZO			if DEFAULT_UIMAGE
-	select HAVE_KERNEL_XZ			if PPC_BOOK3S || 44x
+	select HAVE_KERNEL_XZ			if PPC_BOOK3S || 44x || MMSI_IMAGE
 	select HAVE_KPROBES
 	select HAVE_KPROBES_ON_FTRACE
 	select HAVE_KRETPROBES
@@ -317,6 +317,13 @@ config DEFAULT_UIMAGE
 	bool
 	help
 	  Used to allow a board to specify it wants a uImage built by default
+
+config MMSI_IMAGE
+	bool
+	default y
+	help
+	  Build mmsiImage.bin image which auto-decompress zImage.rio.
+	  Image must be loaded at 0x3d00000 and entry point is the same address.
 
 config ARCH_HIBERNATION_POSSIBLE
 	bool
