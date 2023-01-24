@@ -35,6 +35,7 @@
 #include <linux/pm_qos.h>
 #include <linux/platform_data/serial-imx.h>
 #include <linux/platform_data/dma-imx.h>
+#include <linux/regulator/consumer.h>
 
 #include "serial_mctrl_gpio.h"
 
@@ -242,6 +243,7 @@ struct imx_port {
 	struct hrtimer		trigger_stop_tx;
 
 	struct pm_qos_request   pm_qos_req;
+	struct regulator	*regulator;
 };
 
 struct imx_port_ucrs {
@@ -1988,6 +1990,29 @@ static int imx_uart_rs485_config(struct uart_port *port,
 	return 0;
 }
 
+static void	imx_uart_pm(struct uart_port * port, unsigned int state,
+			      unsigned int oldstate)
+{
+	struct imx_port *sport = (struct imx_port *)port;
+	int ret;
+
+
+	if( !sport->regulator)
+		return;
+
+	dev_dbg(port->dev, "%s -- State %d (from %d).", __func__, state,
+			 oldstate);
+
+	if (state == UART_PM_STATE_ON )
+		ret = regulator_enable(sport->regulator);
+
+	if (state == UART_PM_STATE_OFF )
+		ret = regulator_disable(sport->regulator);
+
+	if( ret)
+		dev_warn(port->dev, "Failed to change state of regulator.");
+}
+
 static const struct uart_ops imx_uart_pops = {
 	.tx_empty	= imx_uart_tx_empty,
 	.set_mctrl	= imx_uart_set_mctrl,
@@ -2009,6 +2034,7 @@ static const struct uart_ops imx_uart_pops = {
 	.poll_get_char  = imx_uart_poll_get_char,
 	.poll_put_char  = imx_uart_poll_put_char,
 #endif
+	.pm             = imx_uart_pm,
 };
 
 static struct imx_port *imx_uart_ports[UART_NR];
@@ -2318,6 +2344,16 @@ static int imx_uart_probe(struct platform_device *pdev)
 		imx_uart_probe_pdata(sport, pdev);
 	else if (ret < 0)
 		return ret;
+
+	sport->regulator = devm_regulator_get_optional(&pdev->dev, "rs485");
+	if( IS_ERR(sport->regulator)){
+		if (-EPROBE_DEFER == PTR_ERR(sport->regulator))
+			return -EPROBE_DEFER;
+
+		dev_dbg(&pdev->dev, "No regulator 'supply-rs485': %pe",
+				 sport->regulator);
+		sport->regulator = NULL;
+	}
 
 	if (sport->port.line >= ARRAY_SIZE(imx_uart_ports)) {
 		dev_err(&pdev->dev, "serial%d out of range\n",
