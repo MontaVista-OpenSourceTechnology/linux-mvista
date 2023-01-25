@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# GPIO infrastructure and drivers
+#
+menu "I2C GPIO expanders"
+	depends on I2C
+
+config GPIO_PI4IOE5V6408
+	tristate "Pericom PI4IOE5V6408 I2C GPIO Expander"
+	select REGMAP_I2C
+	help
+	  Say yes here to enable the Pericom PI4IOE5V6408 GPIO Expander
+
+endmenu
