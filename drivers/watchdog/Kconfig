@@ -1836,6 +1836,15 @@ config PIC32_DMT
 
 # POWERPC Architecture
 
+config MFCC8559_WDT
+	tristate "MFCC-8559 BMC watchdog"
+	select WATCHDOG_CORE
+	depends on MFCC_8558
+	help
+	  This driver adds watchdog support for the MFCC8559 BMC watchdog.
+
+	  To compile this driver as a module, choose M here.
+
 config GEF_WDT
 	tristate "GE Watchdog Timer"
 	depends on GE_FPGA
