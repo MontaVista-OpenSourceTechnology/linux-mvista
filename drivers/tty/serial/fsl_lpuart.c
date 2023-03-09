@@ -1428,6 +1428,7 @@ static void lpuart_dma_rx_free(struct uart_port *port, bool dma_terminate)
 
 	if (dma_terminate)
 		dmaengine_terminate_sync(sport->dma_rx_chan);
+		del_timer_sync(&sport->lpuart_timer);
 
 	dma_unmap_sg(chan->device->dev, &sport->rx_sgl, 1, DMA_FROM_DEVICE);
 	kfree(sport->rx_ring.buf);
