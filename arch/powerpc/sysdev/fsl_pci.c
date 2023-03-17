@@ -369,25 +369,24 @@ static void setup_pci_atmu(struct pci_controller *hose)
 
 	ranges = of_get_property(hose->dn, "dma-ranges", &len);
 	if (ranges) {
-		u64 dma_addr, paddr, size;
+		u64 paddr, size;
 		int naddr, nsize;
 
 		naddr = of_n_addr_cells(hose->dn);
 		nsize = of_n_size_cells(hose->dn);
 
 		len /= sizeof(u32);
-		if (len < 7) {
+		if (len < 6) {
 			pr_warn("%pOF: Invalid dma-ranges size: %d\n",
 				hose->dn, len);
 			goto no_dma_range;
 		}
 
-		dma_addr = of_read_number(ranges + 1, naddr);
-		paddr = of_read_number(ranges + 3, naddr);
-		size = of_read_number(ranges + 5, naddr);
-
+		/* First field, the dma-address, is not used. */
+		paddr = of_read_number(ranges + 2, naddr);
+		size = of_read_number(ranges + 4, nsize);
 		hose->dma_window_base_cur = paddr;
-		paddr_lo = size + 1;
+		paddr_lo = size;
 	} else {
 no_dma_range:
 		hose->dma_window_base_cur = 0x00000000;

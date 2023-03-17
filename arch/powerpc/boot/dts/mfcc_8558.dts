@@ -424,7 +424,8 @@
 		          0x43000000 1          0
 		                     6          0
 		                     2          0>;
-		dma-ranges = <0x2000000 0 0x7f000000 15 0xfe000000 0 0x1000000 0x42000000 0 0 0 0 0 0x7f000000>;
+		/* This device can only DMA address the bottom 2GB of RAM. */
+		dma-ranges = <0 0 0 0 0 0x80000000>;
 	};
 	pcie@ffe250000 {
 		ranges = </* PCIe0 I/O Space 0_0000_0000 -> 5_0001_0000 - 5_0001_ffff */
@@ -439,7 +440,8 @@
 		          0x43000000 1          0
 		                     8          0
 		                     2          0>;
-		dma-ranges = <0x2000000 0 0x7f000000 15 0xfe000000 0 0x1000000 0x42000000 0 0 0 0 0 0x7f000000>;
+		/* This device can only DMA address the bottom 2GB of RAM. */
+		dma-ranges = <0 0 0 0 0 0x80000000>;
 	};
 	pcie@ffe260000 {
 		ranges = </* PCIe0 I/O Space 0_0000_0000 -> 5_0002_0000 - 5_0002_ffff */
@@ -454,7 +456,8 @@
 		          0x43000000  1          0
 		                     10          0
 		                      2          0>;
-		dma-ranges = <0x2000000 0 0x7f000000 15 0xfe000000 0 0x1000000 0x42000000 0 0 0 0 0 0x7f000000>;
+		/* This device can only DMA address the bottom 2GB of RAM. */
+		dma-ranges = <0 0 0 0 0 0x80000000>;
 	};
 	pcie@ffe270000 {
 		status = "disabled";
