@@ -54,6 +54,96 @@
 			/* BMC FPGA */
 			4 0 2 0x70000000 0x100000>;
 
+		/* IFC chip select configuration
+		 *     CS# CSPR       CSOR       CSOR_EXT   AMASK
+		 *         FTIM0      FTIM1      FTIM2      FTIM3
+		 */
+		config = <
+			/* second NOR */
+			3  0x0101     0x0000000c 0x00000000 0xf0000000
+			   0x20020002 0x1A000A0A 0x02083810 0x00000000
+
+			/* NAND */
+			1  0x0083     0x9518c200 0x000001c0 0xffff0000
+			   0x0e10070a 0x1c3d0d10 0x01a05025 0x1f000000
+		>;
+
+		/* 256 MB NOR flash, booting flash */
+		nor@0,0 {
+			compatible = "micron,mt28fw02g", "cfi-flash";
+			bank-width = <2>;
+			reg = <0 0 0x10000000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				reg = <0 0x100000>;
+				label = "RCW";
+			};
+			partition@100000 {
+				reg = <0x100000 0x80000>;
+				label = "BOARD_SIGN";
+			};
+			partition@180000 {
+				reg = <0x180000 0x200000>;
+				label = "RESERVED";
+			};
+			partition@380000 {
+				reg = <0x380000 0x40000>;
+				label = "IMGT";
+			};
+			partition@3c0000 {
+				reg = <0x3c0000 0x40000>;
+				label = "VPKT";
+			};
+			partition@400000 {
+				reg = <0x400000 0xfb00000>;
+				label = "USER";
+			};
+			partition@ff00000 {
+				reg = <0xff00000 0x100000>;
+				label = "BL";
+			};
+		};
+
+		/* 256 MB second NOR flash */
+		nor@3,0 {
+			compatible = "micron,mt28fw02g", "cfi-flash";
+			bank-width = <2>;
+			reg = <3 0 0x10000000>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			partition@0 {
+				reg = <0 0x100000>;
+				label = "RCW";
+			};
+			partition@100000 {
+				reg = <0x100000 0x80000>;
+				label = "BOARD_SIGN";
+			};
+			partition@180000 {
+				reg = <0x180000 0x200000>;
+				label = "RESERVED";
+			};
+			partition@380000 {
+				reg = <0x380000 0x40000>;
+				label = "IMGT";
+			};
+			partition@3c0000 {
+				reg = <0x3c0000 0x40000>;
+				label = "VPKT";
+			};
+			partition@400000 {
+				reg = <0x400000 0xfb00000>;
+				label = "USER";
+			};
+			partition@ff00000 {
+				reg = <0xff00000 0x100000>;
+				label = "BL";
+			};
+		};
+
 		cpld@4,0 {
 			compatible = "ces,mfcc-8558-cpld";
 			reg = <4 0 0x100000>;
@@ -145,30 +235,31 @@
 		};
 		fman@400000 {
 			clock-frequency = <700000000>;
+			fman-firmware {
+				compatible = "fsl,fman-firmware";
+				fsl,firmware = <
+					/include/ "fman_fw.hex"
+				>;
+			};
 
 			ethernet@e0000 {
-				phy-handle = <&ethphy16>;
+				phy-handle = <&ethphy15>;
+				phy-connection-type = "sgmii";
 				status = "okay";
 			};
 			ethernet@e2000 {
-				phy-handle = <&ethphy15>;
-				status = "okay";
-			};
-			ethernet@e4000 {
-				phy-connection-type = "rgmii";
-				phy-handle = <&ethphy10>;
+				phy-handle = <&ethphy11>;
+				phy-connection-type = "sgmii";
+				fixed-link = <1 1 1000 0 0>;
 				status = "okay";
 			};
 			mdio@fc000 {
 				status = "okay";
-				ethphy10: ethernet-phy@10 {
-					reg = <16>;
+				ethphy11: ethernet-phy@11 {
+					reg = <17>;
 				};
 				ethphy15: ethernet-phy@15 {
 					reg = <21>;
-				};
-				ethphy16: ethernet-phy@16 {
-					reg = <22>;
 				};
 			};
 		};
@@ -426,6 +517,7 @@
 		                     2          0>;
 		/* This device can only DMA address the bottom 2GB of RAM. */
 		dma-ranges = <0 0 0 0 0 0x80000000>;
+		status = "okay";
 	};
 	pcie@ffe250000 {
 		ranges = </* PCIe0 I/O Space 0_0000_0000 -> 5_0001_0000 - 5_0001_ffff */
@@ -442,6 +534,7 @@
 		                     2          0>;
 		/* This device can only DMA address the bottom 2GB of RAM. */
 		dma-ranges = <0 0 0 0 0 0x80000000>;
+		status = "okay";
 	};
 	pcie@ffe260000 {
 		ranges = </* PCIe0 I/O Space 0_0000_0000 -> 5_0002_0000 - 5_0002_ffff */
@@ -458,6 +551,7 @@
 		                      2          0>;
 		/* This device can only DMA address the bottom 2GB of RAM. */
 		dma-ranges = <0 0 0 0 0 0x80000000>;
+		status = "okay";
 	};
 	pcie@ffe270000 {
 		status = "disabled";

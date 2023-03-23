@@ -18,6 +18,10 @@
 
 /* Reserve bootpage */
 /memreserve/	0x00000000fffff000 0x0000000000001000;
+/* Reserver memory for bman and qman */
+/memreserve/	0x000000007c000000 0x0000000001000000;
+/memreserve/	0x000000007e000000 0x0000000001000000;
+/memreserve/	0x000000007d000000 0x0000000001000000;
 
 / {
 	#address-cells = <2>;
