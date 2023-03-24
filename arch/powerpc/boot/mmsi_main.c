@@ -64,6 +64,9 @@ static uint32_t getUs(void)
     return (uint32_t)((readTime() * c) >> 16);
 }
 
+extern char DTB_SYMBOL[];
+static char *__dtb_begin = DTB_SYMBOL;
+
 void start(void)
 {
 	kernel_entry_t kentry;
@@ -82,7 +85,7 @@ void start(void)
 	       time / 1000, (unsigned int)addr);
 
 	kentry = (kernel_entry_t)addr;
-	kentry(0, 0, NULL);
+	kentry((unsigned long) __dtb_begin, 0, NULL);
 
 	fatal("Error: Linux kernel entry pointer failed\n");
 }

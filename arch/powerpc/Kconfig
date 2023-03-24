@@ -325,6 +325,18 @@ config MMSI_IMAGE
 	  Build mmsiImage.bin image which auto-decompress zImage.rio.
 	  Image must be loaded at 0x3d00000 and entry point is the same address.
 
+choice
+	prompt "mmsi image device tree"
+	depends on MMSI_IMAGE
+	default MMSI_DT_ECCP1
+config MMSI_DT_ECCP1
+	bool "MFCC-8559 ECCP1"
+config MMSI_DT_ECCP2
+	bool "MFCC-8559 ECCP2"
+config MMSI_DT_MFCC_8558
+	bool "MFCC-8558"
+endchoice
+
 config ARCH_HIBERNATION_POSSIBLE
 	bool
 	default y

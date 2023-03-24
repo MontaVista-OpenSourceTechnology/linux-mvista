@@ -82,6 +82,14 @@ $(obj)/treeboot-currituck.o: BOOTCFLAGS += -mcpu=405
 $(obj)/treeboot-akebono.o: BOOTCFLAGS += -mcpu=405
 $(obj)/virtex405-head.o: BOOTAFLAGS += -mcpu=405
 
+dtb-mmsi-$(CONFIG_MMSI_DT_ECCP1) += mfcc_8559_eccp1
+dtb-mmsi-$(CONFIG_MMSI_DT_ECCP2) += mfcc_8559_eccp2
+dtb-mmsi-$(CONFIG_MMSI_DT_MFCC_8558) += mfcc_8558
+asm-dtb-mmsi = $(addprefix dts/, $(addsuffix .dtb.S, $(dtb-mmsi-y)))
+ifdef CONFIG_MMSI_IMAGE
+BOOTCFLAGS += -DDTB_SYMBOL=__dtb_$(dtb-mmsi-y)_begin
+endif
+
 # The pre-boot decompressors pull in a lot of kernel headers and other source
 # files. This creates a bit of a dependency headache since we need to copy
 # these files into the build dir, fix up any includes and ensure that dependent
@@ -114,7 +122,7 @@ $(addprefix $(obj)/,$(libfdt) libfdt-wrapper.o simpleboot.o epapr.o opal.o \
 	treeboot-akebono.o treeboot-currituck.o treeboot-iss4xx.o): \
 	$(addprefix $(obj)/,$(libfdtheader))
 
-src-wlib-y := string.S crt0.S stdio.c decompress.c main.c \
+src-wlib-y := string.S stdio.c decompress.c main.c \
 		$(libfdt) libfdt-wrapper.c \
 		ns16550.c serial.c simple_alloc.c div64.S util.S \
 		elf_util.c $(zlib-y) devtree.c stdlib.c \
@@ -162,7 +170,8 @@ src-plat-$(CONFIG_PPC_PSERIES) += pseries-head.S
 src-plat-$(CONFIG_PPC_POWERNV) += pseries-head.S
 src-plat-$(CONFIG_PPC_IBM_CELL_BLADE) += pseries-head.S
 src-plat-$(CONFIG_MVME7100) += motload-head.S mvme7100.c
-src-plat-$(CONFIG_MMSI_IMAGE) += mmsi_main.c mmsi_puts.S zImage.S
+src-plat-$(CONFIG_MMSI_IMAGE) += crt0.S mmsi_main.c mmsi_puts.S zImage.S \
+					$(asm-dtb-mmsi)
 
 src-wlib := $(sort $(src-wlib-y))
 src-plat := $(sort $(src-plat-y))
@@ -455,10 +464,12 @@ $(obj)/zImage.initrd:	$(addprefix $(obj)/, $(initrd-y))
 src-mmsi = crt0.S string.S div64.S stdio.c elf_util.c decompress.c \
       mmsi_puts.S zImage.S simple_alloc.c mmsi_main.c
 
-obj-mmsi := $(addsuffix .o, $(basename $(addprefix $(obj)/, $(src-mmsi))))
+obj-dtb-mmsi = $(addprefix $(obj)/dts/, $(addsuffix .dtb.o, $(dtb-mmsi-y)))
+
+obj-mmsi := $(addsuffix .o, $(basename $(addprefix $(obj)/, $(src-mmsi)))) \
+	$(obj-dtb-mmsi)
 
 # zImage.S includes the zImage.rio, the compressed vmlinux.bin
-# Note that DTB is embedded in vmlinux.bin (CONFIG_BUILTIN_DTB).
 $(obj)/zImage.o: $(obj)/zImage.rio
 
 # Fixed loadable and entry point address
