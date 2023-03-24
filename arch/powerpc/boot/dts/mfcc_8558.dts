@@ -269,8 +269,17 @@
 				mtd-mac-address = <&macaddr 0x120>;
 				status = "okay";
 			};
+			ethernet@e4000 {
+				phy-handle = <&ethphy10>;
+				phy-connection-type = "rgmii";
+				mtd-mac-address = <&macaddr 0x130>;
+				status = "okay";
+			};
 			mdio@fc000 {
 				status = "okay";
+				ethphy10: ethernet-phy@10 {
+					reg = <16>;
+				};
 				ethphy11: ethernet-phy@11 {
 					reg = <17>;
 				};
