@@ -83,6 +83,20 @@
 			partition@100000 {
 				reg = <0x100000 0x80000>;
 				label = "BOARD_SIGN";
+
+				/*
+				 * The format of this is:
+				 *  signature: 16 bytes ("CES")
+				 *  module_type - 128 bytes
+				 *  serial - 128 bytes
+				 *  mac addresses - 3 addresses, in a hex
+				 *     string format, with 4 bytes of padding.
+				 *     total of 16 bytes for each address.
+				 */
+				macaddr: macaddr@110 {
+					 #mtd-mac-address-cells = <1>;
+					 mac-addr-string = <1>;
+				};
 			};
 			partition@180000 {
 				reg = <0x180000 0x200000>;
@@ -245,12 +259,14 @@
 			ethernet@e0000 {
 				phy-handle = <&ethphy15>;
 				phy-connection-type = "sgmii";
+				mtd-mac-address = <&macaddr 0x110>;
 				status = "okay";
 			};
 			ethernet@e2000 {
 				phy-handle = <&ethphy11>;
 				phy-connection-type = "sgmii";
 				fixed-link = <1 1 1000 0 0>;
+				mtd-mac-address = <&macaddr 0x120>;
 				status = "okay";
 			};
 			mdio@fc000 {
