@@ -34,6 +34,16 @@ properties:
       to the device by the boot program is different from the
       local-mac-address property.
 
+  mtd-mac-address:
+    allOf:
+      - $ref http://devicetree.org/schemas/net/mtdmacaddr.yaml
+      -items:
+         - minItems: 1
+	   maxItems: 1
+    description:
+      The phandle and offset of the location in an MTD device that holds
+      the MAC address.
+
   max-frame-size:
     $ref: /schemas/types.yaml#definitions/uint32
     description:
@@ -187,7 +197,8 @@ properties:
             full-duplex:
               $ref: /schemas/types.yaml#definitions/flag
               description:
-                Indicates that full-duplex is used. When absent, half
+                Indicates that full-dupl
+		ex is used. When absent, half
                 duplex is assumed.
 
             pause:

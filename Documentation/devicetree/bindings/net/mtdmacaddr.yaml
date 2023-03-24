@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-2.0
+%YAML 1.2
+---
+$id: http://devicetree.org/schemas/net/mtdmacaddr.yaml#
+$schema: http://devicetree.org/meta-schemas/core.yaml#
+
+title: MTD MAC Address
+
+maintainers:
+  - Corey Minyard <cminyard@mvista.com>
+
+description:
+  These are the properties for a MAC address held in an offset of an
+  MTD device.  By default the data is pointed to is 6 raw bytes of the
+  MAC address.
+
+properties:
+  $nodename:
+    pattern: "^mtdmacaddr(@.*)?"
+
+  "#mtd-mac-address-cells":
+    const: 1|2
+    description:
+      The size of the offset field in the mtd-mac-address reference
+      to this, either 1 or 2 cells for a 32-bit or 64-bit offset.
+
+  mac-addr-string:
+    maxItems: 1
+    description:
+      If present, the mac address is encoded as a 12-byte string as
+      opposed to raw binary data.
+
+patternProperties:
+  "^mtdmacaddr@[0-9a-f]+$":
+    properties:
+      #mtd-mac-address-cells:
+        minimum: 1
+        maximum: 2
+        description:
+          The number of cells for the offset field.
+
+      #mac-addr-string:
+        minimum: 1
+        maximum: 1
+        description:
+          If present, the MAC address is a string as described above.
+
+    required:
+      - #mtd-mac-address-cells
+
+    optional:
+      - mac-addr-string
+
+examples:
+  - |
+    macaddr: mtdmacaddr@0x110 {
+        #mtd-mac-address-cells = <1>;
+	mac-addr-string = <1>
+    };
+
+    ...
+
+    mtd-mac-address = <&macaddr 0x110>

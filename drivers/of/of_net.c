@@ -11,6 +11,7 @@
 #include <linux/phy.h>
 #include <linux/export.h>
 #include <linux/device.h>
+#include <linux/mtd/mtd.h>
 
 /**
  * of_get_phy_mode - Get phy mode for given device_node
@@ -46,6 +47,86 @@ static const void *of_get_mac_addr(struct device_node *np, const char *name)
 	if (pp && pp->length == ETH_ALEN && is_valid_ether_addr(pp->value))
 		return pp->value;
 	return NULL;
+}
+
+static const void *of_get_mac_addr_mtd(struct device_node *np)
+{
+	struct platform_device *pdev = of_find_device_by_node(np);
+	struct of_phandle_args args;
+	struct device_node *mac_node = NULL;
+	loff_t offset = 0;
+	size_t len;
+	unsigned int i;
+	int args_count;
+	int err;
+	unsigned char mac_data[12], *mac = NULL;
+	struct mtd_info *mtd = NULL;
+	bool is_string = false;
+	int data_len = 6;
+
+	err = of_parse_phandle_with_args(np, "mtd-mac-address",
+					 "#mtd-mac-address-cells", 0, &args);
+	if (err)
+		goto out_err;
+	args_count = args.args_count;
+	if (args_count > 2)
+		args_count = 2;
+	if (args_count)
+		offset = of_read_number(args.args, args_count);
+
+	mac_node = args.np;
+
+	is_string = of_property_read_bool(mac_node, "mac-addr-string");
+	if (is_string)
+		data_len = 12;
+
+	mtd = of_get_mtd_device_by_node(of_get_parent(mac_node));
+	if (!mtd) {
+		pr_warn("Unable to find MTD device for MAC address\n");
+		err = -ENODEV;
+		goto out_err;
+	}
+
+	err = mtd_read(mtd, offset, data_len, &len, mac_data);
+	if (err) {
+		pr_warn("Unable to read MAC address from MTD device: %d\n",
+			err);
+	} else if (len != data_len) {
+		pr_warn("Unable to read full MAC address from MTD device: %d\n",
+			(int) len);
+		err = -ENXIO;
+	} else {
+		if (is_string) {
+			char value[3];
+
+			value[2] = 0;
+			for (i = 0; i < 6; i++) {
+				value[0] = mac_data[i * 2];
+				value[1] = mac_data[i * 2 + 1];
+				if (kstrtou8(value, 16, mac_data + i)) {
+					err = -EINVAL;
+					break;
+				}
+			}
+		}
+		if (!err) {
+			mac = devm_kmemdup(&pdev->dev, mac_data, ETH_ALEN,
+					   GFP_KERNEL);
+			if (!mac)
+				err = -ENOMEM;
+		}
+	}
+
+out_err:
+	if (mtd)
+		put_mtd_device(mtd);
+	if (mac_node)
+		of_node_put(mac_node);
+	put_device(&pdev->dev);
+
+	if (err)
+		return ERR_PTR(err);
+	return mac;
 }
 
 static const void *of_get_mac_addr_nvmem(struct device_node *np)
@@ -108,6 +189,10 @@ const void *of_get_mac_address(struct device_node *np)
 
 	addr = of_get_mac_addr(np, "address");
 	if (addr)
+		return addr;
+
+	addr = of_get_mac_addr_mtd(np);
+	if (!IS_ERR_OR_NULL(addr))
 		return addr;
 
 	return of_get_mac_addr_nvmem(np);
