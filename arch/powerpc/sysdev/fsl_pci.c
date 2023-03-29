@@ -323,7 +323,8 @@ static void setup_pci_atmu(struct pci_controller *hose)
 	/* setup PCSRBAR/PEXCSRBAR */
 	early_write_config_dword(hose, 0, 0, PCI_BASE_ADDRESS_0, 0xffffffff);
 	early_read_config_dword(hose, 0, 0, PCI_BASE_ADDRESS_0, &pcicsrbar_sz);
-	pcicsrbar_sz = ~pcicsrbar_sz + 1;
+	/* Make sure to mask off control bits. */
+	pcicsrbar_sz = ~(pcicsrbar_sz & ~0xf) + 1;
 
 	if (paddr_hi < (0x100000000ull - pcicsrbar_sz) ||
 		(paddr_lo > 0x100000000ull))
