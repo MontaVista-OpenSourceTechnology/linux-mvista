@@ -165,6 +165,18 @@ static int law_setup_pcie(struct ccsr_law __iomem *law,
 	}
 	return 0;
 }
+
+static void mfcc_8558_fixup_pci_phb(struct pci_controller *hose)
+{
+    /*
+     * If this undocumented register at least has the low bit set to
+     * 1, the PCI device will not work.  Zero it.  It's coming from
+     * mmsi boot with the bit set, but not PPCMON boot.
+     */
+    early_write_config_dword(hose, 0, 0, 0x8bc, 0);
+
+    fsl_pcibios_fixup_phb(hose);
+}
 #endif
 
 static int law_setup_bman(struct ccsr_law __iomem *law, int num_law, uint8_t target_id)
@@ -383,7 +395,7 @@ define_machine(mfcc_8558) {
 	.init_IRQ               = corenet_gen_pic_init,
 #ifdef CONFIG_PCI
 	.pcibios_fixup_bus      = fsl_pcibios_fixup_bus,
-	.pcibios_fixup_phb      = fsl_pcibios_fixup_phb,
+	.pcibios_fixup_phb      = mfcc_8558_fixup_pci_phb,
 #endif
 /*
  * Core reset may cause issue if using the proxy mode of MPIC.
