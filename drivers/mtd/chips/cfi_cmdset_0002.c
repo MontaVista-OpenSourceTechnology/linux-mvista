@@ -113,6 +113,16 @@ static struct mtd_chip_driver cfi_amdstd_chipdrv = {
 	.module		= THIS_MODULE
 };
 
+static uint32_t cfi02_send_gen_cmd(u_char cmd, uint32_t cmd_addr, uint32_t addr,
+				   struct map_info *map, struct flchip *chip)
+{
+	struct cfi_private *cfi = map->fldrv_priv;
+	uint32_t base = chip->start;
+
+	return cfi_send_gen_cmd(cmd, cmd_addr, base, map, cfi,
+				cfi->device_type, NULL);
+}
+
 /*
  * Use status register to poll for Erase/write completion when DQ is not
  * supported. This is indicated by Bit[1:0] of SoftwareFeatures field in
@@ -136,8 +146,7 @@ static int cfi_check_err_status(struct map_info *map, struct flchip *chip,
 	if (!cfi_use_status_reg(cfi))
 		return 0;
 
-	cfi_send_gen_cmd(0x70, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0x70, cfi->addr_unlock1, adr, map, chip);
 	status = map_read(map, adr);
 
 	/* The error bits are invalid while the chip's busy */
@@ -838,8 +847,7 @@ static int __xipram chip_ready(struct map_info *map, struct flchip *chip,
 		 * For chips that support status register, check device
 		 * ready bit
 		 */
-		cfi_send_gen_cmd(0x70, cfi->addr_unlock1, chip->start, map, cfi,
-				 cfi->device_type, NULL);
+		cfi02_send_gen_cmd(0x70, cfi->addr_unlock1, addr, map, chip);
 		t = map_read(map, addr);
 
 		return map_word_andequal(map, t, ready, ready);
@@ -1274,12 +1282,9 @@ static inline void otp_enter(struct map_info *map, struct flchip *chip,
 {
 	struct cfi_private *cfi = map->fldrv_priv;
 
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x88, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+	cfi02_send_gen_cmd(0x88, cfi->addr_unlock1, adr, map, chip);
 
 	INVALIDATE_CACHED_RANGE(map, chip->start + adr, len);
 }
@@ -1289,14 +1294,10 @@ static inline void otp_exit(struct map_info *map, struct flchip *chip,
 {
 	struct cfi_private *cfi = map->fldrv_priv;
 
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x90, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x00, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+	cfi02_send_gen_cmd(0x90, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x00, cfi->addr_unlock1, adr, map, chip);
 
 	INVALIDATE_CACHED_RANGE(map, chip->start + adr, len);
 }
@@ -1431,12 +1432,9 @@ static int do_otp_lock(struct map_info *map, struct flchip *chip, loff_t adr,
 	chip->state = FL_LOCKING;
 
 	/* Enter lock register command */
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x40, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+	cfi02_send_gen_cmd(0x40, cfi->addr_unlock1, adr, map, chip);
 
 	/* read lock register */
 	lockreg = cfi_read_query(map, 0);
@@ -1533,15 +1531,12 @@ static int cfi_amdstd_otp_walk(struct mtd_info *mtd, loff_t from, size_t len,
 				}
 
 				/* Enter lock register command */
-				cfi_send_gen_cmd(0xAA, cfi->addr_unlock1,
-						 chip->start, map, cfi,
-						 cfi->device_type, NULL);
-				cfi_send_gen_cmd(0x55, cfi->addr_unlock2,
-						 chip->start, map, cfi,
-						 cfi->device_type, NULL);
-				cfi_send_gen_cmd(0x40, cfi->addr_unlock1,
-						 chip->start, map, cfi,
-						 cfi->device_type, NULL);
+				cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1,
+						   0, map, chip);
+				cfi02_send_gen_cmd(0x55, cfi->addr_unlock2,
+						   0, map, chip);
+				cfi02_send_gen_cmd(0x40, cfi->addr_unlock1,
+						   0, map, chip);
 				/* read lock register */
 				lockreg = cfi_read_query(map, 0);
 				/* exit protection commands */
@@ -1656,9 +1651,9 @@ static int __xipram do_write_oneword_once(struct map_info *map,
 	unsigned long uWriteTimeout = (HZ / 1000) + 1;
 	int ret = 0;
 
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0xA0, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+	cfi02_send_gen_cmd(0xA0, cfi->addr_unlock1, adr, map, chip);
 	map_write(map, datum, adr);
 	chip->state = mode;
 
@@ -2000,12 +1995,9 @@ static void __xipram do_write_buffer_reset(struct map_info *map,
 	 * See e.g.
 	 * http://www.spansion.com/Support/Application%20Notes/MirrorBit_Write_Buffer_Prog_Page_Buffer_Read_AN.pdf
 	 */
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0xF0, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, 0, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, 0, map, chip);
+	cfi02_send_gen_cmd(0xF0, cfi->addr_unlock1, 0, map, chip);
 
 	/* FIXME - should have reset delay before continuing */
 }
@@ -2042,8 +2034,8 @@ static int __xipram do_write_buffer(struct map_info *map, struct flchip *chip,
 	ENABLE_VPP(map);
 	xip_disable(map, chip, cmd_adr);
 
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi, cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
 
 	/* Write Buffer Load */
 	map_write(map, CMD(0x25), cmd_adr);
@@ -2259,9 +2251,9 @@ static int do_panic_write_oneword(struct map_info *map, struct flchip *chip,
 	ENABLE_VPP(map);
 
 retry:
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0xA0, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+	cfi02_send_gen_cmd(0xA0, cfi->addr_unlock1, adr, map, chip);
 	map_write(map, datum, adr);
 
 	for (i = 0; i < jiffies_to_usecs(uWriteTimeout); i++) {
@@ -2432,12 +2424,12 @@ static int __xipram do_erase_chip(struct map_info *map, struct flchip *chip)
 	xip_disable(map, chip, adr);
 
  retry:
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x80, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x10, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+	cfi02_send_gen_cmd(0x80, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+	cfi02_send_gen_cmd(0x10, cfi->addr_unlock1, adr, map, chip);
 
 	chip->state = FL_ERASING;
 	chip->erase_suspended = 0;
@@ -2532,11 +2524,11 @@ static int __xipram do_erase_oneblock(struct map_info *map, struct flchip *chip,
 	xip_disable(map, chip, adr);
 
  retry:
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x80, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi, cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi, cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+	cfi02_send_gen_cmd(0x80, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
 	map_write(map, cfi->sector_erase_cmd, adr);
 
 	chip->state = FL_ERASING;
@@ -2640,16 +2632,11 @@ static int do_atmel_lock(struct map_info *map, struct flchip *chip,
 
 	pr_debug("MTD %s(): LOCK 0x%08lx len %d\n", __func__, adr, len);
 
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x80, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi,
-			 cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+	cfi02_send_gen_cmd(0x80, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
 	map_write(map, CMD(0x40), chip->start + adr);
 
 	chip->state = FL_READY;
@@ -2675,8 +2662,7 @@ static int do_atmel_unlock(struct map_info *map, struct flchip *chip,
 
 	pr_debug("MTD %s(): LOCK 0x%08lx len %d\n", __func__, adr, len);
 
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
 	map_write(map, CMD(0x70), adr);
 
 	chip->state = FL_READY;
@@ -2730,13 +2716,10 @@ static int __maybe_unused do_ppb_xxlock(struct map_info *map,
 
 	pr_debug("MTD %s(): XXLOCK 0x%08lx len %d\n", __func__, adr, len);
 
-	cfi_send_gen_cmd(0xAA, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
-	cfi_send_gen_cmd(0x55, cfi->addr_unlock2, chip->start, map, cfi,
-			 cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
 	/* PPB entry command */
-	cfi_send_gen_cmd(0xC0, cfi->addr_unlock1, chip->start, map, cfi,
-			 cfi->device_type, NULL);
+	cfi02_send_gen_cmd(0xC0, cfi->addr_unlock1, adr, map, chip);
 
 	if (thunk == DO_XXLOCK_ONEBLOCK_LOCK) {
 		chip->state = FL_LOCKING;
