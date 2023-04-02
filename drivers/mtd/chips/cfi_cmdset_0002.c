@@ -117,7 +117,14 @@ static uint32_t cfi02_send_gen_cmd(u_char cmd, uint32_t cmd_addr, uint32_t addr,
 				   struct map_info *map, struct flchip *chip)
 {
 	struct cfi_private *cfi = map->fldrv_priv;
-	uint32_t base = chip->start;
+	/*
+	 * On a multi-die chip, if the address is for the second or
+	 * higher die, we must use that die's base address for these
+	 * commands, and that chip's address is chosen bu the upper
+	 * address bits.  Single die chips will have multi_die_mask
+	 * set to zero.
+	 */
+	uint32_t base = chip->start + (addr & cfi->multi_die_mask);
 
 	return cfi_send_gen_cmd(cmd, cmd_addr, base, map, cfi,
 				cfi->device_type, NULL);
@@ -1987,6 +1994,8 @@ static void __xipram do_write_buffer_reset(struct map_info *map,
 					   struct flchip *chip,
 					   struct cfi_private *cfi)
 {
+	u32 i, adr = 0;
+
 	/*
 	 * Recovery from write-buffer programming failures requires
 	 * the write-to-buffer-reset sequence.  Since the last part
@@ -1994,10 +2003,16 @@ static void __xipram do_write_buffer_reset(struct map_info *map,
 	 * the same commands regardless of why we are here.
 	 * See e.g.
 	 * http://www.spansion.com/Support/Application%20Notes/MirrorBit_Write_Buffer_Prog_Page_Buffer_Read_AN.pdf
+	 *
+	 * On a multi-die chip, you must reset all chips, so go through them
+	 * all to do this.
 	 */
-	cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, 0, map, chip);
-	cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, 0, map, chip);
-	cfi02_send_gen_cmd(0xF0, cfi->addr_unlock1, 0, map, chip);
+	for (i = 0; i < cfi->multi_die_count; i++) {
+		cfi02_send_gen_cmd(0xAA, cfi->addr_unlock1, adr, map, chip);
+		cfi02_send_gen_cmd(0x55, cfi->addr_unlock2, adr, map, chip);
+		cfi02_send_gen_cmd(0xF0, cfi->addr_unlock1, adr, map, chip);
+		adr += cfi->multi_die_mask;
+	}
 
 	/* FIXME - should have reset delay before continuing */
 }

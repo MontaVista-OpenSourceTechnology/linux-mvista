@@ -31,6 +31,13 @@ file systems on embedded devices.
    Bits) locking.
  - addr-gpios : (optional) List of GPIO descriptors that will be used to
    address the MSBs address lines. The order goes from LSB to MSB.
+ - multi-die-count: (optional) A u32, for chips with multiple independent
+   dies on them, where address lines are used to select the die to use,
+   this sets the number of dies on the chip.  It looks like one chip
+   to the outside, but inside it is treated as n independent chips.
+   For instance, if a chip has two independent dies that are 128MB each,
+   the reg field will be set to 256MB and this field will be 2.  The
+   dies must be the same size.
 
 For JEDEC compatible devices, the following additional properties
 are defined:

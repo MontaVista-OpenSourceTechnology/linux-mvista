@@ -21,6 +21,7 @@ static int genprobe_new_chip(struct map_info *map, struct chip_probe *cp,
 struct mtd_info *mtd_do_chip_probe(struct map_info *map, struct chip_probe *cp)
 {
 	struct mtd_info *mtd;
+	struct device_node __maybe_unused *np = map->device_node;
 	struct cfi_private *cfi;
 
 	/* First probe the map to see if we have CFI stuff there. */
@@ -28,6 +29,18 @@ struct mtd_info *mtd_do_chip_probe(struct map_info *map, struct chip_probe *cp)
 
 	if (!cfi)
 		return NULL;
+
+	cfi->multi_die_count = 1;
+#ifdef CONFIG_OF
+	of_property_read_u32(np, "multi-die-count", &cfi->multi_die_count);
+	if (cfi->multi_die_count == 0) {
+		pr_err("%s: invalid multi-die-count, setting to 1",
+		       map->name);
+		cfi->multi_die_count = 1;
+	}
+	if (cfi->multi_die_count > 1)
+		cfi->multi_die_mask = ~((map->size / cfi->multi_die_count) - 1);
+#endif
 
 	map->fldrv_priv = cfi;
 	/* OK we liked it. Now find a driver for the command set it talks */

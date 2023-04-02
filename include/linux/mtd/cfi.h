@@ -287,6 +287,8 @@ struct cfi_private {
 	unsigned long chipshift; /* Because they're of the same type */
 	const char *im_name;	 /* inter_module name for cmdset_setup */
 	unsigned long quirks;
+	u32 multi_die_mask;	 /* multiple linear dies on the same chip */
+	u32 multi_die_count;	 /* number of dies on the same chip */
 	struct flchip chips[0];  /* per-chip data structure for each chip */
 };
 
