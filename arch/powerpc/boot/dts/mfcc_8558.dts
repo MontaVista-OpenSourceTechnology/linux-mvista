@@ -259,31 +259,27 @@
 			};
 
 			ethernet@e0000 {
-				phy-handle = <&ethphy15>;
+				fixed-link = <1 1 1000 0 0>;
 				phy-connection-type = "sgmii";
-				mtd-mac-address = <&macaddr 0x110>;
+				mtd-mac-address = <&macaddr 0x130>;
 				status = "okay";
 			};
 			ethernet@e2000 {
-				phy-handle = <&ethphy11>;
+				phy-handle = <&ethphy15>;
 				phy-connection-type = "sgmii";
-				fixed-link = <1 1 1000 0 0>;
 				mtd-mac-address = <&macaddr 0x120>;
 				status = "okay";
 			};
 			ethernet@e4000 {
 				phy-handle = <&ethphy10>;
 				phy-connection-type = "rgmii";
-				mtd-mac-address = <&macaddr 0x130>;
+				mtd-mac-address = <&macaddr 0x110>;
 				status = "okay";
 			};
 			mdio@fc000 {
 				status = "okay";
 				ethphy10: ethernet-phy@10 {
 					reg = <16>;
-				};
-				ethphy11: ethernet-phy@11 {
-					reg = <17>;
 				};
 				ethphy15: ethernet-phy@15 {
 					reg = <21>;
