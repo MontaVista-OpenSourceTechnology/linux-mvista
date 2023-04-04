@@ -1791,6 +1791,7 @@ static int dwc3_remove(struct platform_device *pdev)
 	if (dwc->dwc3_pmu)
 		regulator_disable(dwc->dwc3_pmu);
 
+	pm_runtime_allow(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 	pm_runtime_put_noidle(&pdev->dev);
 	pm_runtime_set_suspended(&pdev->dev);
