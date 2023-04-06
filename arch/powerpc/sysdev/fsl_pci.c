@@ -562,6 +562,35 @@ void fsl_pcibios_fixup_bus(struct pci_bus *bus)
 	}
 }
 
+static void fixup_pci_controller(struct pci_controller *hose)
+{
+	u8 *cfg = hose->private_data;
+
+	/*
+	 * Configuration ready bit.  Docs say it only applied to EP
+	 * mode, but PPCMON sets it, so set it.
+	 */
+	setbits32((u32 *) (cfg + 0x14), 1);
+
+	/*
+	 * Outbound window size setting, PPCMON sets it to 64Gbytes,
+	 * it was coming in with the default value of 1TB.  Set it to
+	 * 64GB.
+	 */
+	clrsetbits_be32((u32 *) (cfg + 0xc10), 0x3f, 0x23);
+
+	/*
+	 * This bits comes in set from PPCMON, not sure what it does.
+	 */
+	setbits32((u32 *) (cfg + 0xde8), 0x00010000);
+
+	/*
+	 * Clear any errors that firmware may have generated.
+	 */
+	setbits32((u32 *) (cfg + 0xe00), 0xffffffff);
+	setbits32((u32 *) (cfg + 0xe20), 1);
+}
+
 int fsl_add_bridge(struct platform_device *pdev, int is_primary)
 {
 	int len;
@@ -615,6 +644,8 @@ int fsl_add_bridge(struct platform_device *pdev, int is_primary)
 
 	setup_indirect_pci(hose, rsrc.start, rsrc.start + 0x4,
 			   PPC_INDIRECT_TYPE_BIG_ENDIAN);
+
+	fixup_pci_controller(hose);
 
 	if (in_be32(&pci->block_rev1) < PCIE_IP_REV_3_0)
 		hose->indirect_type |= PPC_INDIRECT_TYPE_FSL_CFG_REG_LINK;

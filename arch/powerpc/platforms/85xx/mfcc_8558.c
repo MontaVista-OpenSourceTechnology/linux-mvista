@@ -166,16 +166,63 @@ static int law_setup_pcie(struct ccsr_law __iomem *law,
 	return 0;
 }
 
+#if 0
+static void dump_pci_device(struct pci_controller *hose)
+{
+	struct pci_dev *pdev = to_pci_dev(hose->parent);
+	unsigned int __iomem *pci = hose->private_data;
+	static u32 value[4096 / 4];
+	int i;
+
+	for (i = 0; i < 4096; i += 4)
+		value[i / 4] = in_be32(pci + (i / 4));
+	pci_info(pdev, "register space:\n");
+	print_hex_dump(KERN_INFO, "", DUMP_PREFIX_OFFSET, 16, 1,
+		       value, 4096, false);
+
+	for (i = 0; i < 4096; i += 4)
+		early_read_config_dword(hose, 0, 0, i, &value[i / 4]);
+	pci_info(pdev, "config space:\n");
+	print_hex_dump(KERN_INFO, "", DUMP_PREFIX_OFFSET, 16, 1,
+		       value, 4096, false);
+}
+#endif
+
 static void mfcc_8558_fixup_pci_phb(struct pci_controller *hose)
 {
-    /*
-     * If this undocumented register at least has the low bit set to
-     * 1, the PCI device will not work.  Zero it.  It's coming from
-     * mmsi boot with the bit set, but not PPCMON boot.
-     */
-    early_write_config_dword(hose, 0, 0, 0x8bc, 0);
+	/* This was 0 when booted from mmsi, but set in PPCMON. */
+	early_write_config_dword(hose, 0, 0, 0x38, 0x000000c1);
 
-    fsl_pcibios_fixup_phb(hose);
+	/*
+	 * Set max payload size in the PCI Express Device Control
+	 * Register to 128 bytes.  It was set to 0x2810, that value is
+	 * undocumented.
+	 */
+	early_write_config_word(hose, 0, 0, 0x78, 0x2800);
+
+	/*
+	 * Undocumented registers different in ppcmon and mmsi boots.
+	 */
+
+	/* Was 0x00010000 */
+	early_write_config_dword(hose, 0, 0, 0x718, 0x0003c000);
+
+	/* The value at 0x728 seems to be randomly set. */
+
+	/* Was 0x08000410 */
+	early_write_config_dword(hose, 0, 0, 0x72c, 0x08000418);
+
+	/*
+	 * If this undocumented register at least has the low bit set
+	 * to 1, the PCI device will not work.  Zero it.  It's coming
+	 * from mmsi boot with the bit set, but not PPCMON boot.
+	 */
+	early_write_config_dword(hose, 0, 0, 0x8bc, 0);
+
+	fsl_pcibios_fixup_phb(hose);
+#if 0
+	dump_pci_device(hose);
+#endif
 }
 #endif
 
