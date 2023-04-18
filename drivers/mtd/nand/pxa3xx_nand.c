@@ -1350,6 +1350,7 @@ static int pxa3xx_nand_read_page_hwecc(struct mtd_info *mtd,
 {
 	struct pxa3xx_nand_host *host = nand_get_controller_data(chip);
 	struct pxa3xx_nand_info *info = host->info_data;
+	struct nand_ecc_ctrl *ecc = &chip->ecc;
 
 	chip->read_buf(mtd, buf, mtd->writesize);
 	chip->read_buf(mtd, chip->oob_poi, mtd->oobsize);
@@ -1363,10 +1364,17 @@ static int pxa3xx_nand_read_page_hwecc(struct mtd_info *mtd,
 		 * 0, which is different from the ECC information within
 		 * OOB, ignore such uncorrectable errors
 		 */
-		if (is_buf_blank(buf, mtd->writesize))
-			info->retcode = ERR_NONE;
-		else
+		int bf;
+		bf = nand_check_erased_ecc_chunk(buf, mtd->writesize, NULL, 0, NULL, 0, ecc->strength);
+
+		if (bf < 0) {
+			dev_err(&info->pdev->dev, "ECC error, bf = %d\n", bf);
 			mtd->ecc_stats.failed++;
+		} else {
+			info->retcode = ERR_NONE;
+			mtd->ecc_stats.corrected += bf;
+			info->max_bitflips = max_t(unsigned int, info->max_bitflips, bf);
+		}
 	}
 
 	return info->max_bitflips;
