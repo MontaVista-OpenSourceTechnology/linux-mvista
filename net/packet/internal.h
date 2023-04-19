@@ -120,6 +120,7 @@ struct packet_sock {
 	unsigned int		running;	/* bind_lock must be held */
 	int			pressure;
 	int			ifindex;	/* bound device		*/
+	u8			vnet_hdr_sz;
 	__be16			num;
 	struct packet_rollover	*rollover;
 	struct packet_mclist	*mclist;
@@ -145,7 +146,6 @@ enum packet_sock_flags {
 	PACKET_SOCK_AUXDATA,
 	PACKET_SOCK_TX_HAS_OFF,
 	PACKET_SOCK_TP_LOSS,
-	PACKET_SOCK_HAS_VNET_HDR,
 };
 
 static inline void packet_sock_flag_set(struct packet_sock *po,
