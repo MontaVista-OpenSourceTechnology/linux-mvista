@@ -5,7 +5,7 @@
 #include <linux/kallsyms.h>
 #include <linux/kcore.h>
 #include <linux/pgtable.h>
-#include <linux/prandom.h>
+#include <linux/random.h>
 
 #include <asm/cpu_entry_area.h>
 #include <asm/fixmap.h>
@@ -36,7 +36,7 @@ static __init void init_cea_offsets(void)
 		unsigned int cea;
 
 again:
-		cea = prandom_u32_max(max_cea);
+		cea = get_random_u32() % max_cea;
 
 		for_each_possible_cpu(j) {
 			if (cea_offset(j) == cea)
