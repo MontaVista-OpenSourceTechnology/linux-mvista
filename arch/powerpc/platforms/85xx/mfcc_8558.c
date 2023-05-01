@@ -339,29 +339,35 @@ static inline void write_cpcsr0(volatile u32 *base, u32 val)
 /* The CPC is disabled when starting from bootloader but is enabled when
  * starting from ppcmon.
  */
-static int cpc_config(void)
+static void __iomem *cpc_pre_config(void)
 {
 	struct device_node *np;
-	void __iomem *base;
-	int ret = 0;
+	void __iomem *base = NULL;
 	volatile u32 *cpcsr0, *cpchdbcr0, *cpccfg0, *cpcsrcr0;
 
-	np = of_find_compatible_node(NULL, NULL, "fsl,t2080-l3-cache-controller");
-	if (!np)
-		return -ENODEV;
+	np = of_find_compatible_node(NULL, NULL,
+				     "fsl,t2080-l3-cache-controller");
+	if (!np) {
+		pr_err("cpc_pre_config: Unable to find l3 cache node\n");
+		return NULL;
+	}
 
 	base = (struct cpc_corenet *)of_iomap(np, 0);
 	if (!base) {
-		ret = -ENODEV;
+		pr_err("cpc_pre_config: Unable to iomap cpc\n");
 		goto error;
 	}
+
 	cpcsr0 = (volatile u32 *)(base + CPCCSR0);
 	cpccfg0 = (volatile u32 *)(base + CPCCFG0);
 	cpcsrcr0 = (volatile u32 *)(base + CPCSRCR0);
 	cpchdbcr0 = (volatile u32 *)(base + CPCHDBCR0);
 
-	if (*cpcsr0 & CPCCSR0_E)
+	if (*cpcsr0 & CPCCSR0_E) {
+		iounmap(base);
+		base = NULL;
 		goto skip_config;
+	}
 
 	/* clear and invalidate the cache */
 	write_cpcsr0(base, CPCCSR0_FI | CPCCSR0_FC);
@@ -387,17 +393,21 @@ static int cpc_config(void)
 	 */
 	*cpchdbcr0 |= 1 << (31 - 21);
 
-	/* enable CPC */
-	write_cpcsr0(base, CPCCSR0_E | CPCCSR0_PE);
-
 skip_config:
 	pr_info("cpc %s with size %d kB, sram %d\n",
 		(*cpcsr0 & CPCCSR0_E) ? "enabled" : "disabled",
 		CPCCFG0_SZ_K(*cpccfg0), *cpcsrcr0 & CPCSRCR0_SRAMEN);
-	iounmap(base);
 error:
 	of_node_put(np);
-	return ret;
+	return base;
+}
+
+static void cpc_enable(void __iomem *base)
+{
+	/* enable CPC */
+	write_cpcsr0(base, CPCCSR0_E | CPCCSR0_PE);
+
+	iounmap(base);
 }
 
 #include "smp.h"
@@ -408,17 +418,21 @@ error:
 
 void __init mfcc_8558_setup_arch(void)
 {
+	void __iomem *base;
+
 	mpc85xx_smp_init();
 
 	swiotlb_detect_4g();
 
 	pr_info("%s board\n", ppc_md.name);
 
+	base = cpc_pre_config();
+
 	if (law_config())
 		pr_err("law_config failed\n");
 
-	if (cpc_config())
-		pr_err("cpc_config failed\n");
+	if (base)
+		cpc_enable(base);
 
 	mpc85xx_qe_init();
 }
