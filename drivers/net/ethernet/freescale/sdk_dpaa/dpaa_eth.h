@@ -1,4 +1,5 @@
 /* Copyright 2008-2012 Freescale Semiconductor Inc.
+ * Copyright 2019 NXP
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -98,15 +99,15 @@ struct dpa_buffer_layout_s {
  * space to account for further alignments.
  */
 #define DPA_MAX_FRM_SIZE	9600
-#ifdef CONFIG_PPC
+#ifndef FM_ERRATUM_A050385
 #define DPA_BP_RAW_SIZE \
 	((DPA_MAX_FRM_SIZE + DPA_MAX_FD_OFFSET + \
 	  sizeof(struct skb_shared_info) + 128) & ~(SMP_CACHE_BYTES - 1))
-#else /* CONFIG_PPC */
-#define DPA_BP_RAW_SIZE ((unlikely(dpaa_errata_a010022)) ? 2048 : \
+#else /* FM_ERRATUM_A050385 */
+#define DPA_BP_RAW_SIZE ((unlikely(fm_has_errata_a050385())) ? 2048 : \
 	((DPA_MAX_FRM_SIZE + DPA_MAX_FD_OFFSET + \
 	  sizeof(struct skb_shared_info) + 128) & ~(SMP_CACHE_BYTES - 1)))
-#endif /* CONFIG_PPC */
+#endif /* FM_ERRATUM_A050385 */
 #endif /* CONFIG_FSL_DPAA_ETH_JUMBO_FRAME */
 
 /* This is what FMan is ever allowed to use.
@@ -514,17 +515,6 @@ dpa_fd_offset(const struct qm_fd *fd)
 	return fd->offset;
 }
 
-/* Verifies if the skb length is below the interface MTU */
-static inline int dpa_check_rx_mtu(struct sk_buff *skb, int mtu)
-{
-	if (unlikely(skb->len > mtu))
-		if ((skb->protocol != htons(ETH_P_8021Q))
-				|| (skb->len > mtu + 4))
-			return -1;
-
-	return 0;
-}
-
 static inline uint16_t dpa_get_headroom(struct dpa_buffer_layout_s *bl)
 {
 	uint16_t headroom;
@@ -657,33 +647,27 @@ static inline void _dpa_assign_wq(struct dpa_fq *fq)
 #define dpa_get_queue_mapping(skb) skb_get_queue_mapping(skb)
 #endif
 
-#ifdef CONFIG_PTP_1588_CLOCK_DPAA
-struct ptp_priv_s {
-	struct device_node *node;
-	struct platform_device *of_dev;
-	struct mac_device *mac_dev;
-};
-extern struct ptp_priv_s ptp_priv;
-#endif
-
 static inline void _dpa_bp_free_pf(void *addr)
 {
 	put_page(virt_to_head_page(addr));
 }
 
-/* TODO: LS1043A SoC has a HW issue regarding FMan DMA transactions; The issue
- * manifests itself at high traffic rates when frames exceed 4K memory
- * boundaries; For the moment, we use a SW workaround to avoid frames larger
- * than 4K or that exceed 4K alignments.
+/* LS1043A SoC has a HW issue regarding FMan DMA transactions; The issue
+ * manifests itself at high traffic rates when frames cross 4K memory
+ * boundaries, when they are not aligned to 16 bytes or when they have
+ * Scatter/Gather fragments; For the moment, we use a SW workaround that
+ * realigns frames to 256 bytes. Scatter/Gather frames aren't supported
+ * on egress.
  */
 
-#ifndef CONFIG_PPC
-extern bool dpaa_errata_a010022; /* SoC affected by A010022 errata */
-
-#define HAS_DMA_ISSUE(start, size) \
-	(((u64)(start) ^ ((u64)(start) + (u64)(size))) & ~0xFFF)
-#define BOUNDARY_4K(start, size) (((u64)(start) + (u64)(size)) & ~0xFFF)
-
-#endif  /* !CONFIG_PPC */
+#ifdef FM_ERRATUM_A050385
+#define CROSS_4K(start, size) \
+	(((uintptr_t)(start) + (size)) > \
+	 (((uintptr_t)(start) + 0x1000) & ~0xFFF))
+/* The headroom needs to accommodate our private data (64 bytes) but
+ * we reserve 256 bytes instead to guarantee 256 data alignment.
+ */
+#define DPAA_A050385_HEADROOM	256
+#endif  /* FM_ERRATUM_A050385 */
 
 #endif	/* __DPA_H */

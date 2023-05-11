@@ -1,4 +1,5 @@
 /* Copyright 2012 Freescale Semiconductor Inc.
+ * Copyright 2019 NXP
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -42,6 +43,7 @@
 #include <linux/skbuff.h>
 #include <linux/highmem.h>
 #include <linux/fsl_bman.h>
+#include <net/sock.h>
 
 #include "dpaa_eth.h"
 #include "dpaa_eth_common.h"
@@ -81,8 +83,8 @@ static void dpa_bp_recycle_frag(struct dpa_bp *dpa_bp, unsigned long vaddr,
 
 static int _dpa_bp_add_8_bufs(const struct dpa_bp *dpa_bp)
 {
+	void *new_buf, *fman_buf;
 	struct bm_buffer bmb[8];
-	void *new_buf;
 	dma_addr_t addr;
 	uint8_t i;
 	struct device *dev = dpa_bp->dev;
@@ -99,26 +101,50 @@ static int _dpa_bp_add_8_bufs(const struct dpa_bp *dpa_bp)
 		 * We only need enough space to store a pointer, but allocate
 		 * an entire cacheline for performance reasons.
 		 */
-#ifndef CONFIG_PPC
-		if (unlikely(dpaa_errata_a010022))
-			new_buf = page_address(alloc_page(GFP_ATOMIC));
+#ifdef FM_ERRATUM_A050385
+		if (unlikely(fm_has_errata_a050385())) {
+			struct page *new_page = alloc_page(GFP_ATOMIC);
+			if (unlikely(!new_page))
+				goto netdev_alloc_failed;
+			new_buf = page_address(new_page);
+		}
 		else
 #endif
 		new_buf = netdev_alloc_frag(SMP_CACHE_BYTES + DPA_BP_RAW_SIZE);
 
 		if (unlikely(!new_buf))
 			goto netdev_alloc_failed;
-		new_buf = PTR_ALIGN(new_buf + SMP_CACHE_BYTES, SMP_CACHE_BYTES);
+		new_buf = PTR_ALIGN(new_buf, SMP_CACHE_BYTES);
 
-		skb = build_skb(new_buf, DPA_SKB_SIZE(dpa_bp->size) +
-			SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
+		/* Apart from the buffer that will be used by the FMan, the
+		 * skb also guarantees enough space to hold the backpointer
+		 * in the headroom and the shared info at the end.
+		 */
+		skb = build_skb(new_buf,
+				SMP_CACHE_BYTES + DPA_SKB_SIZE(dpa_bp->size) +
+				SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
 		if (unlikely(!skb)) {
 			put_page(virt_to_head_page(new_buf));
 			goto build_skb_failed;
 		}
-		DPA_WRITE_SKB_PTR(skb, skbh, new_buf, -1);
 
-		addr = dma_map_single(dev, new_buf,
+		/* Reserve SMP_CACHE_BYTES in the skb's headroom to store the
+		 * backpointer. This area will not be synced to, or
+		 * overwritten by, the FMan.
+		 */
+		skb_reserve(skb, SMP_CACHE_BYTES);
+
+		/* We don't sync the first SMP_CACHE_BYTES of the buffer to
+		 * the FMan. The skb backpointer is stored at the end of the
+		 * reserved headroom. Otherwise it will be overwritten by the
+		 * FMan.
+		 * The buffer synced with the FMan starts right after the
+		 * reserved headroom.
+		 */
+		fman_buf = new_buf + SMP_CACHE_BYTES;
+		DPA_WRITE_SKB_PTR(skb, skbh, fman_buf, -1);
+
+		addr = dma_map_single(dev, fman_buf,
 				dpa_bp->size, DMA_BIDIRECTIONAL);
 		if (unlikely(dma_mapping_error(dev, addr)))
 			goto dma_map_failed;
@@ -237,20 +263,8 @@ struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
 
 	if (unlikely(fd->format == qm_fd_sg)) {
 		nr_frags = skb_shinfo(skb)->nr_frags;
-
-#ifndef CONFIG_PPC
-/* addressing the 4k DMA issue can yield a larger number of fragments than
- * the skb had
- */
-		if (unlikely(dpaa_errata_a010022))
-			dma_unmap_single(dpa_bp->dev, addr, dpa_fd_offset(fd) +
-					 sizeof(struct qm_sg_entry) *
-					 DPA_SGT_MAX_ENTRIES,
-					 dma_dir);
-		else
-#endif
-		dma_unmap_single(dpa_bp->dev, addr, dpa_fd_offset(fd) +
-				 sizeof(struct qm_sg_entry) * (1 + nr_frags),
+		dma_unmap_single(dpa_bp->dev, addr,
+				 dpa_fd_offset(fd) + DPA_SGT_SIZE,
 				 dma_dir);
 
 		/* The sgt buffer has been allocated with netdev_alloc_frag(),
@@ -276,27 +290,7 @@ struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
 		sg_addr = qm_sg_addr(&sgt[0]);
 		sg_len = qm_sg_entry_get_len(&sgt[0]);
 		dma_unmap_single(dpa_bp->dev, sg_addr, sg_len, dma_dir);
-#ifndef CONFIG_PPC
-		if (unlikely(dpaa_errata_a010022)) {
-			i = 1;
-			do {
-				DPA_BUG_ON(qm_sg_entry_get_ext(&sgt[i]));
-				sg_addr = qm_sg_addr(&sgt[i]);
-				sg_len = qm_sg_entry_get_len(&sgt[i]);
-				dma_unmap_page(dpa_bp->dev, sg_addr, sg_len,
-					       dma_dir);
-			} while (!qm_sg_entry_get_final(&sgt[i++]));
-		} else {
-			/* remaining pages were mapped with dma_map_page() */
-			for (i = 1; i <= nr_frags; i++) {
-				DPA_BUG_ON(qm_sg_entry_get_ext(&sgt[i]));
-				sg_addr = qm_sg_addr(&sgt[i]);
-				sg_len = qm_sg_entry_get_len(&sgt[i]);
-				dma_unmap_page(dpa_bp->dev, sg_addr, sg_len,
-					       dma_dir);
-			}
-		}
-#else
+
 		/* remaining pages were mapped with dma_map_page() */
 		for (i = 1; i <= nr_frags; i++) {
 			DPA_BUG_ON(qm_sg_entry_get_ext(&sgt[i]));
@@ -304,7 +298,6 @@ struct sk_buff *_dpa_cleanup_tx_fd(const struct dpa_priv_s *priv,
 			sg_len = qm_sg_entry_get_len(&sgt[i]);
 			dma_unmap_page(dpa_bp->dev, sg_addr, sg_len, dma_dir);
 		}
-#endif
 
 		/* Free the page frag that we allocated on Tx */
 		put_page(virt_to_head_page(sgt));
@@ -366,13 +359,22 @@ bool dpa_buf_is_recyclable(struct sk_buff *skb,
 	 * - buffer address aligned to cacheline bytes
 	 * - offset of data from start of buffer no lower than a minimum value
 	 * - offset of data from start of buffer no higher than a maximum value
+	 * - the skb back-pointer is stored safely
 	 */
+
+	/* guarantee both the minimum size and the minimum data offset */
 	new = min(skb_end_pointer(skb) - min_size, skb->data - min_offset);
 
 	/* left align to the nearest cacheline */
 	new = (unsigned char *)((unsigned long)new & ~(SMP_CACHE_BYTES - 1));
 
-	if (likely(new >= skb->head &&
+	/* Make sure there is enough space to store the skb back-pointer in
+	 * the headroom, right before the start of the buffer.
+	 *
+	 * Guarantee that both maximum size and maximum data offsets aren't
+	 * crossed.
+	 */
+	if (likely(new >= (skb->head + sizeof(void *)) &&
 		   new >= (skb->data - DPA_MAX_FD_OFFSET) &&
 		   skb_end_pointer(skb) - new <= DPA_RECYCLE_MAX_SIZE)) {
 		*new_buf_start = new;
@@ -416,12 +418,6 @@ static struct sk_buff *__hot contig_fd_to_skb(const struct dpa_priv_s *priv,
 	 * warn us that the frame length is larger than the truesize. We
 	 * bypass the warning.
 	 */
-#ifndef CONFIG_PPC
-	/* We do not support Jumbo frames on LS1043 and thus we edit
-	 * the skb truesize only when the 4k errata is not present.
-	 */
-	if (likely(!dpaa_errata_a010022))
-#endif
 	skb->truesize = SKB_TRUESIZE(dpa_fd_length(fd));
 #endif
 
@@ -492,7 +488,6 @@ static struct sk_buff *__hot sg_fd_to_skb(const struct dpa_priv_s *priv,
 				 DMA_BIDIRECTIONAL);
 		if (i == 0) {
 			DPA_READ_SKB_PTR(skb, skbh, sg_vaddr, -1);
-			DPA_BUG_ON(skb->head != sg_vaddr);
 #ifdef CONFIG_FSL_DPAA_1588
 			if (priv->tsu && priv->tsu->valid &&
 			    priv->tsu->hwts_rx_en_ioctl)
@@ -575,6 +570,8 @@ static inline int dpa_skb_loop(const struct dpa_priv_s *priv,
 		return 0; /* loop disabled by default */
 
 	skb_push(skb, ETH_HLEN); /* compensate for eth_type_trans */
+	/* Save the current CPU ID in order to maintain core affinity */
+	skb_set_queue_mapping(skb, raw_smp_processor_id());
 	dpa_tx(skb, dpa_loop_netdevs[priv->loop_to]);
 
 	return 1; /* Frame Tx on the selected interface */
@@ -638,13 +635,6 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	(*count_ptr)--;
 	skb->protocol = eth_type_trans(skb, net_dev);
 
-	/* IP Reassembled frames are allowed to be larger than MTU */
-	if (unlikely(dpa_check_rx_mtu(skb, net_dev->mtu) &&
-		!(fd_status & FM_FD_IPR))) {
-		percpu_stats->rx_dropped++;
-		goto drop_bad_frame;
-	}
-
 	skb_len = skb->len;
 
 #ifdef CONFIG_FSL_DPAA_DBG_LOOP
@@ -677,10 +667,6 @@ void __hot _dpa_rx(struct net_device *net_dev,
 	percpu_stats->rx_bytes += skb_len;
 
 packet_dropped:
-	return;
-
-drop_bad_frame:
-	dev_kfree_skb(skb);
 	return;
 
 _release_frame:
@@ -723,6 +709,9 @@ int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 		dma_dir = DMA_BIDIRECTIONAL;
 		dma_map_size = dpa_bp->size;
 
+		/* Store the skb back-pointer before the start of the buffer.
+		 * Otherwise it will be overwritten by the FMan.
+		 */
 		DPA_WRITE_SKB_PTR(skb, skbh, buffer_start, -1);
 		*offset = skb_headroom(skb) - fd->offset;
 	} else
@@ -740,7 +729,7 @@ int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 
 		/* The buffer will be Tx-confirmed, but the TxConf cb must
 		 * necessarily look at our Tx private data to retrieve the
-		 * skbuff. (In short: can't use DPA_WRITE_SKB_PTR() here.)
+		 * skbuff. Store the back-pointer inside the buffer.
 		 */
 		DPA_WRITE_SKB_PTR(skb, skbh, buffer_start, 0);
 	}
@@ -776,6 +765,152 @@ int __hot skb_to_contig_fd(struct dpa_priv_s *priv,
 }
 EXPORT_SYMBOL(skb_to_contig_fd);
 
+#ifdef FM_ERRATUM_A050385
+/* Verify the conditions that trigger the A050385 errata:
+ * - 4K memory address boundary crossings when the data/SG fragments aren't
+ *   aligned to 256 bytes
+ * - data and SG fragments that aren't aligned to 16 bytes
+ * - SG fragments that aren't mod 16 bytes in size (except for the last
+ *   fragment)
+ */
+static bool a050385_check_skb(struct sk_buff *skb, struct dpa_priv_s *priv)
+{
+	skb_frag_t *frag;
+	int i, nr_frags;
+
+	nr_frags = skb_shinfo(skb)->nr_frags;
+
+	/* Check if the linear data is 16 byte aligned */
+	if ((uintptr_t)skb->data % 16)
+		return true;
+
+	/* Check if the needed headroom crosses a 4K address boundary without
+	 * being 256 byte aligned
+	 */
+	if (CROSS_4K(skb->data - priv->tx_headroom, priv->tx_headroom) &&
+	    (((uintptr_t)skb->data - priv->tx_headroom) % 256))
+		return true;
+
+	/* Check if the linear data crosses a 4K address boundary without
+	 * being 256 byte aligned
+	 */
+	if (CROSS_4K(skb->data, skb_headlen(skb)) &&
+	    ((uintptr_t)skb->data % 256))
+		return true;
+
+	/* When using Scatter/Gather, the linear data becomes the first
+	 * fragment in the list and must follow the same restrictions as the
+	 * other fragments.
+	 *
+	 * Check if the linear data is mod 16 bytes in size.
+	 */
+	if (nr_frags && (skb_headlen(skb) % 16))
+		return true;
+
+	/* Check the SG fragments. They must follow the same rules as the
+	 * linear data with and additional restriction: they must be multiple
+	 * of 16 bytes in size to account for the hardware carryover effect.
+	 */
+	for (i = 0; i < nr_frags; i++) {
+		frag = &skb_shinfo(skb)->frags[i];
+
+		/* Check if the fragment is a multiple of 16 bytes in size.
+		 * The last fragment is exempt from this restriction.
+		 */
+		if ((i != (nr_frags - 1)) && (skb_frag_size(frag) % 16))
+			return true;
+
+		/* Check if the fragment is 16 byte aligned */
+		if (skb_frag_off(frag) % 16)
+			return true;
+
+		/* Check if the fragment crosses a 4K address boundary. Since
+		 * the alignment of previous fragments can influence the
+		 * current fragment, checking for the 256 byte alignment
+		 * isn't relevant.
+		 */
+		if (CROSS_4K(skb_frag_off(frag), skb_frag_size(frag)))
+			return true;
+	}
+
+	return false;
+}
+
+/* Realign the skb by copying its contents at the start of a newly allocated
+ * page. Build a new skb around the new buffer and release the old one.
+ * A performance drop should be expected.
+ */
+static struct sk_buff *a050385_realign_skb(struct sk_buff *skb,
+					   struct dpa_priv_s *priv)
+{
+	int trans_offset = skb_transport_offset(skb);
+	int net_offset = skb_network_offset(skb);
+	struct sk_buff *nskb = NULL;
+	int nsize, headroom;
+	struct page *npage;
+	void *npage_addr;
+
+	headroom = DPAA_A050385_HEADROOM;
+
+	/* For the new skb we only need the old one's data (both non-paged and
+	 * paged). We can skip the old tailroom.
+	 *
+	 * Make sure the skb_shinfo is cache-line aligned.
+	 */
+	nsize = SMP_CACHE_BYTES + DPA_SKB_SIZE(headroom + skb->len) +
+		SKB_DATA_ALIGN(sizeof(struct skb_shared_info));
+
+	/* Reserve enough memory to accommodate Jumbo frames */
+	npage = alloc_pages(GFP_ATOMIC | __GFP_COMP, get_order(nsize));
+	if (unlikely(!npage)) {
+		WARN_ONCE(1, "Memory allocation failure\n");
+		return NULL;
+	}
+	npage_addr = page_address(npage);
+
+	nskb = build_skb(npage_addr, nsize);
+	if (unlikely(!nskb))
+		goto err;
+
+	/* Reserve only the needed headroom in order to guarantee the data's
+	 * alignment.
+	 * Code borrowed and adapted from skb_copy().
+	 */
+	skb_reserve(nskb, headroom);
+	skb_put(nskb, skb->len);
+	if (skb_copy_bits(skb, 0, nskb->data, skb->len)) {
+		WARN_ONCE(1, "skb parsing failure\n");
+		goto err;
+	}
+	skb_copy_header(nskb, skb);
+
+#ifdef CONFIG_FSL_DPAA_TS
+	/* Copy relevant timestamp info from the old skb to the new */
+	if (priv->ts_tx_en) {
+		skb_shinfo(nskb)->tx_flags = skb_shinfo(skb)->tx_flags;
+		skb_shinfo(nskb)->hwtstamps = skb_shinfo(skb)->hwtstamps;
+		skb_shinfo(nskb)->tskey = skb_shinfo(skb)->tskey;
+		if (skb->sk)
+			skb_set_owner_w(nskb, skb->sk);
+	}
+#endif
+	/* We move the headroom when we align it so we have to reset the
+	 * network and transport header offsets relative to the new data
+	 * pointer. The checksum offload relies on these offsets.
+	 */
+	skb_set_network_header(nskb, net_offset);
+	skb_set_transport_header(nskb, trans_offset);
+
+	return nskb;
+
+err:
+	if (nskb)
+		dev_kfree_skb(nskb);
+	put_page(npage);
+	return NULL;
+}
+#endif
+
 int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 		       struct sk_buff *skb, struct qm_fd *fd)
 {
@@ -784,59 +919,46 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 	dma_addr_t sg_addr;
 	struct sk_buff **skbh;
 	struct net_device *net_dev = priv->net_dev;
-	int sg_len;
+	int sg_len, sgt_size;
 	int err;
-#ifndef CONFIG_PPC
-	dma_addr_t boundary;
-	int k;
-#endif
 
 	struct qm_sg_entry *sgt;
 	void *sgt_buf;
-	void *buffer_start;
 	skb_frag_t *frag;
-	int i, j = 0;
+	int i = 0, j = 0;
+	int nr_frags;
 	const enum dma_data_direction dma_dir = DMA_TO_DEVICE;
-	const int nr_frags = skb_shinfo(skb)->nr_frags;
 
+	nr_frags = skb_shinfo(skb)->nr_frags;
 	fd->format = qm_fd_sg;
-#ifndef CONFIG_PPC
-	if (unlikely(dpaa_errata_a010022)) {
-		/* get a page frag to store the SGTable */
-		sgt_buf = netdev_alloc_frag(priv->tx_headroom +
-			sizeof(struct qm_sg_entry) * DPA_SGT_MAX_ENTRIES);
-		if (unlikely(!sgt_buf)) {
-			dev_err(dpa_bp->dev, "netdev_alloc_frag() failed\n");
-			return -ENOMEM;
-		}
 
-		memset(sgt_buf, 0, priv->tx_headroom +
-			sizeof(struct qm_sg_entry) * DPA_SGT_MAX_ENTRIES);
-	} else {
-		/* get a page frag to store the SGTable */
-		sgt_buf = netdev_alloc_frag(priv->tx_headroom +
-			sizeof(struct qm_sg_entry) * (1 + nr_frags));
-		if (unlikely(!sgt_buf)) {
-			dev_err(dpa_bp->dev, "netdev_alloc_frag() failed\n");
-			return -ENOMEM;
-		}
+	/* The FMan reads 256 bytes from the start of the SGT regardless of
+	 * its size. In accordance, we reserve the same amount of memory as
+	 * well.
+	 */
+	sgt_size = DPA_SGT_SIZE;
 
-		memset(sgt_buf, 0, priv->tx_headroom +
-			sizeof(struct qm_sg_entry) * (1 + nr_frags));
+	/* Get a page frag to store the SGTable, or a full page if the errata
+	 * is in place and we need to avoid crossing a 4k boundary.
+	 */
+#ifdef FM_ERRATUM_A050385
+	if (unlikely(fm_has_errata_a050385())) {
+		struct page *new_page = alloc_page(GFP_ATOMIC);
+
+		if (unlikely(!new_page))
+			return -ENOMEM;
+		sgt_buf = page_address(new_page);
 	}
-#else
-	/* get a page frag to store the SGTable */
-	sgt_buf = netdev_alloc_frag(priv->tx_headroom +
-		sizeof(struct qm_sg_entry) * (1 + nr_frags));
+	else
+#endif
+		sgt_buf = netdev_alloc_frag(priv->tx_headroom + sgt_size);
 	if (unlikely(!sgt_buf)) {
 		dev_err(dpa_bp->dev, "netdev_alloc_frag() failed\n");
 		return -ENOMEM;
 	}
 
 	/* it seems that the memory allocator does not zero the allocated mem */
-	memset(sgt_buf, 0, priv->tx_headroom +
-		sizeof(struct qm_sg_entry) * (1 + nr_frags));
-#endif
+	memset(sgt_buf, 0, priv->tx_headroom + sgt_size);
 
 	/* Enable L3/L4 hardware checksum computation.
 	 *
@@ -851,6 +973,7 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 		goto csum_failed;
 	}
 
+	/* Assign the data from skb->data to the first SG list entry */
 	sgt = (struct qm_sg_entry *)(sgt_buf + priv->tx_headroom);
 	sg_len = skb_headlen(skb);
 	qm_sg_entry_set_bpid(&sgt[0], 0xff);
@@ -864,105 +987,9 @@ int __hot skb_to_sg_fd(struct dpa_priv_s *priv,
 		dev_err(dpa_bp->dev, "DMA mapping failed");
 		err = -EINVAL;
 		goto sg0_map_failed;
-
 	}
 
 	qm_sg_entry_set64(&sgt[0], addr);
-
-#ifndef CONFIG_PPC
-	if (unlikely(dpaa_errata_a010022))
-		goto workaround;
-
-	/* populate the rest of SGT entries */
-	for (i = 1; i <= nr_frags; i++) {
-		frag = &skb_shinfo(skb)->frags[i - 1];
-		qm_sg_entry_set_bpid(&sgt[i], 0xff);
-		qm_sg_entry_set_offset(&sgt[i], 0);
-		qm_sg_entry_set_len(&sgt[i], frag->size);
-		qm_sg_entry_set_ext(&sgt[i], 0);
-
-		if (i == nr_frags)
-			qm_sg_entry_set_final(&sgt[i], 1);
-		else
-			qm_sg_entry_set_final(&sgt[i], 0);
-
-		DPA_BUG_ON(!skb_frag_page(frag));
-		addr = skb_frag_dma_map(dpa_bp->dev, frag, 0, frag->size,
-					dma_dir);
-		if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
-			dev_err(dpa_bp->dev, "DMA mapping failed");
-			err = -EINVAL;
-			goto sg_map_failed;
-		}
-
-		/* keep the offset in the address */
-		qm_sg_entry_set64(&sgt[i], addr);
-	}
-	goto bypass_workaround;
-
-workaround:
-	if (unlikely(HAS_DMA_ISSUE(skb->data, sg_len))) {
-		boundary = BOUNDARY_4K(skb->data, sg_len);
-		qm_sg_entry_set_len(&sgt[j], (u64)boundary - (u64)addr);
-
-		j++;
-		qm_sg_entry_set_bpid(&sgt[j], 0xff);
-		qm_sg_entry_set_offset(&sgt[j], 0);
-		qm_sg_entry_set_len(&sgt[j],
-			((u64)skb->data + (u64)sg_len) - (u64)boundary);
-		qm_sg_entry_set_ext(&sgt[j], 0);
-		qm_sg_entry_set_final(&sgt[j], 0);
-
-		/* keep the offset in the address */
-		qm_sg_entry_set64(&sgt[j], addr +
-				((u64)boundary - (u64)skb->data));
-	}
-	j++;
-
-	/* populate the rest of SGT entries */
-	for (i = 1; i <= nr_frags; i++, j++) {
-		frag = &skb_shinfo(skb)->frags[i - 1];
-		qm_sg_entry_set_bpid(&sgt[j], 0xff);
-		qm_sg_entry_set_offset(&sgt[j], 0);
-		qm_sg_entry_set_len(&sgt[j], frag->size);
-		qm_sg_entry_set_ext(&sgt[j], 0);
-
-		DPA_BUG_ON(!skb_frag_page(frag));
-		addr = skb_frag_dma_map(dpa_bp->dev, frag, 0, frag->size,
-					dma_dir);
-		if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
-			dev_err(dpa_bp->dev, "DMA mapping failed");
-			err = -EINVAL;
-			goto sg_map_failed;
-		}
-
-		/* keep the offset in the address */
-		qm_sg_entry_set64(&sgt[j], addr);
-
-		if (unlikely(HAS_DMA_ISSUE(frag, frag->size))) {
-			boundary = BOUNDARY_4K(frag, frag->size);
-			qm_sg_entry_set_len(&sgt[j], (u64)boundary - (u64)frag);
-
-			j++;
-			qm_sg_entry_set_bpid(&sgt[j], 0xff);
-			qm_sg_entry_set_offset(&sgt[j], 0);
-			qm_sg_entry_set_len(&sgt[j], ((u64)frag->size -
-						((u64)boundary - (u64)frag)));
-			qm_sg_entry_set_ext(&sgt[j], 0);
-
-			/* keep the offset in the address */
-			qm_sg_entry_set64(&sgt[j], addr +
-					((u64)boundary - (u64)frag));
-		}
-
-		if (i == nr_frags)
-			qm_sg_entry_set_final(&sgt[j], 1);
-		else
-			qm_sg_entry_set_final(&sgt[j], 0);
-	}
-
-bypass_workaround:
-#else
 
 	/* populate the rest of SGT entries */
 	for (i = 1; i <= nr_frags; i++) {
@@ -989,25 +1016,18 @@ bypass_workaround:
 		/* keep the offset in the address */
 		qm_sg_entry_set64(&sgt[i], addr);
 	}
-#endif
 
 	fd->length20 = skb->len;
 	fd->offset = priv->tx_headroom;
 
-	/* DMA map the SGT page */
-	buffer_start = (void *)sgt - priv->tx_headroom;
-	DPA_WRITE_SKB_PTR(skb, skbh, buffer_start, 0);
-#ifndef CONFIG_PPC
-	if (unlikely(dpaa_errata_a010022))
-		addr = dma_map_single(dpa_bp->dev, buffer_start,
-				      priv->tx_headroom +
-				      sizeof(struct qm_sg_entry) *
-				      DPA_SGT_MAX_ENTRIES,
-				      dma_dir);
-	else
-#endif
-	addr = dma_map_single(dpa_bp->dev, buffer_start, priv->tx_headroom +
-			      sizeof(struct qm_sg_entry) * (1 + nr_frags),
+	/* DMA map the SGT page
+	 *
+	 * It's safe to store the skb back-pointer inside the buffer since
+	 * S/G frames are non-recyclable.
+	 */
+	DPA_WRITE_SKB_PTR(skb, skbh, sgt_buf, 0);
+	addr = dma_map_single(dpa_bp->dev, sgt_buf,
+			      priv->tx_headroom + sgt_size,
 			      dma_dir);
 
 	if (unlikely(dma_mapping_error(dpa_bp->dev, addr))) {
@@ -1024,26 +1044,11 @@ bypass_workaround:
 
 sgt_map_failed:
 sg_map_failed:
-#ifndef CONFIG_PPC
-	if (unlikely(dpaa_errata_a010022))
-		for (k = 0; k < j; k++) {
-			sg_addr = qm_sg_addr(&sgt[k]);
-			dma_unmap_page(dpa_bp->dev, sg_addr,
-				       qm_sg_entry_get_len(&sgt[k]), dma_dir);
-		}
-	else
-		for (j = 0; j < i; j++) {
-			sg_addr = qm_sg_addr(&sgt[j]);
-			dma_unmap_page(dpa_bp->dev, sg_addr,
-				       qm_sg_entry_get_len(&sgt[j]), dma_dir);
-		}
-#else
 	for (j = 0; j < i; j++) {
 		sg_addr = qm_sg_addr(&sgt[j]);
 		dma_unmap_page(dpa_bp->dev, sg_addr,
 			       qm_sg_entry_get_len(&sgt[j]), dma_dir);
 	}
-#endif
 sg0_map_failed:
 csum_failed:
 	put_page(virt_to_head_page(sgt_buf));
@@ -1055,7 +1060,7 @@ EXPORT_SYMBOL(skb_to_sg_fd);
 int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 {
 	struct dpa_priv_s	*priv;
-	const int queue_mapping = dpa_get_queue_mapping(skb);
+	int queue_mapping = dpa_get_queue_mapping(skb);
 	struct qman_fq *egress_fq, *conf_fq;
 
 #ifdef CONFIG_FSL_DPAA_HOOKS
@@ -1073,6 +1078,9 @@ int __hot dpa_tx(struct sk_buff *skb, struct net_device *net_dev)
 		return ceetm_tx(skb, net_dev);
 #endif
 
+	if (unlikely(queue_mapping >= DPAA_ETH_TX_QUEUES))
+		queue_mapping = queue_mapping % DPAA_ETH_TX_QUEUES;
+
 	egress_fq = priv->egress_fqs[queue_mapping];
 	conf_fq = priv->conf_fqs[queue_mapping];
 
@@ -1087,10 +1095,23 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 	struct dpa_percpu_priv_s *percpu_priv;
 	struct rtnl_link_stats64 *percpu_stats;
 	int err = 0;
-	const bool nonlinear = skb_is_nonlinear(skb);
+	bool nonlinear, skb_changed, skb_need_wa;
 	int *countptr, offset = 0;
-	struct skb_shared_info *shinfo;
-	u8 head_frag;
+	struct sk_buff *nskb;
+
+	/* Flags to help optimize the A050385 errata restriction checks.
+	 *
+	 * First flag marks if the skb changed between the first A050385 check
+	 * and the moment it's converted to an FD.
+	 *
+	 * The second flag marks if the skb needs to be realigned in order to
+	 * avoid the errata.
+	 *
+	 * The flags should have minimal impact on platforms not impacted by
+	 * the errata.
+	 */
+	skb_changed = false;
+	skb_need_wa = false;
 
 	priv = netdev_priv(net_dev);
 	/* Non-migratable context, safe to use raw_cpu_ptr */
@@ -1099,6 +1120,13 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 	countptr = raw_cpu_ptr(priv->dpa_bp->percpu_count);
 
 	clear_fd(&fd);
+
+#ifdef FM_ERRATUM_A050385
+	if (unlikely(fm_has_errata_a050385()) && a050385_check_skb(skb, priv))
+		skb_need_wa = true;
+#endif
+
+	nonlinear = skb_is_nonlinear(skb);
 
 #ifdef CONFIG_FSL_DPAA_1588
 	if (priv->tsu && priv->tsu->valid && priv->tsu->hwts_tx_en_ioctl)
@@ -1116,22 +1144,11 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 	 * Btw, we're using the first sgt entry to store the linear part of
 	 * the skb, so we're one extra frag short.
 	 */
-#ifndef CONFIG_PPC
-	if (nonlinear &&
-	    ((unlikely(dpaa_errata_a010022) &&
-	      likely(skb_shinfo(skb)->nr_frags < DPA_SGT_4K_ENTRIES_THRESHOLD)) ||
-	    (likely(!dpaa_errata_a010022) &&
-	     likely(skb_shinfo(skb)->nr_frags < DPA_SGT_ENTRIES_THRESHOLD)))) {
+	if (nonlinear && !skb_need_wa &&
+	    likely(skb_shinfo(skb)->nr_frags < DPA_SGT_MAX_ENTRIES)) {
 		/* Just create a S/G fd based on the skb */
 		err = skb_to_sg_fd(priv, skb, &fd);
 		percpu_priv->tx_frag_skbuffs++;
-#else
-	if (nonlinear &&
-		likely(skb_shinfo(skb)->nr_frags < DPA_SGT_ENTRIES_THRESHOLD)) {
-		/* Just create a S/G fd based on the skb */
-		err = skb_to_sg_fd(priv, skb, &fd);
-		percpu_priv->tx_frag_skbuffs++;
-#endif
 	} else {
 		/* Make sure we have enough headroom to accommodate private
 		 * data, parse results, etc. Normally this shouldn't happen if
@@ -1146,56 +1163,80 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 				percpu_stats->tx_errors++;
 				return NETDEV_TX_OK;
 			}
+
+			/* propagate the skb ownership information */
+			if (skb->sk)
+				skb_set_owner_w(skb_new, skb->sk);
+
 			dev_kfree_skb(skb);
 			skb = skb_new;
+			skb_changed = true;
 		}
 
 		/* We're going to store the skb backpointer at the beginning
 		 * of the data buffer, so we need a privately owned skb
+		 *
+		 * Under the A050385 errata, we are going to have a privately
+		 * owned skb after realigning the current one, so no point in
+		 * copying it here in that case.
 		 */
 
 		/* Code borrowed from skb_unshare(). */
-		if (skb_cloned(skb)) {
-			struct sk_buff *nskb = skb_copy(skb, GFP_ATOMIC);
+		if (skb_cloned(skb) && !skb_need_wa) {
+			nskb = skb_copy(skb, GFP_ATOMIC);
 			kfree_skb(skb);
 			skb = nskb;
+			skb_changed = true;
+
 			/* skb_copy() has now linearized the skbuff. */
-		} else if (unlikely(nonlinear)) {
+		} else if (unlikely(nonlinear) && !skb_need_wa) {
 			/* We are here because the egress skb contains
 			 * more fragments than we support. In this case,
 			 * we have no choice but to linearize it ourselves.
 			 */
-			err = __skb_linearize(skb);
+#ifdef FM_ERRATUM_A050385
+			/* No point in linearizing the skb now if we are going
+			 * to realign and linearize it again further down due
+			 * to the A050385 errata
+			 */
+			if (unlikely(fm_has_errata_a050385()))
+				skb_need_wa = true;
+			else
+#endif
+				err = __skb_linearize(skb);
 		}
 		if (unlikely(!skb || err < 0))
 			/* Common out-of-memory error path */
 			goto enomem;
 
-#ifndef CONFIG_PPC
-		if (unlikely(dpaa_errata_a010022) &&
-		    unlikely(HAS_DMA_ISSUE(skb->data, skb->len))) {
-			err = skb_to_sg_fd(priv, skb, &fd);
-			percpu_priv->tx_frag_skbuffs++;
-		} else {
-			err = skb_to_contig_fd(priv, skb, &fd, countptr, &offset);
+#ifdef FM_ERRATUM_A050385
+		/* Verify the skb a second time if it has been updated since
+		 * the previous check
+		 */
+		if (unlikely(fm_has_errata_a050385()) && skb_changed &&
+		    a050385_check_skb(skb, priv))
+			skb_need_wa = true;
+
+		if (unlikely(fm_has_errata_a050385()) && skb_need_wa) {
+			nskb = a050385_realign_skb(skb, priv);
+			if (!nskb)
+				goto skb_to_fd_failed;
+			dev_kfree_skb(skb);
+			skb = nskb;
 		}
-#else
-		/* Finally, create a contig FD from this skb */
-		err = skb_to_contig_fd(priv, skb, &fd, countptr, &offset);
 #endif
+
+		err = skb_to_contig_fd(priv, skb, &fd, countptr, &offset);
 	}
 	if (unlikely(err < 0))
 		goto skb_to_fd_failed;
 
 	if (fd.bpid != 0xff) {
-		head_frag = skb->head_frag;
-		skb_release_head_state(skb);
-		shinfo = skb_shinfo(skb);
-		memset(shinfo, 0, offsetof(struct skb_shared_info, dataref));
-		atomic_set(&shinfo->dataref, 1);
-		memset(skb, 0, offsetof(struct sk_buff, tail));
-		skb->data = skb->head + NET_SKB_PAD;
-		skb->head_frag = head_frag;
+		skb_recycle(skb);
+		/* skb_recycle() reserves NET_SKB_PAD as skb headroom,
+		 * but we need the skb to look as if returned by build_skb().
+		 * We need to manually adjust the tailptr as well.
+		 */
 		skb->data = skb->head + offset;
 		skb_reset_tail_pointer(skb);
 
@@ -1206,6 +1247,7 @@ int __hot dpa_tx_extended(struct sk_buff *skb, struct net_device *net_dev,
 	if (unlikely(dpa_xmit(priv, percpu_stats, &fd, egress_fq, conf_fq) < 0))
 		goto xmit_failed;
 
+	netif_trans_update(net_dev);
 	return NETDEV_TX_OK;
 
 xmit_failed:

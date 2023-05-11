@@ -55,13 +55,11 @@
 	fm_set_##type##_port_params(port, &param); \
 }
 
+/* The SGT needs to be 256 bytes long. Even if the table has only one entry,
+ * the FMan will read 256 bytes from its start.
+ */
+#define DPA_SGT_SIZE 256
 #define DPA_SGT_MAX_ENTRIES 16 /* maximum number of entries in SG Table */
-
-#define DPA_SGT_ENTRIES_THRESHOLD	DPA_SGT_MAX_ENTRIES
-#ifndef CONFIG_PPC
-/* each S/G entry can be divided into two S/G entries during errata W/A */
-#define DPA_SGT_4K_ENTRIES_THRESHOLD	7
-#endif
 
 #define DPA_BUFF_RELEASE_MAX 8 /* maximum number of buffers released at once */
 
@@ -144,9 +142,9 @@ int dpa_netdev_init(struct net_device *net_dev,
 int __cold dpa_start(struct net_device *net_dev);
 int __cold dpa_stop(struct net_device *net_dev);
 void __cold dpa_timeout(struct net_device *net_dev);
-void dpa_get_stats64(struct net_device *net_dev,
+void __cold
+dpa_get_stats64(struct net_device *net_dev,
 		struct rtnl_link_stats64 *stats);
-int dpa_change_mtu(struct net_device *net_dev, int new_mtu);
 int dpa_ndo_init(struct net_device *net_dev);
 int dpa_set_features(struct net_device *dev, netdev_features_t features);
 netdev_features_t dpa_fix_features(struct net_device *dev,
@@ -167,7 +165,7 @@ void dpa_set_rx_mode(struct net_device *net_dev);
 void dpa_set_buffers_layout(struct mac_device *mac_dev,
 		struct dpa_buffer_layout_s *layout);
 int __attribute__((nonnull))
-dpa_bp_alloc(struct dpa_bp *dpa_bp);
+dpa_bp_alloc(struct dpa_bp *dpa_bp, struct device *dev);
 void __cold __attribute__((nonnull))
 dpa_bp_free(struct dpa_priv_s *priv);
 struct dpa_bp *dpa_bpid2pool(int bpid);
@@ -176,7 +174,8 @@ bool dpa_bpid2pool_use(int bpid);
 void dpa_bp_drain(struct dpa_bp *bp);
 #ifdef CONFIG_FMAN_PFC
 u16 dpa_select_queue(struct net_device *net_dev, struct sk_buff *skb,
-		     void *accel_priv, select_queue_fallback_t fallback);
+		     struct net_device *sb_dev,
+		     select_queue_fallback_t fallback);
 #endif
 struct dpa_fq *dpa_fq_alloc(struct device *dev,
 			    u32 fq_start,
@@ -189,7 +188,7 @@ int dpa_fq_probe_mac(struct device *dev, struct list_head *list,
 		     enum port_type ptype);
 int dpa_get_channel(void);
 void dpa_release_channel(void);
-int dpaa_eth_add_channel(void *__arg);
+void dpaa_eth_add_channel(u16 channel);
 int dpaa_eth_cgr_init(struct dpa_priv_s *priv);
 void dpa_fq_setup(struct dpa_priv_s *priv, const struct dpa_fq_cbs_t *fq_cbs,
 		struct fm_port *tx_port);

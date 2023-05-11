@@ -76,7 +76,7 @@ static const char phy_str[][11] = {
 	[PHY_INTERFACE_MODE_RGMII_TXID]	= "rgmii-txid",
 	[PHY_INTERFACE_MODE_RTBI]	= "rtbi",
 	[PHY_INTERFACE_MODE_XGMII]	= "xgmii",
-	[PHY_INTERFACE_MODE_SGMII_2500] = "sgmii-2500",
+	[PHY_INTERFACE_MODE_2500BASEX] = "sgmii-2500",
 };
 
 static phy_interface_t __pure __attribute__((nonnull)) str2phy(const char *str)
@@ -103,7 +103,7 @@ static const uint16_t phy2speed[] = {
 	[PHY_INTERFACE_MODE_RGMII_TXID]	= SPEED_1000,
 	[PHY_INTERFACE_MODE_RTBI]	= SPEED_1000,
 	[PHY_INTERFACE_MODE_XGMII]	= SPEED_10000,
-	[PHY_INTERFACE_MODE_SGMII_2500] = SPEED_2500,
+	[PHY_INTERFACE_MODE_2500BASEX] = SPEED_2500,
 };
 
 static struct mac_device * __cold
@@ -133,10 +133,10 @@ static int __cold free_macdev(struct mac_device *mac_dev)
 
 static const struct of_device_id mac_match[] = {
 	[DTSEC] = {
-		.compatible	= "fsl,fman-1g-mac"
+		.compatible	= "fsl,fman-dtsec"
 	},
 	[XGMAC] = {
-		.compatible	= "fsl,fman-10g-mac"
+		.compatible	= "fsl,fman-xgec"
 	},
 	[MEMAC] = {
 		.compatible	= "fsl,fman-memac"
@@ -268,6 +268,8 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 		goto _return_dev_set_drvdata;
 	}
 	mac_dev->cell_index = (uint8_t)cell_index;
+	if (mac_dev->cell_index >= 8)
+		mac_dev->cell_index -= 8;
 
 	/* Get the MAC address */
 	mac_addr = of_get_mac_address(mac_node);
@@ -280,7 +282,7 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 	memcpy(mac_dev->addr, mac_addr, sizeof(mac_dev->addr));
 
 	/* Verify the number of port handles */
-	nph = of_count_phandle_with_args(mac_node, "fsl,port-handles", NULL);
+	nph = of_count_phandle_with_args(mac_node, "fsl,fman-ports", NULL);
 	if (unlikely(nph < 0)) {
 		dev_err(dev, "Cannot read port handles of mac node %s from device tree\n",
 				mac_node->full_name);
@@ -296,7 +298,7 @@ static int __cold mac_probe(struct platform_device *_of_dev)
 	}
 
 	for_each_port_device(i, mac_dev->port_dev) {
-		dev_node = of_parse_phandle(mac_node, "fsl,port-handles", i);
+		dev_node = of_parse_phandle(mac_node, "fsl,fman-ports", i);
 		if (unlikely(dev_node == NULL)) {
 			dev_err(dev, "Cannot find port node referenced by mac node %s from device tree\n",
 					mac_node->full_name);

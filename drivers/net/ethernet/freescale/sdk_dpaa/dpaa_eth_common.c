@@ -52,15 +52,8 @@
 #endif /* CONFIG_FSL_DPAA_DBG_LOOP */
 #include "mac.h"
 
-/* DPAA platforms benefit from hardware-assisted queue management */
-#define DPA_NETIF_FEATURES	NETIF_F_HW_ACCEL_MQ
-
 /* Size in bytes of the FQ taildrop threshold */
 #define DPA_FQ_TD		0x200000
-
-#ifdef CONFIG_PTP_1588_CLOCK_DPAA
-struct ptp_priv_s ptp_priv;
-#endif
 
 static struct dpa_bp *dpa_bp_array[64];
 
@@ -109,8 +102,6 @@ int dpa_netdev_init(struct net_device *net_dev,
 	int err;
 	struct dpa_priv_s *priv = netdev_priv(net_dev);
 	struct device *dev = net_dev->dev.parent;
-
-	net_dev->hw_features |= DPA_NETIF_FEATURES;
 
 	net_dev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
 
@@ -223,14 +214,12 @@ void __cold dpa_timeout(struct net_device *net_dev)
 {
 	const struct dpa_priv_s	*priv;
 	struct dpa_percpu_priv_s *percpu_priv;
-	struct netdev_queue *tq = netdev_get_tx_queue(net_dev, 0);
 
 	priv = netdev_priv(net_dev);
 	percpu_priv = raw_cpu_ptr(priv->percpu_priv);
 
 	if (netif_msg_timer(priv))
-		netdev_crit(net_dev, "Transmit timeout latency: %u ms\n",
-			jiffies_to_msecs(jiffies - tq->trans_start));
+		netdev_crit(net_dev, "Transmit timeout!\n");
 
 	percpu_priv->stats.tx_errors++;
 }
@@ -241,11 +230,13 @@ EXPORT_SYMBOL(dpa_timeout);
 /**
  * @param net_dev the device for which statistics are calculated
  * @param stats the function fills this structure with the device's statistics
+ * @return the address of the structure containing the statistics
  *
  * Calculates the statistics for the given device by adding the statistics
  * collected by each CPU.
  */
-void dpa_get_stats64(struct net_device *net_dev,
+void __cold
+dpa_get_stats64(struct net_device *net_dev,
 		struct rtnl_link_stats64 *stats)
 {
 	struct dpa_priv_s *priv = netdev_priv(net_dev);
@@ -265,22 +256,6 @@ void dpa_get_stats64(struct net_device *net_dev,
 	}
 }
 EXPORT_SYMBOL(dpa_get_stats64);
-
-int dpa_change_mtu(struct net_device *net_dev, int new_mtu)
-{
-	const int max_mtu = dpa_get_max_mtu();
-
-	/* Make sure we don't exceed the Ethernet controller's MAXFRM */
-	if (new_mtu < 68 || new_mtu > max_mtu) {
-		netdev_err(net_dev, "Invalid L3 mtu %d (must be between %d and %d).\n",
-				new_mtu, 68, max_mtu);
-		return -EINVAL;
-	}
-	net_dev->mtu = new_mtu;
-
-	return 0;
-}
-EXPORT_SYMBOL(dpa_change_mtu);
 
 /* .ndo_init callback */
 int dpa_ndo_init(struct net_device *net_dev)
@@ -331,7 +306,7 @@ EXPORT_SYMBOL(dpa_fix_features);
 u64 dpa_get_timestamp_ns(const struct dpa_priv_s *priv, enum port_type rx_tx,
 			const void *data)
 {
-	u64 *ts, ns;
+	u64 *ts;
 
 	ts = fm_port_get_buffer_time_stamp(priv->mac_dev->port_dev[rx_tx],
 					   data);
@@ -341,10 +316,7 @@ u64 dpa_get_timestamp_ns(const struct dpa_priv_s *priv, enum port_type rx_tx,
 
 	be64_to_cpus(ts);
 
-	/* multiple DPA_PTP_NOMINAL_FREQ_PERIOD_NS for case of non power of 2 */
-	ns = *ts << DPA_PTP_NOMINAL_FREQ_PERIOD_SHIFT;
-
-	return ns;
+	return *ts;
 }
 
 int dpa_get_ts(const struct dpa_priv_s *priv, enum port_type rx_tx,
@@ -368,8 +340,6 @@ static void dpa_ts_tx_enable(struct net_device *dev)
 	struct dpa_priv_s *priv = netdev_priv(dev);
 	struct mac_device *mac_dev = priv->mac_dev;
 
-	if (mac_dev->fm_rtc_enable)
-		mac_dev->fm_rtc_enable(get_fm_handle(dev));
 	if (mac_dev->ptp_enable)
 		mac_dev->ptp_enable(mac_dev->get_mac_handle(mac_dev));
 
@@ -401,8 +371,6 @@ static void dpa_ts_rx_enable(struct net_device *dev)
 	struct dpa_priv_s *priv = netdev_priv(dev);
 	struct mac_device *mac_dev = priv->mac_dev;
 
-	if (mac_dev->fm_rtc_enable)
-		mac_dev->fm_rtc_enable(get_fm_handle(dev));
 	if (mac_dev->ptp_enable)
 		mac_dev->ptp_enable(mac_dev->get_mac_handle(mac_dev));
 
@@ -465,13 +433,17 @@ int dpa_ioctl(struct net_device *dev, struct ifreq *rq, int cmd)
 #ifdef CONFIG_FSL_DPAA_1588
 	struct dpa_priv_s *priv = netdev_priv(dev);
 #endif
-	int ret = 0;
+	int ret = -EINVAL;
 
-	/* at least one timestamping feature must be enabled */
-#ifdef CONFIG_FSL_DPAA_TS
 	if (!netif_running(dev))
-#endif
 		return -EINVAL;
+
+	if (cmd == SIOCGMIIREG) {
+		if (!dev->phydev)
+			ret = -EINVAL;
+		else
+			ret = phy_mii_ioctl(dev->phydev, rq, cmd);
+	}
 
 #ifdef CONFIG_FSL_DPAA_TS
 	if (cmd == SIOCSHWTSTAMP)
@@ -580,7 +552,7 @@ dpa_mac_probe(struct platform_device *_of_dev)
 	}
 
 #ifdef CONFIG_FSL_DPAA_1588
-	phandle_prop = of_get_property(mac_node, "ptimer-handle", &lenp);
+	phandle_prop = of_get_property(mac_node, "ptp-timer", &lenp);
 	if (phandle_prop && ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
 			((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
 			 (mac_dev->speed == SPEED_1000)))) {
@@ -596,23 +568,6 @@ dpa_mac_probe(struct platform_device *_of_dev)
 	}
 #endif
 
-#ifdef CONFIG_PTP_1588_CLOCK_DPAA
-	if ((mac_dev->phy_if != PHY_INTERFACE_MODE_SGMII) ||
-	    ((mac_dev->phy_if == PHY_INTERFACE_MODE_SGMII) &&
-			 (mac_dev->speed == SPEED_1000))) {
-		ptp_priv.node = of_parse_phandle(mac_node, "ptimer-handle", 0);
-		if (ptp_priv.node) {
-			ptp_priv.of_dev = of_find_device_by_node(ptp_priv.node);
-			if (unlikely(ptp_priv.of_dev == NULL)) {
-				dev_err(dpa_dev,
-			"Cannot find device represented by timer_node\n");
-				of_node_put(ptp_priv.node);
-				return ERR_PTR(-EINVAL);
-			}
-			ptp_priv.mac_dev = mac_dev;
-		}
-	}
-#endif
 	return mac_dev;
 }
 EXPORT_SYMBOL(dpa_mac_probe);
@@ -707,11 +662,10 @@ void dpa_set_buffers_layout(struct mac_device *mac_dev,
 EXPORT_SYMBOL(dpa_set_buffers_layout);
 
 int __attribute__((nonnull))
-dpa_bp_alloc(struct dpa_bp *dpa_bp)
+dpa_bp_alloc(struct dpa_bp *dpa_bp, struct device *dev)
 {
 	int err;
 	struct bman_pool_params	 bp_params;
-	struct platform_device *pdev;
 
 	if (dpa_bp->size == 0 || dpa_bp->config_count == 0) {
 		pr_err("Buffer pool is not properly initialized! Missing size or initial number of buffers");
@@ -744,39 +698,25 @@ dpa_bp_alloc(struct dpa_bp *dpa_bp)
 
 	dpa_bp->bpid = (uint8_t)bman_get_params(dpa_bp->pool)->bpid;
 
-	pdev = platform_device_register_simple("dpaa_eth_bpool",
-			dpa_bp->bpid, NULL, 0);
-	if (IS_ERR(pdev)) {
-		err = PTR_ERR(pdev);
-		goto pdev_register_failed;
+	err = dma_coerce_mask_and_coherent(dev, DMA_BIT_MASK(40));
+	if (err) {
+		pr_err("dma_coerce_mask_and_coherent() failed\n");
+		goto bman_free_pool;
 	}
 
-	err = dma_coerce_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(40));
-	if (err)
-		goto pdev_mask_failed;
-
-#ifdef CONFIG_FMAN_ARM
-	/* force coherency */
-	pdev->dev.archdata.dma_coherent = true;
-	arch_setup_dma_ops(&pdev->dev, 0, 0, NULL, true);
-#endif
-
-	dpa_bp->dev = &pdev->dev;
+	dpa_bp->dev = dev;
 
 	if (dpa_bp->seed_cb) {
 		err = dpa_bp->seed_cb(dpa_bp);
 		if (err)
-			goto pool_seed_failed;
+			goto bman_free_pool;
 	}
 
 	dpa_bpid2pool_map(dpa_bp->bpid, dpa_bp);
 
 	return 0;
 
-pool_seed_failed:
-pdev_mask_failed:
-	platform_device_unregister(pdev);
-pdev_register_failed:
+bman_free_pool:
 	bman_free_pool(dpa_bp->pool);
 
 	return err;
@@ -838,9 +778,6 @@ _dpa_bp_free(struct dpa_bp *dpa_bp)
 
 	dpa_bp_array[bp->bpid] = NULL;
 	bman_free_pool(bp->pool);
-
-	if (bp->dev)
-		platform_device_unregister(to_platform_device(bp->dev));
 }
 
 void __cold __attribute__((nonnull))
@@ -848,8 +785,9 @@ dpa_bp_free(struct dpa_priv_s *priv)
 {
 	int i;
 
-	for (i = 0; i < priv->bp_count; i++)
-		_dpa_bp_free(&priv->dpa_bp[i]);
+	if (priv->dpa_bp)
+		for (i = 0; i < priv->bp_count; i++)
+			_dpa_bp_free(&priv->dpa_bp[i]);
 }
 EXPORT_SYMBOL(dpa_bp_free);
 
@@ -877,7 +815,8 @@ bool dpa_bpid2pool_use(int bpid)
 
 #ifdef CONFIG_FMAN_PFC
 u16 dpa_select_queue(struct net_device *net_dev, struct sk_buff *skb,
-		     void *accel_priv, select_queue_fallback_t fallback)
+		     struct net_device *sb_dev,
+		     select_queue_fallback_t fallback)
 {
 	return dpa_get_queue_mapping(skb);
 }
@@ -1059,10 +998,10 @@ void dpa_release_channel(void)
 }
 EXPORT_SYMBOL(dpa_release_channel);
 
-int dpaa_eth_add_channel(void *__arg)
+void dpaa_eth_add_channel(u16 channel)
 {
 	const cpumask_t *cpus = qman_affine_cpus();
-	u32 pool = QM_SDQCR_CHANNELS_POOL_CONV((u16)(unsigned long)__arg);
+	u32 pool = QM_SDQCR_CHANNELS_POOL_CONV(channel);
 	int cpu;
 	struct qman_portal *portal;
 
@@ -1070,7 +1009,6 @@ int dpaa_eth_add_channel(void *__arg)
 		portal = (struct qman_portal *)qman_get_affine_portal(cpu);
 		qman_p_static_dequeue_add(portal, pool);
 	}
-	return 0;
 }
 EXPORT_SYMBOL(dpaa_eth_add_channel);
 
@@ -1299,8 +1237,6 @@ int dpa_fq_init(struct dpa_fq *dpa_fq, bool td_enable)
 		memset(&initfq, 0, sizeof(initfq));
 
 		initfq.we_mask = QM_INITFQ_WE_FQCTRL;
-		/* FIXME: why would we want to keep an empty FQ in cache? */
-		initfq.fqd.fq_ctrl = QM_FQCTRL_PREFERINCACHE;
 
 		/* Try to reduce the number of portal interrupts for
 		 * Tx Confirmation FQs.

@@ -33,6 +33,7 @@
 #define __DPAA_ETH_CEETM_H
 
 #include <net/pkt_sched.h>
+#include <net/pkt_cls.h>
 #include <net/netlink.h>
 #include <lnxwrp_fm.h>
 
@@ -104,6 +105,7 @@ struct ceetm_fq {
 	struct qman_fq fq;
 	struct net_device *net_dev;
 	struct ceetm_class *ceetm_cls;
+	int congested; /* Congestion status */
 };
 
 struct root_q {
@@ -119,12 +121,14 @@ struct root_q {
 struct prio_q {
 	__u16 qcount;
 	struct ceetm_class *parent;
+	struct qm_ceetm_channel *ch;
 };
 
 struct wbfs_q {
 	__u16 qcount;
 	int group_type;
 	struct ceetm_class *parent;
+	struct qm_ceetm_channel *ch;
 	__u16 cr;
 	__u16 er;
 };
@@ -139,6 +143,7 @@ struct ceetm_qdisc {
 	};
 	struct Qdisc_class_hash clhash;
 	struct tcf_proto *filter_list; /* qdisc attached filters */
+	struct tcf_block *block;
 };
 
 /* CEETM Qdisc configuration parameters */
@@ -162,7 +167,6 @@ struct root_c {
 	bool wbfs_grp_b;
 	bool wbfs_grp_large;
 	struct Qdisc *child;
-	struct qm_ceetm_channel *ch;
 };
 
 struct prio_c {
@@ -188,9 +192,10 @@ struct wbfs_c {
 
 struct ceetm_class {
 	struct Qdisc_class_common common;
-	int refcnt; /* usage count of this class */
 	struct tcf_proto *filter_list; /* class attached filters */
+	struct tcf_block *block;
 	struct Qdisc *parent;
+	struct qm_ceetm_channel *ch;
 	bool shaped;
 	int type; /* ROOT/PRIO/WBFS */
 	union {
