@@ -425,6 +425,18 @@ static inline void hw_ccgr_query_to_cpu(struct qm_mcr_ceetm_ccgr_query *ccgr_q)
 {
 	int i;
 
+	ccgr_q->cm_query.cs_thres.hword =
+		be16_to_cpu(ccgr_q->cm_query.cs_thres.hword);
+	ccgr_q->cm_query.cs_thres_x.hword =
+		be16_to_cpu(ccgr_q->cm_query.cs_thres_x.hword);
+	ccgr_q->cm_query.td_thres.hword =
+		be16_to_cpu(ccgr_q->cm_query.td_thres.hword);
+	ccgr_q->cm_query.wr_parm_g.word =
+	       be32_to_cpu(ccgr_q->cm_query.wr_parm_g.word);
+	ccgr_q->cm_query.wr_parm_y.word =
+		be32_to_cpu(ccgr_q->cm_query.wr_parm_y.word);
+	ccgr_q->cm_query.wr_parm_r.word =
+		be32_to_cpu(ccgr_q->cm_query.wr_parm_r.word);
 	ccgr_q->cm_query.cscn_targ_dcp =
 		be16_to_cpu(ccgr_q->cm_query.cscn_targ_dcp);
 	ccgr_q->cm_query.i_cnt = be40_to_cpu(ccgr_q->cm_query.i_cnt);
@@ -563,6 +575,7 @@ struct qman_portal *qman_create_portal(
 	char buf[16];
 	int ret;
 	u32 isdr;
+	struct platform_device_info pdev_info;
 
 	if (!portal) {
 		portal = kmalloc(sizeof(*portal), GFP_KERNEL);
@@ -659,27 +672,22 @@ struct qman_portal *qman_create_portal(
 	portal->dqrr_disable_ref = 0;
 	portal->cb_dc_ern = NULL;
 	sprintf(buf, "qportal-%d", config->public_cfg.channel);
-	portal->pdev = platform_device_alloc(buf, -1);
+
+	memset(&pdev_info, 0, sizeof(pdev_info));
+	pdev_info.name = buf;
+	pdev_info.id = PLATFORM_DEVID_NONE;
+	pdev_info.dma_mask = DMA_BIT_MASK(40);
+
+	portal->pdev = platform_device_register_full(&pdev_info);
 	if (!portal->pdev) {
 		pr_err("qman_portal - platform_device_alloc() failed\n");
-		goto fail_devalloc;
+		goto fail_devregister;
 	}
-#ifdef CONFIG_ARM
-	portal->pdev->dev.coherent_dma_mask = DMA_BIT_MASK(40);
-	portal->pdev->dev.dma_mask = &portal->pdev->dev.coherent_dma_mask;
-#else
-	if (dma_set_mask(&portal->pdev->dev, DMA_BIT_MASK(40))) {
-		pr_err("qman_portal - dma_set_mask() failed\n");
-		goto fail_devadd;
-	}
-#endif
+
+	arch_setup_dma_ops(&portal->pdev->dev, 0, 0, NULL, true);
+
 	portal->pdev->dev.pm_domain = &qman_portal_device_pm_domain;
 	portal->pdev->dev.platform_data = portal;
-	ret = platform_device_add(portal->pdev);
-	if (ret) {
-		pr_err("qman_portal - platform_device_add() failed\n");
-		goto fail_devadd;
-	}
 	dpa_rbtree_init(&portal->retire_table);
 	isdr = 0xffffffff;
 	qm_isr_disable_write(__p, isdr);
@@ -729,7 +737,12 @@ struct qman_portal *qman_create_portal(
 	}
 	/* Success */
 	portal->config = config;
-	qm_isr_disable_write(__p, 0);
+	/*
+	 * Undisable all the IRQs except the dequeue available bits.
+	 * If left enabled they cause problems with sleep mode. Since
+	 * they are not used in push mode we can safely turn them off
+	 */
+	qm_isr_disable_write(__p, QM_DQAVAIL_MASK);
 	qm_isr_uninhibit(__p);
 	/* Write a sane SDQCR */
 	qm_dqrr_sdqcr_set(__p, portal->sdqcr);
@@ -739,10 +752,8 @@ fail_eqcr_empty:
 fail_affinity:
 	free_irq(config->public_cfg.irq, portal);
 fail_irq:
-	platform_device_del(portal->pdev);
-fail_devadd:
-	platform_device_put(portal->pdev);
-fail_devalloc:
+	platform_device_unregister(portal->pdev);
+fail_devregister:
 	if (num_ceetms)
 		for (ret = 0; ret < num_ceetms; ret++)
 			kfree(portal->ccgrs[ret]);
@@ -840,8 +851,7 @@ void qman_destroy_portal(struct qman_portal *qm)
 	qm_dqrr_finish(&qm->p);
 	qm_eqcr_finish(&qm->p);
 
-	platform_device_del(qm->pdev);
-	platform_device_put(qm->pdev);
+	platform_device_unregister(qm->pdev);
 
 	qm->config = NULL;
 	if (qm->alloced)
@@ -925,6 +935,7 @@ static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 {
 	const struct qm_mr_entry *msg;
 	struct qm_mr_entry swapped_msg;
+	int k;
 
 	if (is & QM_PIRQ_CSCI) {
 		struct qman_cgrs rr, c;
@@ -944,6 +955,9 @@ static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 		qm_mc_commit(&p->p, QM_MCC_VERB_QUERYCONGESTION);
 		while (!(mcr = qm_mc_result(&p->p)))
 			cpu_relax();
+		for (k = 0; k < 8; k++)
+			mcr->querycongestion.state.__state[k] = be32_to_cpu(
+					mcr->querycongestion.state.__state[k]);
 		/* mask out the ones I'm not interested in */
 		qman_cgrs_and(&rr, (const struct qman_cgrs *)
 			&mcr->querycongestion.state, &p->cgrs[0]);
@@ -963,7 +977,7 @@ static u32 __poll_portal_slow(struct qman_portal *p, u32 is)
 		struct qm_mc_command *mcc;
 		struct qm_ceetm_ccg *ccg;
 		unsigned long irqflags __maybe_unused;
-		int i, j, k;
+		int i, j;
 
 		spin_lock_irqsave(&p->ccgr_lock, irqflags);
 		/*
@@ -1793,6 +1807,16 @@ int qman_init_fq(struct qman_fq *fq, u32 flags, struct qm_mcc_initfq *opts)
 		} else {
 			phys_fq = dma_map_single(&p->pdev->dev, fq, sizeof(*fq),
 						DMA_TO_DEVICE);
+			if (dma_mapping_error(&p->pdev->dev, phys_fq)) {
+				dev_err(&p->pdev->dev,
+					"dma_map_single failed for fqid: %u\n",
+					fq->fqid);
+				FQUNLOCK(fq);
+				PORTAL_IRQ_UNLOCK(p, irqflags);
+				put_affine_portal();
+				return -EIO;
+			}
+
 			qm_fqd_stashing_set64(&mcc->initfq.fqd, phys_fq);
 		}
 	}
@@ -3059,36 +3083,19 @@ struct cgr_comp {
 	struct completion completion;
 };
 
-static int qman_delete_cgr_thread(void *p)
+static void qman_delete_cgr_smp_call(void *p)
 {
-	struct cgr_comp *cgr_comp = (struct cgr_comp *)p;
-	int res;
-
-	res = qman_delete_cgr((struct qman_cgr *)cgr_comp->cgr);
-	complete(&cgr_comp->completion);
-
-	return res;
+	qman_delete_cgr((struct qman_cgr *)p);
 }
 
 void qman_delete_cgr_safe(struct qman_cgr *cgr)
 {
-	struct task_struct *thread;
-	struct cgr_comp cgr_comp;
-
 	preempt_disable();
 	if (qman_cgr_cpus[cgr->cgrid] != smp_processor_id()) {
-		init_completion(&cgr_comp.completion);
-		cgr_comp.cgr = cgr;
-		thread = kthread_create(qman_delete_cgr_thread, &cgr_comp,
-					"cgr_del");
-
-		if (likely(!IS_ERR(thread))) {
-			kthread_bind(thread, qman_cgr_cpus[cgr->cgrid]);
-			wake_up_process(thread);
-			wait_for_completion(&cgr_comp.completion);
-			preempt_enable();
-			return;
-		}
+		smp_call_function_single(qman_cgr_cpus[cgr->cgrid],
+					 qman_delete_cgr_smp_call, cgr, true);
+		preempt_enable();
+		return;
 	}
 	qman_delete_cgr(cgr);
 	preempt_enable();
@@ -5433,18 +5440,12 @@ int qman_ceetm_ccg_get(struct qm_ceetm_ccg *ccg,
 		return -EINVAL;
 	}
 
-	params->wr_parm_r.word =
-			be32_to_cpu(query_result.cm_query.wr_parm_r.word);
-	params->wr_parm_y.word =
-			be32_to_cpu(query_result.cm_query.wr_parm_y.word);
-	params->wr_parm_g.word =
-		       be32_to_cpu(query_result.cm_query.wr_parm_g.word);
-	params->td_thres.hword =
-			be16_to_cpu(query_result.cm_query.td_thres.hword);
-	params->cs_thres_out.hword =
-			be16_to_cpu(query_result.cm_query.cs_thres_x.hword);
-	params->cs_thres_in.hword =
-			be16_to_cpu(query_result.cm_query.cs_thres.hword);
+	params->wr_parm_r.word = query_result.cm_query.wr_parm_r.word;
+	params->wr_parm_y.word = query_result.cm_query.wr_parm_y.word;
+	params->wr_parm_g.word = query_result.cm_query.wr_parm_g.word;
+	params->td_thres.hword = query_result.cm_query.td_thres.hword;
+	params->cs_thres_out.hword = query_result.cm_query.cs_thres_x.hword;
+	params->cs_thres_in.hword = query_result.cm_query.cs_thres.hword;
 	params->oal = query_result.cm_query.oal;
 	params->wr_en_g = query_result.cm_query.ctl_wr_en_g;
 	params->wr_en_y = query_result.cm_query.ctl_wr_en_y;
@@ -5505,7 +5506,7 @@ int qman_ceetm_cscn_swp_get(struct qm_ceetm_ccg *ccg,
 
 	i = swp_idx / 32;
 	i = 3 - i;
-	*cscn_enabled = be32_to_cpu(query_result.cm_query.cscn_targ_swp[i]) >>
+	*cscn_enabled = query_result.cm_query.cscn_targ_swp[i] >>
 							(31 - swp_idx % 32);
 
 	return 0;
@@ -5577,8 +5578,7 @@ int qman_ceetm_cscn_dcp_get(struct qm_ceetm_ccg *ccg,
 	}
 
 	*vcgid = query_result.cm_query.cdv;
-	*cscn_enabled = (be16_to_cpu(query_result.cm_query.cscn_targ_dcp >>
-				     dcp_idx)) & 0x1;
+	*cscn_enabled = (query_result.cm_query.cscn_targ_dcp >> dcp_idx) & 0x1;
 	return 0;
 }
 EXPORT_SYMBOL(qman_ceetm_cscn_dcp_get);

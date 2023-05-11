@@ -254,7 +254,7 @@ static const struct qman_error_info_mdata error_mdata[] = {
 	QMAN_ERR_MDATA(0x01FF, 72, "WQ context memory"),
 	QMAN_ERR_MDATA(0x00FF, 240, "CGR memory"),
 	QMAN_ERR_MDATA(0x00FF, 302, "Internal Order Restoration List memory"),
-	QMAN_ERR_MDATA(0x01FF, 256, "SW portal ring memory"),
+	QMAN_ERR_MDATA(0x7FFF, 256, "SW portal ring memory"),
 	QMAN_ERR_MDATA(0x07FF, 181, "CEETM class queue descriptor memory"),
 	QMAN_ERR_MDATA(0x0FFF, 140, "CEETM extended SFDR memory"),
 	QMAN_ERR_MDATA(0x0FFF, 25, "CEETM logical FQ mapping memory"),
@@ -492,51 +492,27 @@ size_t get_qman_fqd_size()
 static __init int parse_mem_property(struct device_node *node, const char *name,
 				dma_addr_t *addr, size_t *sz, int zero)
 {
-	const u32 *pint;
 	int ret;
-	unsigned long vaddr;
 
-	printk("%s: addr = %lx size = %lx zero = %d\n", __func__, (long)*addr, (long)*sz, zero);
-
-	pint = of_get_property(node, name, &ret);
-	if (!pint || (ret != 16)) {
-		pr_info("No %s property '%s', using memblock_alloc(%016zx)\n",
-				node->full_name, name, *sz);
-		*addr = (unsigned long)memblock_alloc(*sz, *sz);
-		vaddr = (unsigned long)phys_to_virt(*addr);
-		if (zero)
-			memset((void *)vaddr, 0, *sz);
-		flush_dcache_range(vaddr, vaddr + *sz);
-		return 0;
-	}
-	pr_info("Using %s property '%s'\n", node->full_name, name);
 	/* If using a "zero-pma", don't try to zero it, even if you asked */
 	if (zero && of_find_property(node, "zero-pma", &ret)) {
 		pr_info("  it's a 'zero-pma', not zeroing from s/w\n");
 		zero = 0;
 	}
-	*addr = ((u64)pint[0] << 32) | (u64)pint[1];
-	*sz = ((u64)pint[2] << 32) | (u64)pint[3];
-	/* Keep things simple, it's either all in the DRAM range or it's all
-	 * outside. */
-	if (*addr < memblock_end_of_DRAM()) {
-		BUG_ON((u64)*addr + (u64)*sz > memblock_end_of_DRAM());
-		if (memblock_reserve(*addr, *sz) < 0) {
-			pr_err("Failed to reserve %s\n", name);
-			return -ENOMEM;
-		}
-		vaddr = (unsigned long)phys_to_virt(*addr);
-		if (zero)
-			memset(phys_to_virt(*addr), 0, *sz);
-		flush_dcache_range(vaddr, vaddr + *sz);
-	} else if (zero) {
+
+	if (zero) {
 		/* map as cacheable, non-guarded */
-		void __iomem *tmpp = ioremap_prot(*addr, *sz, 0);
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
+		void __iomem *tmpp = ioremap_cache(*addr, *sz);
+#else
+		void __iomem *tmpp = ioremap(*addr, *sz);
+#endif
+
 		if (!tmpp)
 			return -ENOMEM;
 		memset_io(tmpp, 0, *sz);
-		vaddr = (unsigned long)tmpp;
-		flush_dcache_range(vaddr, vaddr + *sz);
+		flush_dcache_range((unsigned long)tmpp,
+				   (unsigned long)tmpp + *sz);
 		iounmap(tmpp);
 	}
 

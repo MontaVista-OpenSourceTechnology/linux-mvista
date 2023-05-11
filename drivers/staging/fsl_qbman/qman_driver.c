@@ -378,11 +378,10 @@ static void qman_get_ip_revision(struct device_node *dn)
 static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 {
 	struct qm_portal_config *pcfg;
-	const u32 *index_p, *channel_p;
+	const u32 *index_p;
 	u32 index, channel;
 	int irq, ret;
 	resource_size_t len;
-	struct platform_device *pdev;
 
 	pcfg = kmalloc(sizeof(*pcfg), GFP_KERNEL);
 	if (!pcfg) {
@@ -390,8 +389,19 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 		return NULL;
 	}
 
-	pdev = of_find_device_by_node(node);
-	pcfg->dev = pdev->dev;
+	/*
+	 * This is a *horrible hack*, but the IOMMU/PAMU driver needs a
+	 * 'struct device' in order to get the PAMU stashing setup and the QMan
+	 * portal [driver] won't function at all without ring stashing
+	 *
+	 * Making the QMan portal driver nice and proper is part of the
+	 * upstreaming effort
+	 */
+	pcfg->dev.bus = &platform_bus_type;
+	pcfg->dev.of_node = node;
+#ifdef CONFIG_FSL_PAMU
+	pcfg->dev.archdata.iommu_domain = NULL;
+#endif
 
 	ret = of_address_to_resource(node, DPA_PORTAL_CE,
 				&pcfg->addr_phys[DPA_PORTAL_CE]);
@@ -420,16 +430,7 @@ static struct qm_portal_config * __init parse_pcfg(struct device_node *node)
 		goto err;
 	}
 
-	channel_p = of_get_property(node, "fsl,qman-channel-id", &ret);
-	if (!channel_p || (ret != 4)) {
-		pr_err("Can't get %s property '%s'\n", node->full_name,
-			"fsl,qman-channel-id");
-		goto err;
-	}
-	channel = be32_to_cpu(*channel_p);
-	if (channel != (index + QM_CHANNEL_SWPORTAL0))
-		pr_err("Warning: node %s has mismatched %s and %s\n",
-			node->full_name, "cell-index", "fsl,qman-channel-id");
+	channel = index + QM_CHANNEL_SWPORTAL0;
 	pcfg->public_cfg.channel = channel;
 	pcfg->public_cfg.cpu = -1;
 	irq = irq_of_parse_and_map(node, 0);
@@ -959,4 +960,3 @@ void resume_unused_qportal(void)
 	return;
 }
 #endif
-

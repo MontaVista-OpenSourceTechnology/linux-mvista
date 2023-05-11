@@ -1,4 +1,5 @@
 /* Copyright (C) 2008-2012 Freescale Semiconductor, Inc.
+ * Copyright 2020 NXP
  * Authors: Andy Fleming <afleming@freescale.com>
  *	    Timur Tabi <timur@freescale.com>
  *	    Geoff Thorpe <Geoff.Thorpe@freescale.com>
@@ -18,6 +19,8 @@
 #include <linux/slab.h>
 #include <linux/mman.h>
 #include <linux/of_reserved_mem.h>
+#include <linux/eventfd.h>
+#include <linux/fdtable.h>
 
 #if !(defined(CONFIG_ARM) || defined(CONFIG_ARM64))
 #include <mm/mmu_decl.h>
@@ -27,6 +30,26 @@
 #include <linux/fsl_usdpaa.h>
 #include "bman_low.h"
 #include "qman_low.h"
+/* Headers requires for
+ * Link status support
+ */
+#include <linux/device.h>
+#include <linux/of_mdio.h>
+#include "mac.h"
+#include "dpaa_eth_common.h"
+
+/* Private data for Proxy Interface */
+struct dpa_proxy_priv_s {
+	struct mac_device	*mac_dev;
+	struct eventfd_ctx	*efd_ctx;
+};
+/* Interface Helpers */
+static inline struct device *get_dev_ptr(char *if_name);
+static void phy_link_updates(struct net_device *net_dev);
+/* IOCTL handlers */
+static inline int ioctl_usdpaa_get_link_status(char *if_name);
+static int ioctl_en_if_link_status(struct usdpaa_ioctl_link_status *args);
+static int ioctl_disable_if_link_status(char *if_name);
 
 /* Physical address range of the memory reservation, exported for mm/mem.c */
 static u64 phys_start;
@@ -371,6 +394,16 @@ static int usdpaa_open(struct inode *inode, struct file *filp)
 
 #define DQRR_MAXFILL 15
 
+
+/* Invalidate a portal */
+void dbci_portal(void *addr)
+{
+	int i;
+
+	for (i = 0; i < 0x4000; i += 64)
+		dcbi(addr + i);
+}
+
 /* Reset a QMan portal to its default state */
 static int init_qm_portal(struct qm_portal_config *config,
 			  struct qm_portal *portal)
@@ -383,6 +416,13 @@ static int init_qm_portal(struct qm_portal_config *config,
 
 	/* Make sure interrupts are inhibited */
 	qm_out(IIR, 1);
+
+	/*
+	 * Invalidate the entire CE portal are to ensure no stale
+	 * cachelines are present.  This should be done on all
+	 * cores as the portal is mapped as M=0 (non-coherent).
+	 */
+	on_each_cpu(dbci_portal, portal->addr.addr_ce, 1);
 
 	/* Initialize the DQRR.  This will stop any dequeue
 	   commands that are in progress */
@@ -434,6 +474,13 @@ static int init_bm_portal(struct bm_portal_config *config,
 {
 	portal->addr.addr_ce = config->addr_virt[DPA_PORTAL_CE];
 	portal->addr.addr_ci = config->addr_virt[DPA_PORTAL_CI];
+
+	/*
+	 * Invalidate the entire CE portal are to ensure no stale
+	 * cachelines are present.  This should be done on all
+	 * cores as the portal is mapped as M=0 (non-coherent).
+	 */
+	on_each_cpu(dbci_portal, portal->addr.addr_ce, 1);
 
 	if (bm_rcr_init(portal, bm_rcr_pvb, bm_rcr_cce)) {
 		pr_err("Bman RCR initialisation failed\n");
@@ -529,7 +576,6 @@ static bool check_portal_channel(void *ctx, u32 channel)
 	}
 	return false;
 }
-
 
 
 
@@ -1135,7 +1181,8 @@ out:
 					 : PROT_WRITE),
 					MAP_SHARED,
 					start_frag->pfn_base,
-					&populate, NULL);
+					&populate,
+					NULL);
 		up_write(&current->mm->mmap_sem);
 		if (longret & ~PAGE_MASK) {
 			ret = (int)longret;
@@ -1631,6 +1678,333 @@ found:
 	return 0;
 }
 
+
+static inline struct device *get_dev_ptr(char *if_name)
+{
+	struct device *dev;
+	char node[NODE_NAME_LEN];
+
+	sprintf(node, "soc:fsl,dpaa:%s",if_name);
+	dev = bus_find_device_by_name(&platform_bus_type, NULL, node);
+	if (dev == NULL) {
+		pr_err(KBUILD_MODNAME "IF %s not found\n", if_name);
+		return NULL;
+	}
+	pr_debug("%s: found dev 0x%lX  for If %s ,dev->platform_data %p\n",
+			  __func__, (unsigned long)dev,
+			  if_name, dev->platform_data);
+
+	return dev;
+}
+
+static int ioctl_set_link_status(struct usdpaa_ioctl_update_link_status *args)
+{
+	struct device *dev;
+	struct mac_device *mac_dev;
+
+	dev = get_dev_ptr(args->if_name);
+	if (!dev)
+		return -ENODEV;
+
+	if (of_device_is_compatible(dev->of_node, "fsl,dpa-ethernet")) {
+		struct net_device *ndev;
+		struct dpa_priv_s *npriv = NULL;
+
+		ndev = dev_get_drvdata(dev);
+		npriv = netdev_priv(ndev);
+		mac_dev =  npriv->mac_dev;
+	} else if (of_device_is_compatible(dev->of_node, "fsl,dpa-ethernet-init")) {
+		struct proxy_device *proxy_dev;
+
+		proxy_dev = dev_get_drvdata(dev);
+		mac_dev =  proxy_dev->mac_dev;
+	} else {
+		pr_err(KBUILD_MODNAME "Not supported device\n");
+		return -ENOMEM;
+	}
+
+	if (!mac_dev->phy_dev) {
+		pr_err(KBUILD_MODNAME "Device does not have associated phy dev\n");
+		return -EINVAL;
+	}
+
+	if (args->set_link_status == ETH_LINK_UP)
+		phy_resume(mac_dev->phy_dev);
+	else if (args->set_link_status == ETH_LINK_DOWN)
+		phy_suspend(mac_dev->phy_dev);
+	else
+		return -EINVAL;
+	return 0;
+}
+
+/* This function will return Current link status of the device
+ * '1' if Link is UP, '0' otherwise.
+ *
+ * Input parameter:
+ * if_name: Interface node name
+ *
+ */
+static inline int ioctl_usdpaa_get_link_status(char *if_name)
+{
+	struct net_device *net_dev = NULL;
+	struct device *dev;
+
+	dev = get_dev_ptr(if_name);
+	if (dev == NULL)
+		return -ENODEV;
+
+	if (of_device_is_compatible(dev->of_node, "fsl,dpa-ethernet")) {
+		net_dev = dev_get_drvdata(dev);
+		if (test_bit(__LINK_STATE_START, &net_dev->state))
+			return 1;
+		else
+			return 0;
+	} else {
+		net_dev = dev->platform_data;
+		if (net_dev == NULL)
+			return -ENODEV;
+		if (test_bit(__LINK_STATE_NOCARRIER, &net_dev->state))
+			return 0; /* Link is DOWN */
+		else
+			return 1; /* Link is UP */
+	}
+}
+
+
+/* Link Status Callback Function
+ * This function will be resgitered to PHY framework to get
+ * Link update notifications and should be responsible for waking up
+ * user space task when there is a link update notification.
+ */
+static void phy_link_updates(struct net_device *net_dev)
+{
+	struct dpa_priv_s *npriv = NULL;
+	struct mac_device *mac_dev;
+	struct phy_device *phy_dev;
+
+	if (of_device_is_compatible(net_dev->dev.of_node, "fsl,dpa-ethernet")) {
+		if (!net_dev->phydev) {
+			npriv = netdev_priv(net_dev);
+			mac_dev =  npriv->mac_dev;
+			phy_dev = of_phy_find_device(mac_dev->phy_node);
+		} else {
+			phy_dev = net_dev->phydev;
+		}
+
+		if (phy_dev->priv == NULL) {
+			pr_err(KBUILD_MODNAME "get eventfd context failed\n");
+			return;
+		}
+		eventfd_signal((struct eventfd_ctx *)phy_dev->priv, 1);
+	} else if (of_device_is_compatible(net_dev->dev.of_node, "fsl,dpa-ethernet-init")) {
+		struct dpa_proxy_priv_s *priv = NULL;
+		priv = netdev_priv(net_dev);
+		eventfd_signal(priv->efd_ctx, 1);
+	} else {
+		pr_err(KBUILD_MODNAME "Not supported device\n");
+		return;
+	}
+
+	pr_debug("%s: Link '%s': Speed '%d-Mbps': Autoneg '%d': Duplex '%d'\n",
+		net_dev->name,
+		ioctl_usdpaa_get_link_status(net_dev->name)?"UP":"DOWN",
+		phy_dev->speed,
+		phy_dev->autoneg,
+		phy_dev->duplex);
+}
+
+
+/* IOCTL handler for enabling Link status request for a given interface
+ * Input parameters:
+ * args->if_name:	This the network interface node name as defind in
+ *			device tree file. Currently, it has format of
+ *			"ethernet@x" type for each interface.
+ * args->efd:		The eventfd value which should be waked up when
+ *			there is any link update received.
+ */
+static int ioctl_en_if_link_status(struct usdpaa_ioctl_link_status *args)
+{
+	struct net_device *net_dev = NULL;
+	struct dpa_proxy_priv_s *priv = NULL;
+	struct device *dev;
+	struct mac_device *mac_dev;
+	struct task_struct *userspace_task = NULL;
+	struct file *efd_file = NULL;
+
+	dev = get_dev_ptr(args->if_name);
+	if (dev == NULL)
+		return -ENODEV;
+
+	if (of_device_is_compatible(dev->of_node, "fsl,dpa-ethernet")) {
+		struct dpa_priv_s *npriv = NULL;
+		struct phy_device *phy;
+
+		net_dev = dev_get_drvdata(dev);
+		npriv = netdev_priv(net_dev);
+		mac_dev =  npriv->mac_dev;
+		phy = of_phy_find_device(mac_dev->phy_node);
+		phy->adjust_link = phy_link_updates;
+		/* Get current task context from which IOCTL was called */
+		userspace_task = current;
+
+		rcu_read_lock();
+		efd_file = fcheck_files(userspace_task->files, args->efd);
+		rcu_read_unlock();
+		/* Utilising the PHYs priv for efd */
+		phy->priv = (void *)eventfd_ctx_fileget(efd_file);
+		if (phy->priv == NULL) {
+			pr_err(KBUILD_MODNAME "get eventfd context failed\n");
+			return -EINVAL;
+		}
+		net_dev->dev.of_node = dev->of_node;
+
+		/* Since there will be NO PHY update as link is already setup,
+		 * wake user context once so that current PHY status can
+		 * be fetched.
+		 */
+		phy_link_updates(net_dev);
+
+	} else if (of_device_is_compatible(dev->of_node, "fsl,dpa-ethernet-init")) {
+		struct proxy_device *proxy_dev;
+
+		/* Utilize dev->platform_data to save netdevice
+		 * pointer as it will not be registered.
+		 */
+		if (dev->platform_data) {
+			pr_debug("%s: IF %s already initialized\n",
+				 __func__, args->if_name);
+			/* This will happen when application is not able to initiate
+			 * cleanup in last run. We still need to save the new
+			 * eventfd context.
+			 */
+			net_dev = dev->platform_data;
+			priv = netdev_priv(net_dev);
+
+			/* Get current task context from which IOCTL was called */
+			userspace_task = current;
+
+			rcu_read_lock();
+			efd_file = fcheck_files(userspace_task->files, args->efd);
+			rcu_read_unlock();
+
+			priv->efd_ctx = eventfd_ctx_fileget(efd_file);
+			if (!priv->efd_ctx) {
+				pr_err(KBUILD_MODNAME "get eventfd context failed\n");
+				/* Free the allocated memory for net device */
+				dev->platform_data = NULL;
+				free_netdev(net_dev);
+				return -EINVAL;
+			}
+			net_dev->dev.of_node = dev->of_node;
+			/* Since there will be NO PHY update as link is already setup,
+			 * wake user context once so that current PHY status can
+			 * be fetched.
+			 */
+			phy_link_updates(net_dev);
+			return 0;
+		}
+
+		proxy_dev = dev_get_drvdata(dev);
+		mac_dev =  proxy_dev->mac_dev;
+
+		/* Allocate an dummy net device for proxy interface */
+		net_dev = alloc_etherdev(sizeof(*priv));
+		if (!net_dev) {
+			pr_err(KBUILD_MODNAME "alloc_etherdev failed\n");
+			return -ENOMEM;
+		}
+		SET_NETDEV_DEV(net_dev, dev);
+		priv = netdev_priv(net_dev);
+		priv->mac_dev = mac_dev;
+		/* Get current task context from which IOCTL was called */
+		userspace_task = current;
+
+		rcu_read_lock();
+		efd_file = fcheck_files(userspace_task->files, args->efd);
+		rcu_read_unlock();
+
+		priv->efd_ctx = eventfd_ctx_fileget(efd_file);
+
+		if (!priv->efd_ctx) {
+			pr_err(KBUILD_MODNAME "get eventfd context failed\n");
+			/* Free the allocated memory for net device */
+			free_netdev(net_dev);
+			return -EINVAL;
+		}
+		net_dev->dev.of_node = dev->of_node;
+		strncpy(net_dev->name, args->if_name, IF_NAME_MAX_LEN);
+		dev->platform_data = net_dev;
+
+		pr_debug("%s: mac_dev %p cell_index %d\n",
+			 __func__, mac_dev, mac_dev->cell_index);
+		mac_dev->phy_dev = of_phy_connect(net_dev, mac_dev->phy_node,
+						  phy_link_updates, 0,
+						  mac_dev->phy_if);
+		if (unlikely(mac_dev->phy_dev == NULL) || IS_ERR(mac_dev->phy_dev)) {
+			pr_err("%s: --------Error in PHY Connect\n", __func__);
+			/* Free the allocated memory for net device */
+			free_netdev(net_dev);
+			return -ENODEV;
+		}
+		pr_debug("%s: --- PHY connected for %s\n", __func__, args->if_name);
+		net_dev->phydev = mac_dev->phy_dev;
+		mac_dev->start(mac_dev);
+	} else {
+		pr_err(KBUILD_MODNAME "Not supported device\n");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+/* IOCTL handler for disabling Link status for a given interface
+ * Input parameters:
+ * if_name:	This the network interface node name as defind in
+ *		device tree file. Currently, it has format of
+ *		"ethernet@x" type for each interface.
+ */
+static int ioctl_disable_if_link_status(char *if_name)
+{
+	struct net_device *net_dev = NULL;
+	struct device *dev;
+	struct mac_device *mac_dev;
+	struct proxy_device *proxy_dev;
+	struct dpa_proxy_priv_s *priv = NULL;
+
+	dev = get_dev_ptr(if_name);
+	if (dev == NULL)
+		return -ENODEV;
+
+	if (of_device_is_compatible(dev->of_node, "fsl,dpa-ethernet"))
+		return 0;
+
+	/* Utilize dev->platform_data to save netdevice
+	   pointer as it will not be registered */
+	if (!dev->platform_data) {
+		pr_debug("%s: IF %s already Disabled for Link status\n",
+			__func__, if_name);
+		return 0;
+	}
+
+	net_dev = dev->platform_data;
+	proxy_dev = dev_get_drvdata(dev);
+	mac_dev =  proxy_dev->mac_dev;
+	mac_dev->stop(mac_dev);
+
+	priv = netdev_priv(net_dev);
+	eventfd_ctx_put(priv->efd_ctx);
+
+	/* This will also deregister the call back */
+	phy_disconnect(mac_dev->phy_dev);
+	phy_resume(mac_dev->phy_dev);
+
+	free_netdev(net_dev);
+	dev->platform_data = NULL;
+
+	pr_debug("%s: Link status Disabled for %s\n", __func__, if_name);
+	return 0;
+}
+
 static long usdpaa_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 {
 	struct ctx *ctx = fp->private_data;
@@ -1696,6 +2070,61 @@ static long usdpaa_ioctl(struct file *fp, unsigned int cmd, unsigned long arg)
 		if (copy_from_user(&input, a, sizeof(input)))
 			return -EFAULT;
 		return ioctl_free_raw_portal(fp, ctx, &input);
+	}
+	case USDPAA_IOCTL_ENABLE_LINK_STATUS_INTERRUPT:
+	{
+		struct usdpaa_ioctl_link_status input;
+		int ret;
+
+		if (copy_from_user(&input, a, sizeof(input)))
+			return -EFAULT;
+		ret = ioctl_en_if_link_status(&input);
+		if (ret)
+			pr_err("Error(%d) enable link interrupt:IF: %s\n",
+				ret, input.if_name);
+		return ret;
+	}
+	case USDPAA_IOCTL_DISABLE_LINK_STATUS_INTERRUPT:
+	{
+		char *input;
+		int ret;
+
+		if (copy_from_user(&input, a, sizeof(input)))
+			return -EFAULT;
+		ret = ioctl_disable_if_link_status(input);
+		if (ret)
+			pr_err("Error(%d) Disabling link interrupt:IF: %s\n",
+				ret, input);
+		return ret;
+	}
+	case USDPAA_IOCTL_GET_LINK_STATUS:
+	{
+		struct usdpaa_ioctl_link_status_args input;
+
+		if (copy_from_user(&input, a, sizeof(input)))
+			return -EFAULT;
+
+		input.link_status = ioctl_usdpaa_get_link_status(input.if_name);
+		if (input.link_status < 0)
+			return input.link_status;
+		if (copy_to_user(a, &input, sizeof(input)))
+			return -EFAULT;
+
+		return 0;
+	}
+	case USDPAA_IOCTL_UPDATE_LINK_STATUS:
+	{
+		struct usdpaa_ioctl_update_link_status input;
+		int ret;
+
+		if (copy_from_user(&input, a, sizeof(input)))
+			return -EFAULT;
+
+		ret = ioctl_set_link_status(&input);
+		if (ret)
+			pr_err("Error(%d) updating link status:IF: %s\n",
+			       ret, input.if_name);
+		return ret;
 	}
 	}
 	return -EINVAL;

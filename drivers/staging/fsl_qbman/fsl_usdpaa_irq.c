@@ -102,7 +102,7 @@ static irqreturn_t usdpaa_irq_handler(int irq, void *_ctx)
 	/* Set the inhibit register.  This will be reenabled
 	   once the USDPAA code handles the IRQ */
 	out_be32(ctx->inhibit_addr, 0x1);
-	pr_info("Inhibit at %p count %d", ctx->inhibit_addr, ctx->irq_count);
+	pr_debug("Inhibit at %p count %d", ctx->inhibit_addr, ctx->irq_count);
 	return IRQ_HANDLED;
 }
 
@@ -145,11 +145,11 @@ static int map_irq(struct file *fp, struct usdpaa_ioctl_irq_map *irq_map)
 		fput(ctx->usdpaa_filp);
 		return ret;
 	}
-	ret = irq_set_affinity(ctx->irq_num, current->cpus_ptr);
+	ret = irq_set_affinity(ctx->irq_num, &current->cpus_mask);
 	if (ret)
 		pr_err("USDPAA irq_set_affinity() failed, ret= %d\n", ret);
 
-	ret = irq_set_affinity_hint(ctx->irq_num, current->cpus_ptr);
+	ret = irq_set_affinity_hint(ctx->irq_num, &current->cpus_mask);
 	if (ret)
 		pr_err("USDPAA irq_set_affinity_hint() failed, ret= %d\n", ret);
 
