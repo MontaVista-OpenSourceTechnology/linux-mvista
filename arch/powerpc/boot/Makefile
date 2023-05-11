@@ -85,7 +85,7 @@ $(obj)/virtex405-head.o: BOOTAFLAGS += -mcpu=405
 dtb-mmsi-$(CONFIG_MMSI_DT_ECCP1) += mfcc_8559_eccp1
 dtb-mmsi-$(CONFIG_MMSI_DT_ECCP2) += mfcc_8559_eccp2
 dtb-mmsi-$(CONFIG_MMSI_DT_MFCC_8558) += mfcc_8558
-asm-dtb-mmsi = $(addprefix dts/, $(addsuffix .dtb.S, $(dtb-mmsi-y)))
+asm-dtb-mmsi = $(addprefix dts/fsl/, $(addsuffix .dtb.S, $(dtb-mmsi-y)))
 ifdef CONFIG_MMSI_IMAGE
 BOOTCFLAGS += -DDTB_SYMBOL=__dtb_$(dtb-mmsi-y)_begin
 endif
@@ -464,7 +464,7 @@ $(obj)/zImage.initrd:	$(addprefix $(obj)/, $(initrd-y))
 src-mmsi = crt0.S string.S div64.S stdio.c elf_util.c decompress.c \
       mmsi_puts.S zImage.S simple_alloc.c mmsi_main.c
 
-obj-dtb-mmsi = $(addprefix $(obj)/dts/, $(addsuffix .dtb.o, $(dtb-mmsi-y)))
+obj-dtb-mmsi = $(addprefix $(obj)/dts/fsl/, $(addsuffix .dtb.o, $(dtb-mmsi-y)))
 
 obj-mmsi := $(addsuffix .o, $(basename $(addprefix $(obj)/, $(src-mmsi)))) \
 	$(obj-dtb-mmsi)
