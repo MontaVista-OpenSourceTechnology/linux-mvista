@@ -10,7 +10,8 @@
 	interrupt-parent = <&mpic>;
 
 	chosen {
-		bootargs = "console=ttyS0,115200";
+		/* The standard size (32K) of swiotlb buffers isn't enough. */
+		bootargs = "console=ttyS0,115200 swiotlb=65536";
 
 		/* FIXME - do we need this? */
 		/* reserve 256MB for rootfs */
