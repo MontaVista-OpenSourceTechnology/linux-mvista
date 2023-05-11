@@ -23,17 +23,18 @@
 		#size-cells = <2>;
 		ranges;
 
+		bootmem: boot-mem {
+			reg = <0x00000000 0xfffff000 0x00000000 0x00001000>;
+		};
+
 		bman_fbpr: bman-fbpr {
-			size = <0 0x1000000>;
-			alignment = <0 0x1000000>;
+			reg = <0x00000000 0x7c000000 0x00000000 0x01000000>;
 		};
 		qman_fqd: qman-fqd {
-			size = <0 0x400000>;
-			alignment = <0 0x400000>;
+			reg = <0x00000000 0x7f000000 0x00000000 0x00400000>;
 		};
 		qman_pfdr: qman-pfdr {
-			size = <0 0x2000000>;
-			alignment = <0 0x2000000>;
+			reg = <0x00000000 0x7d000000 0x00000000 0x02000000>;
 		};
 	};
 

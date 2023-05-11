@@ -11,6 +11,9 @@
 		reg = <0xf 0xfe240000 0x0 0x10000>;
 		fsl,msi = <&msi0>;
 
+		/* This device can only DMA address the bottom 2GB of RAM. */
+		dma-ranges = <0 0 0 0 0 0x80000000>;
+
 		ranges = <
 			0x01000000		 /* PCI I/0 */
 			0x00000000 0x00000000 	 /* PCI @ 0_0000_0000 */
@@ -50,6 +53,9 @@
 		reg = <0xf 0xfe250000 0x0 0x10000>;
 		fsl,msi = <&msi1>;
 
+		/* This device can only DMA address the bottom 2GB of RAM. */
+		dma-ranges = <0 0 0 0 0 0x80000000>;
+
 		ranges = <
 			0x01000000		 /* PCI I/0 */
 			0x00000000 0x00000000 	 /* PCI @ 0_0000_0000 */
@@ -87,6 +93,9 @@
 	pci2: pcie@ffe260000 {
 		reg = <0xf 0xfe260000 0x0 0x10000>;
 		fsl,msi = <&msi2>;
+
+		/* This device can only DMA address the bottom 2GB of RAM. */
+		dma-ranges = <0 0 0 0 0 0x80000000>;
 
 		ranges = <
 			0x01000000		 /* PCI I/0 */
@@ -128,6 +137,9 @@
 
 		reg = <0xf 0xfe270000 0x0 0x10000>;
 		fsl,msi = <&msi3>;
+
+		/* This device can only DMA address the bottom 2GB of RAM. */
+		dma-ranges = <0 0 0 0 0 0x80000000>;
 
 		ranges = <
 			0x01000000		 /* PCI I/0 */
