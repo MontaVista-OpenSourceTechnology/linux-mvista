@@ -1,0 +1,5 @@
+/*
+ * This DTS file is for the 8558 in maintenance mode.
+ * Ethernets are enabled.
+ */
+/include/ "mfcc-8558.dtsi"
