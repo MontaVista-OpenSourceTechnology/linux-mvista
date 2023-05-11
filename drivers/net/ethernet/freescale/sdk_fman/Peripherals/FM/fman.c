@@ -31,6 +31,8 @@
  */
 
 
+#include "std_ext.h"
+#include "error_ext.h"
 #include <linux/math64.h>
 #include "fsl_fman.h"
 #include "dpaa_integration_ext.h"
@@ -358,9 +360,9 @@ int fman_reset_mac(struct fman_fpm_regs *fpm_rg, uint8_t mac_id, bool is_10g)
 		case(0):
 			msk = FPM_RSTC_10G0_RESET;
 			break;
-        case(1):
-            msk = FPM_RSTC_10G1_RESET;
-            break;
+		case(1):
+			msk = FPM_RSTC_10G1_RESET;
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -381,15 +383,15 @@ int fman_reset_mac(struct fman_fpm_regs *fpm_rg, uint8_t mac_id, bool is_10g)
 		case(4):
 			msk = FPM_RSTC_1G4_RESET;
 			break;
-        case (5):
-            msk = FPM_RSTC_1G5_RESET;
-            break;
-        case (6):
-            msk = FPM_RSTC_1G6_RESET;
-            break;
-        case (7):
-            msk = FPM_RSTC_1G7_RESET;
-            break;
+		case (5):
+			msk = FPM_RSTC_1G5_RESET;
+			break;
+		case (6):
+			msk = FPM_RSTC_1G6_RESET;
+			break;
+		case (7):
+			msk = FPM_RSTC_1G7_RESET;
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -408,8 +410,8 @@ uint16_t fman_get_size_of_fifo(struct fman_bmi_regs *bmi_rg, uint8_t port_id)
 {
 	uint32_t tmp_reg;
 
-    if ((port_id > 63) || (port_id < 1))
-            return 0;
+	if ((port_id > 63) || (port_id < 1))
+		return 0;
 
 	tmp_reg = ioread32be(&bmi_rg->fmbm_pfs[port_id - 1]);
 	return (uint16_t)((tmp_reg & BMI_FIFO_SIZE_MASK) + 1);
@@ -429,8 +431,8 @@ uint16_t fman_get_size_of_extra_fifo(struct fman_bmi_regs *bmi_rg,
 {
 	uint32_t tmp_reg;
 
-    if ((port_id > 63) || (port_id < 1))
-            return 0;
+	if ((port_id > 63) || (port_id < 1))
+		return 0;
 
 	tmp_reg = ioread32be(&bmi_rg->fmbm_pfs[port_id-1]);
 	return (uint16_t)((tmp_reg & BMI_EXTRA_FIFO_SIZE_MASK) >>

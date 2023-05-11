@@ -303,7 +303,21 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 	tmp_prop = be32_to_cpu(*uint32_prop);
 	if (WARN_ON(lenp != sizeof(uint32_t)))
 		return NULL;
-	if (of_device_is_compatible(port_node, "fsl,fman-port-oh")) {
+	if (of_device_is_compatible(port_node, "fsl,fman-port-oh") ||
+	    of_device_is_compatible(port_node, "fsl,fman-v2-port-oh") ||
+	    of_device_is_compatible(port_node, "fsl,fman-v3-port-oh")) {
+#ifndef CONFIG_FMAN_ARM
+#ifdef CONFIG_FMAN_P3040_P4080_P5020
+		/* On PPC FMan v2, OH ports start from cell-index 0x1 */
+		tmp_prop -= 0x1;
+#else
+		/* On PPC FMan v3 (Low and High), OH ports start from
+		 * cell-index 0x2
+		 */
+		tmp_prop -= 0x2;
+#endif // CONFIG_FMAN_P3040_P4080_P5020
+#endif // CONFIG_FMAN_ARM
+
 		if (unlikely(tmp_prop >= FM_MAX_NUM_OF_OH_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
 				     ("of_get_property(%s, cell-index) failed",
@@ -359,6 +373,7 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 		p_LnxWrpFmPortDev->settings.param.specificParams.nonRxParams.
 			qmChannel = p_LnxWrpFmPortDev->txCh;
 	} else if (of_device_is_compatible(port_node, "fsl,fman-port-1g-tx")) {
+		tmp_prop -= 0x28;
 		if (unlikely(tmp_prop >= FM_MAX_NUM_OF_1G_TX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
 					("of_get_property(%s, cell-index) failed",
@@ -387,6 +402,14 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 			settings.param.specificParams.nonRxParams.qmChannel =
 			p_LnxWrpFmPortDev->txCh;
 	} else if (of_device_is_compatible(port_node, "fsl,fman-port-10g-tx")) {
+#ifndef CONFIG_FMAN_ARM
+		/* On T102x, the 10G TX port IDs start from 0x28 */
+		if (IS_T1023_T1024)
+			tmp_prop -= 0x28;
+		else
+#endif
+		tmp_prop -= 0x30;
+
 		if (unlikely(tmp_prop>= FM_MAX_NUM_OF_10G_TX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
 					("of_get_property(%s, cell-index) failed",
@@ -397,7 +420,7 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 			FM_MAX_NUM_OF_1G_TX_PORTS];
 #ifndef CONFIG_FMAN_ARM
 		if (IS_T1023_T1024)
-			p_LnxWrpFmPortDev = &p_LnxWrpFmDev->txPorts[*uint32_prop];
+			p_LnxWrpFmPortDev = &p_LnxWrpFmDev->txPorts[tmp_prop];
 #endif
 
 		p_LnxWrpFmPortDev->id = tmp_prop;
@@ -419,6 +442,7 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 		p_LnxWrpFmPortDev->settings.param.specificParams.nonRxParams.
 			qmChannel = p_LnxWrpFmPortDev->txCh;
 	} else if (of_device_is_compatible(port_node, "fsl,fman-port-1g-rx")) {
+		tmp_prop -= 0x08;
 		if (unlikely(tmp_prop >= FM_MAX_NUM_OF_1G_RX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
 					("of_get_property(%s, cell-index) failed",
@@ -434,6 +458,14 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 		if (p_LnxWrpFmDev->pcdActive)
 			p_LnxWrpFmPortDev->defPcd = p_LnxWrpFmDev->defPcd;
 	} else if (of_device_is_compatible(port_node, "fsl,fman-port-10g-rx")) {
+#ifndef CONFIG_FMAN_ARM
+		/* On T102x, the 10G RX port IDs start from 0x08 */
+		if (IS_T1023_T1024)
+			tmp_prop -= 0x8;
+		else
+#endif
+		tmp_prop -= 0x10;
+
 		if (unlikely(tmp_prop >= FM_MAX_NUM_OF_10G_RX_PORTS)) {
 			REPORT_ERROR(MAJOR, E_INVALID_VALUE,
 					("of_get_property(%s, cell-index) failed",
@@ -445,7 +477,7 @@ static t_LnxWrpFmPortDev *ReadFmPortDevTreeNode(struct platform_device
 
 #ifndef CONFIG_FMAN_ARM
 		if (IS_T1023_T1024)
-			p_LnxWrpFmPortDev = &p_LnxWrpFmDev->rxPorts[*uint32_prop];
+			p_LnxWrpFmPortDev = &p_LnxWrpFmDev->rxPorts[tmp_prop];
 #endif
 
 		p_LnxWrpFmPortDev->id = tmp_prop;
@@ -633,7 +665,7 @@ static t_Error CheckNConfigFmPortAdvArgs (t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
     uint32_prop = (uint32_t *)of_get_property(port_node, "ar-tables-sizes",
 	&lenp);
     if (uint32_prop) {
-    
+
     	if (WARN_ON(lenp != sizeof(uint32_t)*8))
             RETURN_ERROR(MINOR, E_INVALID_VALUE, NO_MSG);
     	if (WARN_ON(p_LnxWrpFmPortDev->settings.param.portType !=
@@ -667,7 +699,7 @@ static t_Error CheckNConfigFmPortAdvArgs (t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
         if (uint32_prop) {
         	if (WARN_ON(lenp != sizeof(uint32_t)*3))
                 RETURN_ERROR(MINOR, E_INVALID_VALUE, NO_MSG);
-         
+
             p_LnxWrpFmPortDev->dsar_table_sizes.max_num_of_ip_prot_filtering  =
 		(uint16_t)be32_to_cpu(uint32_prop[0]);
             p_LnxWrpFmPortDev->dsar_table_sizes.max_num_of_tcp_port_filtering =
@@ -675,7 +707,7 @@ static t_Error CheckNConfigFmPortAdvArgs (t_LnxWrpFmPortDev *p_LnxWrpFmPortDev)
             p_LnxWrpFmPortDev->dsar_table_sizes.max_num_of_udp_port_filtering =
 		(uint16_t)be32_to_cpu(uint32_prop[2]);
         }
-        
+
         if ((err = FM_PORT_ConfigDsarSupport(p_LnxWrpFmPortDev->h_Dev,
 		(t_FmPortDsarTablesSizes*)&p_LnxWrpFmPortDev->dsar_table_sizes)) != E_OK)
 		RETURN_ERROR(MINOR, err, NO_MSG);
@@ -1415,6 +1447,10 @@ static const struct of_device_id fm_port_match[] = {
 	{
 	 .compatible = "fsl,fman-port-oh"},
 	{
+	 .compatible = "fsl,fman-v2-port-oh"},
+	{
+	 .compatible = "fsl,fman-v3-port-oh"},
+	{
 	 .compatible = "fsl,fman-port-1g-rx"},
 	{
 	 .compatible = "fsl,fman-port-10g-rx"},
@@ -1458,11 +1494,11 @@ void LNXWRP_FM_Port_Free(void)
 static int __init __cold fm_port_load(void)
 {
 	if (LNXWRP_FM_Port_Init() != E_OK) {
-		printk(KERN_CRIT "Failed to init FM Ports wrapper!\n");
+		printk(KERN_ERR "Failed to init FM Ports wrapper!\n");
 		return -ENODEV;
 	}
 
-	printk(KERN_CRIT "Freescale FM Ports module\n");
+	printk(KERN_INFO "Freescale FM Ports module\n");
 
 	return 0;
 }

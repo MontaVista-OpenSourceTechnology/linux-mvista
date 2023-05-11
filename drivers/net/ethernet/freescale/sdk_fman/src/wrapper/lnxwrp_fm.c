@@ -1,5 +1,6 @@
 /*
  * Copyright 2008-2012 Freescale Semiconductor Inc.
+ * Copyright 2019 NXP
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -56,9 +57,9 @@
 #include <linux/of_platform.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
+#include <linux/clk.h>
 #include <asm/uaccess.h>
 #include <asm/errno.h>
-#include <linux/fsl/qe.h>        /* For struct qe_firmware */
 #ifndef CONFIG_FMAN_ARM
 #include <sysdev/fsl_soc.h>
 #include <linux/fsl/guts.h>
@@ -155,6 +156,10 @@ static int fsl_fm_pfc_quanta[] = {
 
 static t_LnxWrpFm   lnxWrpFm;
 
+#ifdef FM_ERRATUM_A050385
+static bool fm_has_err_a050385;
+#endif
+
 int fm_get_max_frm()
 {
 	return fsl_fm_max_frm;
@@ -166,6 +171,14 @@ int fm_get_rx_extra_headroom()
 	return ALIGN(fsl_fm_rx_extra_headroom, 16);
 }
 EXPORT_SYMBOL(fm_get_rx_extra_headroom);
+
+#ifdef FM_ERRATUM_A050385
+bool fm_has_errata_a050385(void)
+{
+	return fm_has_err_a050385;
+}
+EXPORT_SYMBOL(fm_has_errata_a050385);
+#endif
 
 static int __init fm_set_max_frm(char *str)
 {
@@ -251,7 +264,7 @@ static irqreturn_t fm_irq(int irq, void *_dev)
 #ifdef CONFIG_PM_SLEEP
     if (fman_get_normal_pending(p_Fm->p_FmFpmRegs) & INTR_EN_WAKEUP)
     {
-        pm_wakeup_event(p_LnxWrpFmDev->dev, 200);        
+        pm_wakeup_event(p_LnxWrpFmDev->dev, 200);
     }
 #endif
     FM_EventIsr(p_LnxWrpFmDev->h_Dev);
@@ -451,6 +464,47 @@ typedef _Packed struct {
     return E_OK;
 }
 
+/* Structure that defines QE firmware binary files.
+ *
+ * See Documentation/powerpc/qe_firmware.txt for a description of these
+ * fields.
+ */
+struct qe_firmware {
+        struct qe_header {
+                __be32 length;  /* Length of the entire structure, in bytes */
+                u8 magic[3];    /* Set to { 'Q', 'E', 'F' } */
+                u8 version;     /* Version of this layout. First ver is '1' */
+        } header;
+        u8 id[62];      /* Null-terminated identifier string */
+        u8 split;       /* 0 = shared I-RAM, 1 = split I-RAM */
+        u8 count;       /* Number of microcode[] structures */
+        struct {
+                __be16 model;           /* The SOC model  */
+                u8 major;               /* The SOC revision major */
+                u8 minor;               /* The SOC revision minor */
+        } __attribute__ ((packed)) soc;
+        u8 padding[4];                  /* Reserved, for alignment */
+        __be64 extended_modes;          /* Extended modes */
+        __be32 vtraps[8];               /* Virtual trap addresses */
+        u8 reserved[4];                 /* Reserved, for future expansion */
+        struct qe_microcode {
+                u8 id[32];              /* Null-terminated identifier */
+                __be32 traps[16];       /* Trap addresses, 0 == ignore */
+                __be32 eccr;            /* The value for the ECCR register */
+                __be32 iram_offset;     /* Offset into I-RAM for the code */
+                __be32 count;           /* Number of 32-bit words of the code */
+                __be32 code_offset;     /* Offset of the actual microcode */
+                u8 major;               /* The microcode version major */
+                u8 minor;               /* The microcode version minor */
+                u8 revision;            /* The microcode version revision */
+                u8 padding;             /* Reserved, for alignment */
+                u8 reserved[4];         /* Reserved, for future expansion */
+        } __attribute__ ((packed)) microcode[1];
+        /* All microcode binaries should be located here */
+        /* CRC32 should be located here, after the microcode binaries */
+} __attribute__ ((packed));
+
+
 /**
  * FindFmanMicrocode - find the Fman microcode
  *
@@ -502,7 +556,7 @@ static const struct qe_firmware *FindFmanMicrocode(void)
 #define OF_DEV_ID_NUM 2 /* one used, another one zeroed */
 
 /* searches for a subnode with the given name/compatible  */
-bool HasFmPcdOfNode(struct device_node *fm_node,
+static bool HasFmPcdOfNode(struct device_node *fm_node,
                            struct of_device_id *ids,
                            const char *name,
                            const char *compatible)
@@ -527,8 +581,10 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
 {
     t_LnxWrpFmDev       *p_LnxWrpFmDev;
     struct device_node  *fm_node, *dev_node;
-    struct of_device_id name;
+    struct of_device_id ids[OF_DEV_ID_NUM];
     struct resource     res;
+    struct clk *clk;
+    u32 clk_rate;
     const uint32_t      *uint32_prop;
     int                 _errno=0, lenp;
     uint32_t            tmp_prop;
@@ -567,14 +623,12 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
 
     /* Get the FM error interrupt */
     p_LnxWrpFmDev->err_irq = of_irq_to_resource(fm_node, 1, NULL);
-    /* TODO - un-comment it once there will be err_irq in the DTS */
-#if 0
+
     if (unlikely(p_LnxWrpFmDev->err_irq == /*NO_IRQ*/0)) {
         REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_irq_to_resource() = %d", NO_IRQ));
         DestroyFmDev(p_LnxWrpFmDev);
         return NULL;
     }
-#endif /* 0 */
 
     /* Get the FM address */
     _errno = of_address_to_resource(fm_node, 0, &res);
@@ -589,25 +643,35 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
     p_LnxWrpFmDev->fmPhysBaseAddr = res.start;
     p_LnxWrpFmDev->fmMemSize = res.end + 1 - res.start;
 
-    uint32_prop = (uint32_t *)of_get_property(fm_node, "clock-frequency", &lenp);
-    if (unlikely(uint32_prop == NULL)) {
-        REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_get_property(%s, clock-frequency) failed", fm_node->full_name));
+    clk = of_clk_get(fm_node, 0);
+    if (IS_ERR(clk)) {
+        dev_err(&of_dev->dev, "%s: Failed to get FM clock structure\n",
+                __func__);
+        of_node_put(fm_node);
+        DestroyFmDev(p_LnxWrpFmDev);
         return NULL;
     }
-    if (WARN_ON(lenp != sizeof(uint32_t)))
-        return NULL;
-    p_LnxWrpFmDev->fmDevSettings.param.fmClkFreq = (*uint32_prop + 500000)/1000000; /* In MHz, rounded */
 
+    clk_rate = clk_get_rate(clk);
+    if (!clk_rate) {
+        dev_err(&of_dev->dev, "%s: Failed to determine FM clock rate\n",
+                __func__);
+        of_node_put(fm_node);
+        DestroyFmDev(p_LnxWrpFmDev);
+        return NULL;
+    }
+
+    p_LnxWrpFmDev->fmDevSettings.param.fmClkFreq = DIV_ROUND_UP(clk_rate, 1000000); /* In MHz, rounded */
     /* Get the MURAM base address and size */
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("muram") >= sizeof(name.name)))
+    memset(ids, 0, sizeof(ids));
+    if (WARN_ON(strlen("muram") >= sizeof(ids[0].name)))
         return NULL;
-    strcpy(name.name, "muram");
-    if (WARN_ON(strlen("fsl,fman-muram") >= sizeof(name.compatible)))
+    strcpy(ids[0].name, "muram");
+    if (WARN_ON(strlen("fsl,fman-muram") >= sizeof(ids[0].compatible)))
         return NULL;
-    strcpy(name.compatible, "fsl,fman-muram");
+    strcpy(ids[0].compatible, "fsl,fman-muram");
     for_each_child_of_node(fm_node, dev_node) {
-        if (likely(of_match_node(&name, dev_node) != NULL)) {
+        if (likely(of_match_node(ids, dev_node) != NULL)) {
             _errno = of_address_to_resource(dev_node, 0, &res);
             if (unlikely(_errno < 0)) {
                 REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_address_to_resource() = %d", _errno));
@@ -631,16 +695,17 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
         }
     }
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     /* Get the RTC base address and size */
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("rtc") >= sizeof(name.name)))
+    memset(ids, 0, sizeof(ids));
+    if (WARN_ON(strlen("ptp-timer") >= sizeof(ids[0].name)))
         return NULL;
-    strcpy(name.name, "rtc");
-    if (WARN_ON(strlen("fsl,fman-rtc") >= sizeof(name.compatible)))
+    strcpy(ids[0].name, "ptp-timer");
+    if (WARN_ON(strlen("fsl,fman-ptp-timer") >= sizeof(ids[0].compatible)))
         return NULL;
-    strcpy(name.compatible, "fsl,fman-rtc");
+    strcpy(ids[0].compatible, "fsl,fman-ptp-timer");
     for_each_child_of_node(fm_node, dev_node) {
-        if (likely(of_match_node(&name, dev_node) != NULL)) {
+        if (likely(of_match_node(ids, dev_node) != NULL)) {
             _errno = of_address_to_resource(dev_node, 0, &res);
             if (unlikely(_errno < 0)) {
                 REPORT_ERROR(MAJOR, E_INVALID_VALUE, ("of_address_to_resource() = %d", _errno));
@@ -653,6 +718,7 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
             p_LnxWrpFmDev->fmRtcMemSize = res.end + 1 - res.start;
         }
     }
+#endif
 
 #if (DPAA_VERSION >= 11)
     /* Get the VSP base address */
@@ -672,49 +738,10 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
 #endif
 
     /* Get all PCD nodes */
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("parser") >= sizeof(name.name)))
-        return NULL;
-    strcpy(name.name, "parser");
-    if (WARN_ON(strlen("fsl,fman-parser") >= sizeof(name.compatible)))
-        return NULL;
-    strcpy(name.compatible, "fsl,fman-parser");
-    for_each_child_of_node(fm_node, dev_node)
-        if (likely(of_match_node(&name, dev_node) != NULL))
-            p_LnxWrpFmDev->prsActive = TRUE;
-
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("keygen") >= sizeof(name.name)))
-        return NULL;
-    strcpy(name.name, "keygen");
-    if (WARN_ON(strlen("fsl,fman-keygen") >= sizeof(name.compatible)))
-        return NULL;
-    strcpy(name.compatible, "fsl,fman-keygen");
-    for_each_child_of_node(fm_node, dev_node)
-        if (likely(of_match_node(&name, dev_node) != NULL))
-            p_LnxWrpFmDev->kgActive = TRUE;
-
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("cc") >= sizeof(name.name)))
-        return NULL;
-    strcpy(name.name, "cc");
-    if (WARN_ON(strlen("fsl,fman-cc") >= sizeof(name.compatible)))
-        return NULL;
-    strcpy(name.compatible, "fsl,fman-cc");
-    for_each_child_of_node(fm_node, dev_node)
-        if (likely(of_match_node(&name, dev_node) != NULL))
-            p_LnxWrpFmDev->ccActive = TRUE;
-
-    memset(&name, 0, sizeof(struct of_device_id));
-    if (WARN_ON(strlen("policer") >= sizeof(name.name)))
-        return NULL;
-    strcpy(name.name, "policer");
-    if (WARN_ON(strlen("fsl,fman-policer") >= sizeof(name.compatible)))
-        return NULL;
-    strcpy(name.compatible, "fsl,fman-policer");
-    for_each_child_of_node(fm_node, dev_node)
-        if (likely(of_match_node(&name, dev_node) != NULL))
-            p_LnxWrpFmDev->plcrActive = TRUE;
+    p_LnxWrpFmDev->prsActive = HasFmPcdOfNode(fm_node, ids, "parser", "fsl,fman-parser");
+    p_LnxWrpFmDev->kgActive = HasFmPcdOfNode(fm_node, ids, "keygen", "fsl,fman-keygen");
+    p_LnxWrpFmDev->ccActive = HasFmPcdOfNode(fm_node, ids, "cc", "fsl,fman-cc");
+    p_LnxWrpFmDev->plcrActive = HasFmPcdOfNode(fm_node, ids, "policer", "fsl,fman-policer");
 
     if (p_LnxWrpFmDev->prsActive || p_LnxWrpFmDev->kgActive ||
         p_LnxWrpFmDev->ccActive || p_LnxWrpFmDev->plcrActive)
@@ -730,6 +757,10 @@ static t_LnxWrpFmDev * ReadFmDevTreeNode (struct platform_device *of_dev)
         else
             p_LnxWrpFmDev->defPcd = e_NO_PCD;
     }
+
+#ifdef FM_ERRATUM_A050385
+    fm_has_err_a050385 = of_property_read_bool(fm_node, "fsl,erratum-a050385");
+#endif
 
     of_node_put(fm_node);
 
@@ -865,7 +896,7 @@ static t_Error ConfigureFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     if (unlikely(_errno < 0))
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("can_request_irq() = %d", _errno));
 #endif
-    _errno = devm_request_irq(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->irq, fm_irq, 0, "fman", p_LnxWrpFmDev);
+    _errno = devm_request_irq(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->irq, fm_irq, IRQF_SHARED, "fman", p_LnxWrpFmDev);
     if (unlikely(_errno < 0))
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("request_irq(%d) = %d", p_LnxWrpFmDev->irq, _errno));
 
@@ -906,9 +937,10 @@ static t_Error ConfigureFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     if (SYS_RegisterIoMap((uint64_t)p_LnxWrpFmDev->fmMuramBaseAddr, (uint64_t)p_LnxWrpFmDev->fmMuramPhysBaseAddr, p_LnxWrpFmDev->fmMuramMemSize) != E_OK)
         RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM MURAM memory map"));
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (p_LnxWrpFmDev->fmRtcPhysBaseAddr)
     {
-        dev_res = __devm_request_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmDev->fmRtcPhysBaseAddr, p_LnxWrpFmDev->fmRtcMemSize, "fman-rtc");
+        dev_res = __devm_request_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmDev->fmRtcPhysBaseAddr, p_LnxWrpFmDev->fmRtcMemSize, "fman-ptp-timer");
         if (unlikely(dev_res == NULL))
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("__devm_request_region() failed"));
 
@@ -919,6 +951,7 @@ static t_Error ConfigureFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         if (SYS_RegisterIoMap((uint64_t)p_LnxWrpFmDev->fmRtcBaseAddr, (uint64_t)p_LnxWrpFmDev->fmRtcPhysBaseAddr, p_LnxWrpFmDev->fmRtcMemSize) != E_OK)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM-RTC memory map"));
     }
+#endif
 
 #if (DPAA_VERSION >= 11)
     if (p_LnxWrpFmDev->fmVspPhysBaseAddr) {
@@ -1065,9 +1098,13 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
 		int i;
 		int usz = p_LnxWrpFmDev->fmDevSettings.param.firmware.size;
 		void * p_Code = p_LnxWrpFmDev->fmDevSettings.param.firmware.p_Code;
+		u32 *dest = kzalloc(usz, GFP_KERNEL);
 
+		if (p_Code && dest)
 		for(i=0; i < usz / 4; ++i)
-			((u32 *)p_Code)[i] = be32_to_cpu(((u32 *)p_Code)[i]);
+			dest[i] = be32_to_cpu(((u32 *)p_Code)[i]);
+
+		p_LnxWrpFmDev->fmDevSettings.param.firmware.p_Code = dest;
 	}
 #endif
 
@@ -1091,7 +1128,7 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         p_LnxWrpFmDev->fmDevSettings.param.fmMacClkRatio =
             !!(get_rcwsr(4) & 0x1); /* RCW[FM_MAC_RAT1] */
 
-    {   
+    {
     /* T4 Devices ClkRatio is always 1 regardless of RCW[FM_MAC_RAT1] */
         uint32_t svr;
         svr = mfspr(SPRN_SVR);
@@ -1148,6 +1185,7 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
          * FM_SetException(p_LnxWrpFmDev->h_Dev,e_FM_EX_MURAM_ECC,FALSE);*/
     }
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (p_LnxWrpFmDev->fmRtcBaseAddr)
     {
         t_FmRtcParams   fmRtcParam;
@@ -1166,6 +1204,7 @@ static t_Error InitFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
         if (FM_RTC_Init(p_LnxWrpFmDev->h_RtcDev) != E_OK)
             RETURN_ERROR(MAJOR, E_INVALID_STATE, ("FM-RTC"));
     }
+#endif
 
     return E_OK;
 }
@@ -1180,8 +1219,10 @@ static void FreeFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
 
     FreeFmPcdDev(p_LnxWrpFmDev);
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (p_LnxWrpFmDev->h_RtcDev)
 	FM_RTC_Free(p_LnxWrpFmDev->h_RtcDev);
+#endif
 
     if (p_LnxWrpFmDev->h_Dev)
         FM_Free(p_LnxWrpFmDev->h_Dev);
@@ -1189,12 +1230,14 @@ static void FreeFmDev(t_LnxWrpFmDev  *p_LnxWrpFmDev)
     if (p_LnxWrpFmDev->h_MuramDev)
         FM_MURAM_Free(p_LnxWrpFmDev->h_MuramDev);
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
     if (p_LnxWrpFmDev->fmRtcBaseAddr)
     {
         SYS_UnregisterIoMap(p_LnxWrpFmDev->fmRtcBaseAddr);
         devm_iounmap(p_LnxWrpFmDev->dev, UINT_TO_PTR(p_LnxWrpFmDev->fmRtcBaseAddr));
         __devm_release_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmDev->fmRtcPhysBaseAddr, p_LnxWrpFmDev->fmRtcMemSize);
     }
+#endif
     SYS_UnregisterIoMap(p_LnxWrpFmDev->fmMuramBaseAddr);
     devm_iounmap(p_LnxWrpFmDev->dev, UINT_TO_PTR(p_LnxWrpFmDev->fmMuramBaseAddr));
     __devm_release_region(p_LnxWrpFmDev->dev, p_LnxWrpFmDev->res, p_LnxWrpFmDev->fmMuramPhysBaseAddr, p_LnxWrpFmDev->fmMuramMemSize);
@@ -1304,7 +1347,7 @@ static const struct of_device_id fm_match[] = {
 MODULE_DEVICE_TABLE(of, fm_match);
 #endif /* !MODULE */
 
-#ifdef CONFIG_PM
+#if defined CONFIG_PM && (defined CONFIG_PPC || defined CONFIG_PPC64)
 
 #define SCFG_FMCLKDPSLPCR_ADDR 0xFFE0FC00C
 #define SCFG_FMCLKDPSLPCR_DS_VAL 0x48402000
@@ -1357,11 +1400,11 @@ static const struct dev_pm_ops fm_pm_ops = {
 
 #define FM_PM_OPS (&fm_pm_ops)
 
-#else /* CONFIG_PM */
+#else /* CONFIG_PM && (CONFIG_PPC || CONFIG_PPC64) */
 
 #define FM_PM_OPS NULL
 
-#endif /* CONFIG_PM */
+#endif /* CONFIG_PM && (CONFIG_PPC || CONFIG_PPC64) */
 
 static struct platform_driver fm_driver = {
     .driver = {
@@ -1424,6 +1467,7 @@ void * fm_get_handle(struct fm *fm)
 }
 EXPORT_SYMBOL(fm_get_handle);
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
 void * fm_get_rtc_handle(struct fm *fm)
 {
     t_LnxWrpFmDev       *p_LnxWrpFmDev = (t_LnxWrpFmDev*)fm;
@@ -1431,6 +1475,7 @@ void * fm_get_rtc_handle(struct fm *fm)
     return (void *)p_LnxWrpFmDev->h_RtcDev;
 }
 EXPORT_SYMBOL(fm_get_rtc_handle);
+#endif
 
 struct fm_port * fm_port_bind (struct device *fm_port_dev)
 {
@@ -2014,6 +2059,7 @@ int fm_mac_set_tx_pause_frames(struct fm_mac_dev *fm_mac_dev,
 #endif
 EXPORT_SYMBOL(fm_mac_set_tx_pause_frames);
 
+#ifdef CONFIG_FSL_SDK_FMAN_RTC_API
 int fm_rtc_enable(struct fm *fm_dev)
 {
 	int			 _errno;
@@ -2170,6 +2216,7 @@ int fm_rtc_disable_interrupt(struct fm *fm_dev, uint32_t events)
 }
 EXPORT_SYMBOL(fm_rtc_disable_interrupt);
 #endif
+#endif /* CONFIG_FSL_SDK_FMAN_RTC_API */
 
 int fm_mac_set_wol(struct fm_port *port, struct fm_mac_dev *fm_mac_dev, bool en)
 {
@@ -2874,7 +2921,7 @@ static int __init __cold fm_load (void)
         return -ENODEV;
     }
 
-	printk(KERN_CRIT "Freescale FM module," \
+	printk(KERN_INFO "Freescale FM module," \
 		" FMD API version %d.%d.%d\n",
 		FMD_API_VERSION_MAJOR,
 		FMD_API_VERSION_MINOR,

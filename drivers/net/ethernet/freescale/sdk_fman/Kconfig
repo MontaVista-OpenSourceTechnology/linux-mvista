@@ -1,8 +1,8 @@
-menu "Frame Manager support(SDK 2.0 driver)"
+menu "Frame Manager support"
 
 menuconfig FSL_SDK_FMAN
-	bool "Freescale Frame Manager (datapath) support (SDK 2.0  driver)"
-	depends on (FSL_SOC || ARM64 || ARM) && FSL_BMAN && FSL_QMAN
+	bool "Freescale Frame Manager (datapath) support - SDK driver"
+	depends on (FSL_SOC || ARM64 || ARM) && FSL_SDK_BMAN && FSL_SDK_QMAN && !FSL_FMAN
 	default y
 	---help---
 		If unsure, say Y.
@@ -48,6 +48,15 @@ config FMAN_V3L
 
 endchoice
 endmenu
+
+config FSL_SDK_FMAN_RTC_API
+	bool "FMan RTC (1588 timer) APIs"
+	default n
+	help
+		This option enables RTC (1588 timer) initialization and
+		APIs support. The ptp_qoriq driver is not available if
+		it is selected for RTC (1588 timer). Neither of them
+		were not able to be used together.
 
 config FMAN_MIB_CNT_OVF_IRQ_EN
 	bool "Enable the dTSEC MIB counters overflow interrupt"
@@ -109,10 +118,10 @@ config FMAN_PFC
 	bool "FMan PFC support (EXPERIMENTAL)"
 	depends on ( FMAN_V3H || FMAN_V3L || FMAN_ARM) && FSL_SDK_FMAN
 	default n
-	---help---
-	  This option enables PFC support on FMan v3 ports.
-	  Data Center Bridging defines Classes of Service that are
-	  flow-controlled using PFC pause frames.
+	help
+		This option enables PFC support on FMan v3 ports.
+		Data Center Bridging defines Classes of Service that are
+		flow-controlled using PFC pause frames.
 
 if FMAN_PFC
 config FMAN_PFC_COS_COUNT
@@ -120,8 +129,8 @@ config FMAN_PFC_COS_COUNT
 	depends on FMAN_PFC && FSL_SDK_FMAN
 	range 1 4
 	default "3"
-	---help---
-	  The number of Classes of Service controlled by PFC.
+	help
+		The number of Classes of Service controlled by PFC.
 
 config FMAN_PFC_QUANTA_0
 	int "The pause quanta for PFC CoS 0"

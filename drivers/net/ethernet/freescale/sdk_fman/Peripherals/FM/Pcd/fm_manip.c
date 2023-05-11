@@ -305,7 +305,7 @@ static t_Error CalculateTableSize(t_FmPcdManipParams *p_FmPcdManipParams,
     return E_OK;
 }
 
-t_Error GetPrOffsetByHeaderOrField(t_FmManipHdrInfo *p_HdrInfo,
+static t_Error GetPrOffsetByHeaderOrField(t_FmManipHdrInfo *p_HdrInfo,
                                           uint8_t *parseArrayOffset)
 {
     e_NetHeaderType hdr = p_HdrInfo->hdr;
@@ -4096,7 +4096,7 @@ static t_Error IPSecManip(t_FmPcdManipParams *p_ManipParams,
     return err;
 }
 
-t_Error SetCapwapReassmManip(t_FmPcdManip *p_Manip)
+static t_Error SetCapwapReassmManip(t_FmPcdManip *p_Manip)
 {
     t_FmPcd *p_FmPcd = (t_FmPcd *)p_Manip->h_FmPcd;
 

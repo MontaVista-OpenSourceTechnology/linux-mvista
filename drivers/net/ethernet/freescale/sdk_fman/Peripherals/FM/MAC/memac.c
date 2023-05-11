@@ -84,6 +84,7 @@ static void SetupSgmiiInternalPhy(t_Memac *p_Memac, uint8_t phyAddr)
 {
     uint16_t    tmpReg16;
     e_EnetMode  enetMode;
+    bool autoneg_disabled = p_Memac->enetMode == e_ENET_MODE_SGMII_2500;
 
      /* In case the higher MACs are used (i.e. the MACs that should support 10G),
         speed=10000 is provided for SGMII ports. Temporary modify enet mode
@@ -92,8 +93,9 @@ static void SetupSgmiiInternalPhy(t_Memac *p_Memac, uint8_t phyAddr)
 
     /* SGMII mode + AN enable */
     tmpReg16 = PHY_SGMII_IF_MODE_AN | PHY_SGMII_IF_MODE_SGMII;
-    if ((p_Memac->enetMode) == e_ENET_MODE_SGMII_2500)
-        tmpReg16 = PHY_SGMII_CR_PHY_RESET | PHY_SGMII_IF_SPEED_GIGABIT | PHY_SGMII_IF_MODE_SGMII;
+    /* unless SGMII 2500 where AN needs to be disabled  */
+    if (autoneg_disabled)
+        tmpReg16 = PHY_SGMII_IF_SPEED_GIGABIT | PHY_SGMII_IF_MODE_SGMII;
 
     p_Memac->enetMode = MAKE_ENET_MODE(ENET_INTERFACE_FROM_MODE(p_Memac->enetMode), e_ENET_SPEED_1000);
     MEMAC_MII_WritePhyReg(p_Memac, phyAddr, 0x14, tmpReg16);
@@ -116,8 +118,12 @@ static void SetupSgmiiInternalPhy(t_Memac *p_Memac, uint8_t phyAddr)
     MEMAC_MII_WritePhyReg(p_Memac, phyAddr, 0x13, 0x0007);
     MEMAC_MII_WritePhyReg(p_Memac, phyAddr, 0x12, 0xa120);
 
-    /* Restart AN */
-    tmpReg16 = PHY_SGMII_CR_DEF_VAL | PHY_SGMII_CR_RESET_AN;
+    if (!autoneg_disabled)
+        /* Restart AN */
+        tmpReg16 = PHY_SGMII_CR_DEF_VAL | PHY_SGMII_CR_RESET_AN;
+    else
+        /* Disable AN */
+        tmpReg16 = PHY_SGMII_CR_DEF_VAL & ~PHY_SGMII_CR_AN_EN;
     MEMAC_MII_WritePhyReg(p_Memac, phyAddr, 0x0, tmpReg16);
 
     /* Restore original enet mode */
@@ -593,6 +599,62 @@ static t_Error MemacGetStatistics(t_Handle h_Memac, t_FmMacStatistics *p_Statist
 
 /* ......................................................................... */
 
+static t_Error MemacGetFrameSizeCounters(t_Handle h_Memac, t_FmMacFrameSizeCounters *p_FrameSizeCounters, e_CommMode type)
+{
+    t_Memac     *p_Memac = (t_Memac *)h_Memac;
+
+    SANITY_CHECK_RETURN_ERROR(p_Memac, E_NULL_POINTER);
+    SANITY_CHECK_RETURN_ERROR(!p_Memac->p_MemacDriverParam, E_INVALID_STATE);
+    SANITY_CHECK_RETURN_ERROR(p_FrameSizeCounters, E_NULL_POINTER);
+
+    switch (type)
+    {
+    case e_COMM_MODE_NONE:
+    	break;
+
+    case e_COMM_MODE_RX:
+        p_FrameSizeCounters->count_pkts_64             = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R64);
+        p_FrameSizeCounters->count_pkts_65_to_127      = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R127);
+        p_FrameSizeCounters->count_pkts_128_to_255     = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R255);
+        p_FrameSizeCounters->count_pkts_256_to_511     = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R511);
+        p_FrameSizeCounters->count_pkts_512_to_1023    = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R1023);
+        p_FrameSizeCounters->count_pkts_1024_to_1518   = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R1518);
+        p_FrameSizeCounters->count_pkts_1519_to_1522   = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R1519X);
+    	break;
+
+    case e_COMM_MODE_TX:
+        p_FrameSizeCounters->count_pkts_64             = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T64);
+        p_FrameSizeCounters->count_pkts_65_to_127      = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T127);
+        p_FrameSizeCounters->count_pkts_128_to_255     = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T255);
+        p_FrameSizeCounters->count_pkts_256_to_511     = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T511);
+        p_FrameSizeCounters->count_pkts_512_to_1023    = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T1023);
+        p_FrameSizeCounters->count_pkts_1024_to_1518   = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T1518);
+        p_FrameSizeCounters->count_pkts_1519_to_1522   = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T1519X);
+    	break;
+
+    case e_COMM_MODE_RX_AND_TX:
+        p_FrameSizeCounters->count_pkts_64             = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R64)
+                                                       + fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T64);
+        p_FrameSizeCounters->count_pkts_65_to_127      = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R127)
+                                                       + fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T127);
+        p_FrameSizeCounters->count_pkts_128_to_255     = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R255)
+                                                       + fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T255);
+        p_FrameSizeCounters->count_pkts_256_to_511     = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R511)
+                                                       + fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T511);
+        p_FrameSizeCounters->count_pkts_512_to_1023    = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R1023)
+                                                       + fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T1023);
+        p_FrameSizeCounters->count_pkts_1024_to_1518   = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R1518)
+                                                       + fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T1518);
+        p_FrameSizeCounters->count_pkts_1519_to_1522   = fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_R1519X)
+                                                       + fman_memac_get_counter(p_Memac->p_MemMap, E_MEMAC_COUNTER_T1519X);
+    	break;
+    }
+
+    return E_OK;
+}
+
+/* ......................................................................... */
+
 static t_Error MemacModifyMacAddress (t_Handle h_Memac, t_EnetAddr *p_EnetAddr)
 {
     t_Memac     *p_Memac = (t_Memac *)h_Memac;
@@ -1025,6 +1087,7 @@ static void InitFmMacControllerDriver(t_FmMacControllerDriver *p_FmMacController
 
     p_FmMacControllerDriver->f_FM_MAC_ResetCounters             = MemacResetCounters;
     p_FmMacControllerDriver->f_FM_MAC_GetStatistics             = MemacGetStatistics;
+    p_FmMacControllerDriver->f_FM_MAC_GetFrameSizeCounters      = MemacGetFrameSizeCounters;
 
     p_FmMacControllerDriver->f_FM_MAC_ModifyMacAddr             = MemacModifyMacAddress;
     p_FmMacControllerDriver->f_FM_MAC_AddHashMacAddr            = MemacAddHashMacAddress;
