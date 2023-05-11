@@ -501,6 +501,11 @@ static struct qm_portal_config *get_pcfg_idx(struct list_head *list, u32 idx)
 
 static void portal_set_cpu(struct qm_portal_config *pcfg, int cpu)
 {
+    /*
+     * From what I can tell, the code below does nothing useful.  So
+     * comment it out.
+     */
+#if 0
 #ifdef CONFIG_FSL_PAMU
 	int ret;
 	int window_count = 1;
@@ -579,6 +584,8 @@ _iommu_detach_device:
 	iommu_detach_device(pcfg->iommu_domain, NULL);
 _iommu_domain_free:
 	iommu_domain_free(pcfg->iommu_domain);
+#endif
+
 #endif
 }
 
