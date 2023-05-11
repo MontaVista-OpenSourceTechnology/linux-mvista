@@ -1,0 +1,179 @@
+&qportal0 {
+	fsl,liodn = <1 27>;
+	fman@0 {
+		fsl,liodn = <974>;
+	};
+	pme@0 {
+		fsl,liodn = <771 847>;
+	};
+};
+
+&qportal1 {
+	fsl,liodn = <2 28>;
+	fman@0 {
+		fsl,liodn = <975>;
+	};
+	pme@0 {
+		fsl,liodn = <772 848>;
+	};
+};
+
+&qportal2 {
+	fsl,liodn = <3 29>;
+	fman@0 {
+		fsl,liodn = <976>;
+	};
+	pme@0 {
+		fsl,liodn = <773 849>;
+	};
+};
+
+&qportal3 {
+	fsl,liodn = <4 30>;
+	fman@0 {
+		fsl,liodn = <977>;
+	};
+	pme@0 {
+		fsl,liodn = <774 850>;
+	};
+};
+
+&qportal4 {
+	fsl,liodn = <5 31>;
+	fman@0 {
+		fsl,liodn = <978>;
+	};
+	pme@0 {
+		fsl,liodn = <775 851>;
+	};
+};
+
+&qportal5 {
+	fsl,liodn = <6 32>;
+	fman@0 {
+		fsl,liodn = <979>;
+	};
+	pme@0 {
+		fsl,liodn = <776 852>;
+	};
+};
+
+&qportal6 {
+	fsl,liodn = <7 33>;
+	fman@0 {
+		fsl,liodn = <980>;
+	};
+	pme@0 {
+		fsl,liodn = <777 853>;
+	};
+};
+
+&qportal7 {
+	fsl,liodn = <8 34>;
+	fman@0 {
+		fsl,liodn = <981>;
+	};
+	pme@0 {
+		fsl,liodn = <778 854>;
+	};
+};
+
+&qportal8 {
+	fsl,liodn = <9 35>;
+	fman@0 {
+		fsl,liodn = <982>;
+	};
+	pme@0 {
+		fsl,liodn = <779 855>;
+	};
+};
+
+&qportal9 {
+	fsl,liodn = <10 36>;
+	fman@0 {
+		fsl,liodn = <983>;
+	};
+	pme@0 {
+		fsl,liodn = <780 856>;
+	};
+};
+
+&qportal10 {
+	fsl,liodn = <11 37>;
+	fman@0 {
+		fsl,liodn = <984>;
+	};
+	pme@0 {
+		fsl,liodn = <781 857>;
+	};
+};
+
+&qportal11 {
+	fsl,liodn = <12 38>;
+	fman@0 {
+		fsl,liodn = <985>;
+	};
+	pme@0 {
+		fsl,liodn = <782 858>;
+	};
+};
+
+&qportal12 {
+	fsl,liodn = <13 39>;
+	fman@0 {
+		fsl,liodn = <986>;
+	};
+	pme@0 {
+		fsl,liodn = <783 859>;
+	};
+};
+
+&qportal13 {
+	fsl,liodn = <14 40>;
+	fman@0 {
+		fsl,liodn = <987>;
+	};
+	pme@0 {
+		fsl,liodn = <784 860>;
+	};
+};
+
+&qportal14 {
+	fsl,liodn = <15 41>;
+	fman@0 {
+		fsl,liodn = <988>;
+	};
+	pme@0 {
+		fsl,liodn = <785 861>;
+	};
+};
+
+&qportal15 {
+	fsl,liodn = <16 42>;
+	fman@0 {
+		fsl,liodn = <989>;
+	};
+	pme@0 {
+		fsl,liodn = <786 862>;
+	};
+};
+
+&qportal16 {
+	fsl,liodn = <17 43>;
+	fman@0 {
+		fsl,liodn = <990>;
+	};
+	pme@0 {
+		fsl,liodn = <787 863>;
+	};
+};
+
+&qportal17 {
+	fsl,liodn = <18 44>;
+	fman@0 {
+		fsl,liodn = <991>;
+	};
+	pme@0 {
+		fsl,liodn = <788 864>;
+	};
+};

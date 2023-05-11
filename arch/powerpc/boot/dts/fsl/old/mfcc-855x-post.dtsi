@@ -1,0 +1,14 @@
+/include/ "mfcc-855x-post-portals.dtsi"
+/include/ "mfcc-855x-post-cpu.dtsi"
+/include/ "mfcc-855x-post-mpic.dtsi"
+/include/ "mfcc-855x-post-clockgen.dtsi"
+/include/ "mfcc-855x-post-liodn-pci.dtsi"
+/include/ "mfcc-855x-post-liodn-qman.dtsi"
+/include/ "mfcc-855x-post-liodn-soc.dtsi"
+
+/* BITs for PPCMON */
+/{
+	ces_bits {
+		compatible = "ces,bit";
+	};
+};

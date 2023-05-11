@@ -1,0 +1,15 @@
+&msi0 {
+	compatible = "fsl,mpic-msi", "fsl,mpic-msi-v4.3", "fsl,vmpic-msi-v4.3";
+};
+
+&msi1 {
+	compatible = "fsl,mpic-msi", "fsl,mpic-msi-v4.3", "fsl,vmpic-msi-v4.3";
+};
+
+&msi2 {
+	compatible = "fsl,mpic-msi", "fsl,mpic-msi-v4.3", "fsl,vmpic-msi-v4.3";
+};
+
+&msi3 {
+	compatible = "fsl,mpic-msi", "fsl,mpic-msi-v4.3", "fsl,vmpic-msi-v4.3";
+};

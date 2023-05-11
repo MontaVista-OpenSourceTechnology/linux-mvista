@@ -1,0 +1,73 @@
+/ {
+	soc@ffe000000 {
+		qman@318000 {
+			fsl,liodn = <62>;
+		};
+
+		bman@31a000 {
+			fsl,liodn = <63>;
+		};
+
+		pme@316000 {
+			fsl,liodn = <117>;
+		};
+
+		fman@400000 {
+			port@88000 { /* fman0_rx0 */
+				fsl,liodn = <120>;
+			};
+
+			port@89000 { /* fman0_rx1 */
+				fsl,liodn = <121>;
+			};
+
+			port@8a000 { /* fman0_rx2 */
+				fsl,liodn = <122>;
+			};
+
+			port@8b000 { /* fman0_rx3 */
+				fsl,liodn = <123>;
+			};
+
+			port@8c000 { /* fman0_rx4 */
+				fsl,liodn = <124>;
+			};
+
+			port@90000 { /* fman0_10g_rx0 */
+				fsl,liodn = <126>;
+			};
+		};
+
+		dma@100300 {
+			fsl,liodn = <147>;
+		};
+
+		dma@101300 {
+			fsl,liodn = <227>;
+		};
+
+		dma@102300 {
+			fsl,liodn = <226>;
+		};
+
+		sdhc@114000 {
+			fsl,liodn = <552>;
+		};
+
+		usb@210000 {
+			fsl,liodn = <553>;
+		};
+
+		usb@211000 {
+			fsl,liodn = <554>;
+		};
+
+		sata@220000 {
+			fsl,liodn = <555>;
+		};
+
+		sata@221000 {
+			fsl,liodn = <556>;
+		};
+	};
+};

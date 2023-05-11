@@ -1,0 +1,191 @@
+&bportals {
+	bman-portal@0 {
+		cell-index = <0>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@4000 {
+		cell-index = <1>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@8000 {
+		cell-index = <2>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@c000 {
+		cell-index = <3>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@10000 {
+		cell-index = <4>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@14000 {
+		cell-index = <5>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@18000 {
+		cell-index = <6>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@1c000 {
+		cell-index = <7>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@20000 {
+		cell-index = <8>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@24000 {
+		cell-index = <9>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+	
+	bman-portal@28000 {
+		cell-index = <10>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@2c000 {
+		cell-index = <11>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@30000 {
+		cell-index = <12>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@34000 {
+		cell-index = <13>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@38000 {
+		cell-index = <14>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@3c000 {
+		cell-index = <15>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@40000 {
+		cell-index = <16>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+
+	bman-portal@44000 {
+		cell-index = <0x11>;
+		compatible = "fsl,bman-portal-2.1.2", "fsl,bman-portal";
+	};
+};
+
+&qportals {
+	qman-portal@0 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x0>;
+	};
+
+	qman-portal@4000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x1>;
+	};
+
+	qman-portal@8000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x2>;
+	};
+
+	qman-portal@c000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x3>;
+	};
+
+	qman-portal@10000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x4>;
+	};
+
+	qman-portal@14000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x5>;
+	};
+
+	qman-portal@18000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x6>;
+	};
+
+	qman-portal@1c000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x7>;
+	};
+
+	qman-portal@20000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x8>;
+	};
+
+	qman-portal@24000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x9>;
+	};
+
+	qman-portal@28000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0xa>;
+	};
+
+	qman-portal@2c000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0xb>;
+	};
+
+	qman-portal@30000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0xc>;
+	};
+
+	qman-portal@34000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0xd>;
+	};
+
+	qman-portal@38000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0xe>;
+	};
+
+	qman-portal@3c000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0xf>;
+	};
+
+	qman-portal@40000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x10>;
+	};
+
+	qman-portal@44000 {
+		compatible = "fsl,qman-portal-3.1.2", "fsl,qman-portal";
+		fsl,qman-channel-id = <0x11>;
+	};
+};
+
+&soc {
+	pme: pme@316000 {
+		compatible = "fsl,pme";
+		reg = <0x316000 0x10000>;
+		interrupts = <16 2 1 5>;
+	};
+};

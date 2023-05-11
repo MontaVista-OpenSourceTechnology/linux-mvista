@@ -1,0 +1,78 @@
+/include/ "mfcc-855x-pre-rapidio.dtsi"
+/include/ "mfcc-855x-pre-ifc.dtsi"
+/include/ "mfcc-855x-pre-pci.dtsi"
+
+/ {
+	model = "MFCC-855x";
+	compatible = "mmsi,MFCC-855x";
+	#address-cells = <2>;
+	#size-cells = <2>;
+	interrupt-parent = <&mpic>;
+
+        chosen {
+                stdout-path = &serial0;
+                bootargs = "console=ttyS0,115200";
+
+                /* reserve 256MB for rootfs */
+                linux,initrd-start = <0x6c000000>;
+                linux,initrd-end =   <0x7bffffff>;
+        };
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		bootmem: boot-mem {
+			reg = <0x00000000 0xfffff000 0x00000000 0x00001000>;
+		};
+
+		bman_fbpr: bman-fbpr {
+			reg = <0x00000000 0x7c000000 0x00000000 0x01000000>;
+		};
+		qman_fqd: qman-fqd {
+			reg = <0x00000000 0x7f000000 0x00000000 0x00400000>;
+		};
+		qman_pfdr: qman-pfdr {
+			reg = <0x00000000 0x7d000000 0x00000000 0x02000000>;
+		};
+	};
+
+	memory {
+		device_type = "memory";
+	};
+
+	dcsr: dcsr@f00000000 {
+		ranges = <0x00000000 0xf 0x00000000 0x01072000>;
+	};
+
+	bportals: bman-portals@ff4000000 {
+		ranges = <0x0 0xf 0xf4000000 0x2000000>;
+	};
+
+	qportals: qman-portals@ff6000000 {
+		ranges = <0x0 0xf 0xf6000000 0x2000000>;
+	};
+
+	soc: soc@ffe000000 {
+		ranges = <0x00000000 0xf 0xfe000000 0x1000000>;
+		reg = <0xf 0xfe000000 0 0x00001000>;
+
+		spi@110000 {
+			fsl,espi-num-chipselects = <0x4>;
+		};
+
+		sdhc@114000 {
+			voltage-ranges = <1800 1800 3300 3300>;
+		};
+
+		fman0: fman@400000 {
+			fman-firmware {
+				compatible = "fsl,fman-firmware";
+				fsl,firmware = <
+				  /include/ "fman_fw.hex"
+				>;
+			};
+		};
+	};
+};

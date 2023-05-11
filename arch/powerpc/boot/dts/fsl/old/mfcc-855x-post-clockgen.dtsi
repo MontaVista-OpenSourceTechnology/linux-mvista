@@ -1,0 +1,4 @@
+&clockgen {
+	clock-output-names = "sysclk";
+	clock-frequency = "600000000";
+};
