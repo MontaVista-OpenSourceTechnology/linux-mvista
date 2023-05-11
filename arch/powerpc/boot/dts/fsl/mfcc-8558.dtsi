@@ -159,6 +159,8 @@
 
 &soc {
 
+	bus-frequency = <600000000>;
+
 	sfp-srkh {
 		compatible = "mmsi,sfp-srkh";
 	};
@@ -170,7 +172,6 @@
 			spi-max-frequency = <4000000>;
 			#address-cells = <1>;
 			#size-cells = <1>;
-
 		};
 	};
 
@@ -182,7 +183,7 @@
 	};
 
 	i2c@119100 {
-		etc@6b {
+		rtc@6b {
 			compatible = "dallas,ds1683";
 			reg = <0x6b>;
 		};
