@@ -1,0 +1,15 @@
+&pci0 {
+	fsl,liodn = <148>;
+};
+
+&pci1 {
+	fsl,liodn = <228>;
+};
+
+&pci2 {
+	fsl,liodn = <308>;
+};
+
+&pci3 {
+	fsl,liodn = <388>;
+};

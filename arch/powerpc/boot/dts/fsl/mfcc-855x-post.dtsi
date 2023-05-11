@@ -1,0 +1,22 @@
+/include/ "mfcc-855x-post-cpu.dtsi"
+/include/ "mfcc-855x-post-mpic.dtsi"
+/include/ "mfcc-855x-post-clockgen.dtsi"
+/include/ "mfcc-855x-post-liodn-pci.dtsi"
+/include/ "mfcc-855x-post-liodn-qman.dtsi"
+/include/ "mfcc-855x-post-liodn-soc.dtsi"
+
+/* DTSI for SDK DPAA */
+/include/ "qoriq-fman3-0-sdk.dtsi"
+/include/ "qoriq-bman-portals-sdk.dtsi"
+/include/ "qoriq-qman3-portals-sdk.dtsi"
+/include/ "qoriq-qman3-ceetm0-32-sdk.dtsi"
+
+/* Missing bits for SDK DPAA */
+/include/ "mfcc-855x-post-portals.dtsi"
+
+/* BITs for PPCMON */
+/{
+	ces_bits {
+		compatible = "ces,bit";
+	};
+};
