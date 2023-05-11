@@ -344,6 +344,21 @@
 			mtd-mac-address = <&macaddr 0x110>;
 			status = "okay";
 		};
+		ethernet@e6000 {
+			status = "disabled";
+		};
+		ethernet@e8000 {
+			status = "disabled";
+		};
+		ethernet@ea000 {
+			status = "disabled";
+		};
+		ethernet@f0000 {
+			status = "disabled";
+		};
+		ethernet@f2000 {
+			status = "disabled";
+		};
 		mdio@fc000 {
 			status = "okay";
 			ethphy10: ethernet-phy@10 {
