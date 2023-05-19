@@ -124,6 +124,20 @@
 #define for_each_cmp(i)	\
 	for (i = 1; i < MAX_CMP; i++)
 
+#ifdef CONFIG_MACH_AGIB
+#define SET_BIT(variable, offset) (variable |= (0x1 << offset))
+#define UNSET_BIT(variable, offset) (variable &= (~(0x1 << offset)))
+#define NEGATIVE_PARAMETER_PARSE(parameter, polarity, offset)      \
+	({                                                         \
+		if (parameter >> (8 * sizeof(parameter) - 1)) {    \
+			parameter = ~parameter + 1;               \
+			SET_BIT(polarity, offset);                 \
+		} else {                                           \
+			UNSET_BIT(polarity, offset);               \
+		}                                                  \
+	})
+#endif
+
 #define CPU_EN			BIT(31)
 #define CPU_GO			BIT(30)
 #define POR_EN			BIT(29)
@@ -581,9 +595,19 @@ static inline void kserdes_config_c1_c2_cm(struct kserdes_config *sc, u32 lane)
 {
 	u32 c1, c2, cm;
 
+#ifdef CONFIG_MACH_AGIB
+    u32 polarity;
+#endif
 	c1 = sc->lane[lane].tx_coeff.c1;
 	c2 = sc->lane[lane].tx_coeff.c2;
 	cm = sc->lane[lane].tx_coeff.cm;
+
+#ifdef CONFIG_MACH_AGIB
+	polarity = (kserdes_readl(sc->regs, LANEX_REG(lane, 0x78)) >> 12) & 0xf;
+	NEGATIVE_PARAMETER_PARSE(c1, polarity, 2);
+	NEGATIVE_PARAMETER_PARSE(c2, polarity, 3);
+	NEGATIVE_PARAMETER_PARSE(cm, polarity, 0);
+#endif
 
 	if (sc->phy_type == KSERDES_PHY_XGE) {
 		FINSR(sc->regs, LANEX_REG(lane, 0x8), 11,  8, (cm & 0xf));
@@ -596,6 +620,10 @@ static inline void kserdes_config_c1_c2_cm(struct kserdes_config *sc, u32 lane)
 		FINSR(sc->regs, LANEX_REG(lane, 0x8),  4,  0, (c1 & 0x1f));
 		FINSR(sc->regs, LANEX_REG(lane, 0x8), 11,  8, (c2 & 0xf));
 	}
+
+#ifdef CONFIG_MACH_AGIB
+	FINSR(sc->regs, LANEX_REG(lane, 0x78), 15, 12, (polarity & 0xf));
+#endif
 }
 
 static inline void kserdes_config_att_boost(struct kserdes_config *sc, u32 lane)
