@@ -49,7 +49,7 @@ sync_cache_w(l); \
 if (ioread32(l) != id) {r = -EBUSY; goto end; } \
 })
 
-#define REL_LOCK(l) ({iowrite32(0, l); sync_cache_w(l); })
+#define REL_LOCK(l) ({iowrite32(0, l); sync_cache_w(l); ioread32(l); })
 
 #define GET_READ_LOCK(l, id, r) GET_LOCK(l, id, r)
 #define REL_READ_LOCK(l) REL_LOCK(l)
@@ -124,7 +124,9 @@ static ssize_t vgem_read(struct file *filp, char __user *buf, size_t count,
 	struct gem_header gem_hdr;
 	u32 rbi = 0;
 	int wr;
-	struct dsp_mcu_buffer data;
+	size_t dlf = sizeof(u16);
+	size_t read_bytes;
+	char data[512];
 
 	if (count == 0)
 		return 0;
@@ -147,35 +149,39 @@ static ssize_t vgem_read(struct file *filp, char __user *buf, size_t count,
 
 	GET_READ_LOCK(&dev->msm->read_lock, dev->mid, count);
 
-	if (gem_hdr.magic_word != MAGIC_WORD) {
-		memcpy_fromio(&data.dm_buf[0], &dev->msm->buffers[rbi].dm_buf[0], 256);
-		pr_err("%s gem_hdr.magic_word 0x%04x rbi=%d\n", __func__, gem_hdr.magic_word, rbi);
-		count = 0;
-		goto end;
+	read_bytes = 0;
+
+	while (count > (read_bytes + dlf + gem_hdr.size)) {
+
+		if (gem_hdr.magic_word != MAGIC_WORD)
+			goto end;
+
+		memcpy(&data[0], &gem_hdr.size, dlf);
+		memcpy_fromio(&data[0] + dlf, &dev->msm->buffers[rbi].dm_buf[0], (size_t)gem_hdr.size);
+
+		if (copy_to_user(buf + read_bytes, &data[0],  (size_t)gem_hdr.size+dlf)) {
+			pr_err("%s copy_to_user\n", __func__);
+			goto end;
+		}
+
+		read_bytes += (dlf + (size_t)gem_hdr.size);
+
+		/* Clear the magic word */
+		iowrite32(0, &dev->msm->buffers[rbi].dm_buf[0]);
+		sync_cache_w(&dev->msm->buffers[rbi].dm_buf[0]);
+
+		/*Update read buffer index to next buffer */
+		rbi += 1;
+		rbi %= 15;
+		iowrite32((rbi), &dev->msm->read_index);
+		sync_cache_w(&dev->msm->read_index);
+
+		memcpy_fromio(&gem_hdr, &dev->msm->buffers[rbi].dm_buf[0], sizeof(struct gem_header));
 	}
-
-	if (count > gem_hdr.size) count = gem_hdr.size;
-	if (count > sizeof(data)) count = sizeof(data);
-
-	memcpy_fromio(&data.dm_buf[0], &dev->msm->buffers[rbi].dm_buf[0], count);
-	if (copy_to_user(buf, &data.dm_buf[0], count)) {
-		count = -EFAULT;
-		pr_err("%s copy_to_user\n", __func__);
-		goto end;
-	}
-
-	/* Clear the magic word */
-	iowrite32(0, &dev->msm->buffers[rbi].dm_buf[0]);
-	sync_cache_w(&dev->msm->buffers[rbi].dm_buf[0]);
-
-	/*Update read buffer index to next buffer */
-	rbi += 1;
-	iowrite32((rbi % 15), &dev->msm->read_index);
-	sync_cache_w(&dev->msm->read_index);
 
 end:
 	REL_READ_LOCK(&dev->msm->read_lock);
-	return count;
+	return read_bytes;
 }
 
 static ssize_t vgem_write(struct file *filp, const char __user *buf, size_t count,
@@ -185,7 +191,6 @@ static ssize_t vgem_write(struct file *filp, const char __user *buf, size_t coun
 	struct gem_header gem_hdr;
 	u32 wbi;
 	struct dsp_mcu_buffer data;
-	struct dsp_mcu_buffer vwdata;
 
 	if (count == 0)
 		return count;
@@ -199,11 +204,10 @@ static ssize_t vgem_write(struct file *filp, const char __user *buf, size_t coun
 	memcpy_fromio(&gem_hdr,  &dev->msm->buffers[wbi].dm_buf[0], sizeof(gem_hdr));
 
 	if (gem_hdr.magic_word != 0x0) {
-		pr_err("%s Buffer NULL ==>\n", __func__);
-		memcpy_fromio(&data.dm_buf[0], &dev->msm->buffers[wbi].dm_buf[0], 256);
-		print_hex_dump_debug("", DUMP_PREFIX_NONE, 16, 4, &data.dm_buf[0], 256, false);
+		pr_err("%s Buffer NULL ==> dev %d, buff %d\n", __func__, dev->mid, wbi);
 		count = -EBUSY;
-		goto end;
+		/* Force DSP wake up */
+		goto kick;
 	}
 
 	if (count > sizeof(u32) * 0x40) {
@@ -225,20 +229,15 @@ static ssize_t vgem_write(struct file *filp, const char __user *buf, size_t coun
 	iowrite32(wbi % 15, &dev->msm->write_index);
 	sync_cache_w(&dev->msm->write_index);
 
-	iowrite32(0x0, &dev->msm->write_lock);
-	sync_cache_w(&dev->msm->write_lock);
-
-	iowrite32(1, dev->ipcgrx);
-	ioread32(dev->ipcgrx);
-
+kick:
 	REL_WRITE_LOCK(&dev->msm->write_lock);
+	iowrite32(1, dev->ipcgrx);
+	sync_cache_w(dev->ipcgrx);
+	ioread32(dev->ipcgrx);
 	return count;
 
 end:
 	REL_WRITE_LOCK(&dev->msm->write_lock);
-	iowrite32(0x0, &dev->msm->write_lock);
-	ioread32(&dev->msm->write_lock);
-
 	return count;
 }
 
@@ -256,6 +255,24 @@ static __poll_t vgem_mcu_poll(struct file *filp, poll_table *wait)
 		res = EPOLLIN | EPOLLRDNORM;
 
 	return res;
+}
+
+static loff_t vgem_llseek(struct file *filp, loff_t off, int whence)
+{
+	struct mi_dev *dev = filp->private_data;
+	struct gem_header gem_hdr;
+	u32 rbi;
+	loff_t dr = -1;
+
+	switch (whence) {
+	case SEEK_CUR:
+		if (data_ready(dev, &gem_hdr, &rbi))
+			dr = (loff_t)rbi;
+		break;
+	default:
+		break;
+	}
+	return dr;
 }
 
 static int vgem_release(struct inode *inode, struct file *filp)
@@ -281,7 +298,8 @@ const struct file_operations vgem_mcu_fops = {
 	.read =	vgem_read,
 	.open =	vgem_open,
 	.poll =	vgem_mcu_poll,
-	.release =   vgem_release,
+	.release = vgem_release,
+	.llseek = vgem_llseek,
 };
 
 const struct file_operations vgem_dsp_fops = {
@@ -488,4 +506,4 @@ module_platform_driver(tetra_vgem_driver);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Isidro Gonzalez Cuxiart");
 MODULE_DESCRIPTION("TETRA vGEM driver");
-MODULE_VERSION("1.0");
+MODULE_VERSION("2.0");
