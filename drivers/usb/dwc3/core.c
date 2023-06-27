@@ -268,7 +268,8 @@ int dwc3_core_soft_reset(struct dwc3 *dwc)
 	 * host-only mode, then we can return early.
 	 * When hibernated don't perform core soft reset.
 	 */
-	if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_HOST ||
+	if (dwc->current_dr_role == DWC3_GCTL_PRTCAP_HOST || 
+	    dwc->dr_mode == USB_DR_MODE_HOST ||
 	    dwc->is_hibernated == true)
 		return 0;
 
