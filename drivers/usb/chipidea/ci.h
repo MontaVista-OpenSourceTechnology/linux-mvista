@@ -304,14 +304,13 @@ static inline int ci_role_start(struct ci_hdrc *ci, enum ci_role role)
 
 	if (ci->usb_phy) {
 		if (role == CI_ROLE_HOST)
-			usb_phy_set_mode(ci->usb_phy,
-					CUR_USB_MODE_HOST);
+			usb_phy_set_event(ci->usb_phy, USB_EVENT_ID);
 		else
-			usb_phy_set_mode(ci->usb_phy,
-					CUR_USB_MODE_DEVICE);
+			/* in device mode but vbus is invalid*/
+			usb_phy_set_event(ci->usb_phy, USB_EVENT_NONE);
 	}
 
-	return 0;
+	return ret;
 }
 
 static inline void ci_role_stop(struct ci_hdrc *ci)
@@ -326,7 +325,7 @@ static inline void ci_role_stop(struct ci_hdrc *ci)
 	ci->roles[role]->stop(ci);
 
 	if (ci->usb_phy)
-		usb_phy_set_mode(ci->usb_phy, CUR_USB_MODE_NONE);
+		usb_phy_set_event(ci->usb_phy, USB_EVENT_NONE);
 }
 
 static inline enum usb_role ci_role_to_usb_role(struct ci_hdrc *ci)
