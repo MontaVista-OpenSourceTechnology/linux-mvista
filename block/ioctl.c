@@ -18,7 +18,7 @@ static int blkpg_ioctl(struct block_device *bdev, struct blkpg_ioctl_arg __user 
 	struct blkpg_ioctl_arg a;
 	struct blkpg_partition p;
 	struct disk_part_iter piter;
-	long long start, length;
+	sector_t start, length;
 	int partno;
 
 	if (!capable(CAP_SYS_ADMIN))
@@ -33,6 +33,13 @@ static int blkpg_ioctl(struct block_device *bdev, struct blkpg_ioctl_arg __user 
 	partno = p.pno;
 	if (partno <= 0)
 		return -EINVAL;
+
+	if (p.start < 0 || p.length <= 0 || p.start + p.length < 0)
+		return -EINVAL;
+	/* Check that the partition is aligned to the block size */
+	if (!IS_ALIGNED(p.start | p.length, bdev_logical_block_size(bdev)))
+		return -EINVAL;
+
 	switch (a.op) {
 		case BLKPG_ADD_PARTITION:
 			start = p.start >> 9;
@@ -45,9 +52,6 @@ static int blkpg_ioctl(struct block_device *bdev, struct blkpg_ioctl_arg __user 
 				    || pstart < 0 || plength < 0 || partno > 65535)
 					return -EINVAL;
 			}
-			/* check if partition is aligned to blocksize */
-			if (p.start & (bdev_logical_block_size(bdev) - 1))
-				return -EINVAL;
 
 			mutex_lock(&bdev->bd_mutex);
 
