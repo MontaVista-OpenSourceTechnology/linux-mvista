@@ -163,6 +163,7 @@ static bool tcp_bpf_stream_read(const struct sock *sk)
 	if (likely(psock))
 		empty = list_empty(&psock->ingress_msg);
 	rcu_read_unlock();
+	return !empty;
 }
 
 static int tcp_bpf_recvmsg(struct sock *sk, struct msghdr *msg, size_t len,
