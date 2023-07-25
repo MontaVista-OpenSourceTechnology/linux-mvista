@@ -304,7 +304,6 @@
 			reg = <0x0 0x20112000 0x0 0x2000>;
 			interrupt-parent = <&L1>;
 			interrupts = <70 71 72 73>;
-			mac-address = [56 34 12 00 FC 01];
 			phy-mode = "sgmii";
 			clocks = <&clkcfg CLK_MAC1>, <&clkcfg CLK_AHB>;
 			clock-names = "pclk", "hclk";
@@ -325,7 +324,6 @@
 			reg = <0x0 0x20110000 0x0 0x2000>;
 			interrupt-parent = <&L1>;
 			interrupts = <64 65 66 67>;
-			mac-address = [56 34 12 00 FC 02];
 			phy-mode = "sgmii";
 			clocks = <&clkcfg CLK_MAC0>, <&clkcfg CLK_AHB>;
 			clock-names = "pclk", "hclk";
