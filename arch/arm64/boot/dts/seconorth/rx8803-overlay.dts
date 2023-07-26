@@ -1,0 +1,13 @@
+/*
+ * Copyright 2022 SECO Northern Europe GmbH
+ */
+
+/dts-v1/;
+/plugin/;
+
+&rtc {
+    compatible = "epson,rx8803";
+    reg = <0x32>;
+    status = "okay";
+    trickle-diode-disable;
+};

@@ -1,0 +1,643 @@
+/*
+ * Copyright 2023 SECO Nothern Europe GmbH
+ */
+
+/ {
+	aliases {
+		rtc0 = &rtc;
+		rtc1 = &snvs_rtc;
+	};
+
+	led_board {
+		compatible = "pwm-leds";
+
+		red {
+			label = "led_board:red";
+			pwms = <&pwm2 0 1000000>; // 1 kHz
+			max-brightness = <100>;
+		};
+
+		green {
+			label = "led_board:green";
+			pwms = <&pwm3 0 1000000>; // 1 kHz
+			max-brightness = <100>;
+		};
+
+		yellow {
+			label = "led_board:yellow";
+			pwms = <&pwm4 0 1000000>; // 1 kHz
+			max-brightness = <100>;
+		};
+	};
+
+	reg_vin_fused: vin_fused {
+		compatible = "regulator-fixed";
+		regulator-name = "VIN_FUSED";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+	};
+
+	reg_3P3_SW: 3P3_SW {
+		compatible = "regulator-fixed";
+		regulator-name = "+3P3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+		vin-supply = <&reg_5P0>;
+	};
+
+	reg_5P0: 5P0 {
+		compatible = "regulator-fixed";
+		regulator-name = "+5P0";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+		vin-supply = <&reg_vin_fused>;
+	};
+
+	reg_5P0_SW: 5P0_SW {
+		compatible = "regulator-fixed";
+		regulator-name = "5P0_SW";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+		vin-supply = <&reg_5P0>;
+
+		gpio = <spin55_gpio GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_reg_5P0_SW>;
+	};
+
+	reg_24V_OUT_PWR: 24V_OUT-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "24V_OUT_Switch";
+		regulator-min-microvolt = <24000000>;
+		regulator-max-microvolt = <24000000>;
+		vin-supply = <&reg_vin_fused>;
+
+		gpio = <spin53_gpio GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_ext_power>;
+	};
+
+	reg_24V_OUT: 24V_OUT {
+		compatible = "reg-userspace-consumer";
+		regulator-name = "24V_OUT";
+		regulator-supplies = "vin";
+		vin-supply = <&reg_24V_OUT_PWR>;
+		status = "okay";
+	};
+
+	reg_5P0_CIM_PWR: 5P0_CIM-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "5P0_CIM_Switch";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		vin-supply = <&reg_5P0>;
+
+		gpio = <spin31_gpio GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_reg_5P0_CIM>;
+
+		regulator-enable-ramp-delay = <5000>;
+	};
+
+	reg_5P0_CIM: 5P0_CIM {
+		compatible = "reg-userspace-consumer";
+		regulator-name = "5P0_CIM";
+		comment = "5V supply for CIM Interface";
+		regulator-supplies = "vin";
+		vin-supply = <&reg_5P0_CIM_PWR>;
+		status = "okay";
+	};
+
+	reg_5P0_RS485: 5P0_RS485 {
+		compatible = "regulator-fixed";
+		regulator-name = "5P0_RS486";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		//regulator-always-on;
+		vin-supply = <&reg_5P0>;
+
+		gpio = <spin29_gpio GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_reg_5P0_RS485>;
+
+		regulator-enable-ramp-delay = <5000>;
+	};
+
+	reg_usbhost_pwr: usbhost-pwr {
+		compatible = "regulator-fixed";
+		regulator-name = "USBHOST_PWR";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_usb2_pwr>;
+		gpio = <spin129_gpio GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+		vin-supply = <&reg_vin_fused>;
+	};
+
+	battery_charger: battery-charger {
+		compatible = "gpio-charger";
+		charger-type = "battery";
+		gpios = <spin101_gpio GPIO_ACTIVE_LOW>; /* ACOK# */
+		charge-status-gpios = <spin103_gpio GPIO_ACTIVE_LOW>; /* STAT# */
+		charge-current-limit-gpios = <spin104_gpio GPIO_ACTIVE_HIGH>,
+		                             <spin102_gpio GPIO_ACTIVE_HIGH>;
+		charge-current-limit-mapping = <985000 0x03>, // 985 mA
+		                               <813000 0x02>, // 813 mA
+		                               <670000 0x01>, // 670 mA
+		                               <500000 0x00>; // 500 mA
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_battery_charger>;
+	};
+};
+
+&backlight1{
+	status = "okay";
+	pinctrl-0 = <&pinctrl_backlight_enable>;
+	enable-gpios = <spin73_gpio GPIO_ACTIVE_HIGH>;
+	power-supply = <&reg_5P0_SW>;
+};
+
+#ifdef TRIZEPS8PLUS
+&flexcan1 {
+	status = "disabled";
+};
+#endif
+
+&iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog_1>;
+	pinctrl_captouch: captouchgrp {
+		fsl,pins = <
+				 SPIN136_GPIO3_IO15	PAD_GPIO /* RESET */
+				 TOUCH_INT  	PAD_GPIO /* IRQ */
+			>;
+	};
+
+	pinctrl_hog_1: hog1grp {
+		fsl,pins = <
+			SPIN71_GPIO  PAD_GPIO_PU
+			>;
+	};
+
+	pinctrl_rtc: rtcgrp {
+		fsl,pins = <
+			SPIN125_GPIO   0x00000116
+		>;
+	};
+
+	pinctrl_rtc_battery: rtcbatgrp {
+		fsl,pins = <
+			SPIN128_GPIO    0x00000116  /* LIBAT_MEAS_EN */
+		>;
+	};
+
+	pinctrl_battery_charger: batcharggrp {
+		fsl,pins = <
+			SPIN102_GPIO  0x00000016 /* I_CHARGE_0 */
+			SPIN105_GPIO  0x00000016 /* EN_CHARGER */
+			SPIN104_GPIO  0x00000016 /* I_CHARGE_1 */
+			SPIN103_GPIO  0x00001816 /* STAT# */
+			SPIN101_GPIO  0x00000016 /* ACOK# */
+			SPIN79_GPIO   0x00000016 /* LOW_BATT_WARN */
+		>;
+	};
+
+	pinctrl_display_enable: display-enable 	{
+		fsl,pins = < DISPLAY_ENABLE		PAD_GPIO_PU >; /* DISPLAY_ENABLE */
+	};
+
+	pinctrl_ext_power: extpwrgrp {
+		fsl,pins = <
+			SPIN49_GPIO    0x00000156
+			SPIN53_GPIO    0x00000116
+		>;
+	};
+
+	pinctrl_reg_5P0_CIM: reg5P0cimgrp {
+		fsl,pins = <
+			SPIN31_GPIO    0x00000116 /* 5P0_CIM_EN */
+			SPIN43_GPIO    0x00000116 /* 5P0_CIM_PWR_FLT# */
+		>;
+	};
+
+	pinctrl_reg_5P0_SW: reg5P0swgrp {
+		fsl,pins = <
+			SPIN55_GPIO    0x00000116 /* 5P0_SW_EN */
+			SPIN57_GPIO    0x00000116 /* 5P0_SW_OC# */
+		>;
+	};
+
+	pinctrl_reg_5P0_RS485: reg5P0rs485grp {
+		fsl,pins = <
+			SPIN29_GPIO    0x00000116 /* RS485_1 Power */
+		>;
+	};
+
+
+	pinctrl_uart1: uart1grp {
+		fsl,pins = <
+			SPIN37_GPIO    0x00000116 /* RS485 DE */
+			SPIN33_UART1_DCE_RX 0x00000116
+			SPIN35_UART1_DCE_TX 0x00000116
+#ifdef TRIZEPS8MINI
+			SPIN93_GPIO   0x00000116 /* DEBUG_CABLE */
+#endif
+#ifdef TRIZEPS8PLUS
+			SPIN97_GPIO   0x00000116 /* DEBUG_CABLE */
+#endif
+		>;
+	};
+
+	// X4 RS485 Soft CIM
+	pinctrl_uart2: uart2grp {
+		fsl,pins = <
+			SPIN36_UART2_DCE_RX     0x00000116
+			SPIN38_UART2_DCE_TX     0x00000116
+			SPIN27_GPIO             0x00001916 /* RS485 DE */
+		>;
+	};
+
+	// X27 RS485 with RJ14 connector
+	pinctrl_uart3: uart3grp {
+		fsl,pins = <
+			SPIN21_UART3_DCE_TX   0x00000116
+			SPIN19_UART3_DCE_RX   0x00000116
+			SPIN23_GPIO           0x00000116 /* RS485 DE */
+#if defined BLUETOOTH
+			SPIN24_UART3_DCE_RTS  0x00000116
+			SPIN22_UART3_DCE_CTS  0x00000116
+#endif
+		>;
+	};
+
+	pinctrl_uart4: uart4grp {
+		fsl,pins = <
+			SPIN32_UART4_DCE_TX     0x00000116
+			SPIN34_UART4_DCE_RX     0x00000116
+			SPIN25_GPIO             0x00000116 /* RS485 DE */
+
+#ifndef BLUETOOTH
+			SPIN22_GPIO             0x00000156 /* CIM_PRES# */
+#endif
+		>;
+	};
+
+	pinctrl_dig_in: digin {
+		fsl,pins = <
+			SPIN111_GPIO      0x00000156 /* DIG_IN0# */
+			SPIN113_GPIO      0x00000156 /* DIG_IN1# */
+			SPIN67_GPIO       0x00000156 /* DIG_IN2# */
+			SPIN117_GPIO      0x00000156 /* DIG_IN3# */
+			SPIN119_GPIO      0x00001956 /* DIG_IN4# */
+			SPIN121_GPIO      0x00000156 /* DIG_IN5# */
+		>;
+	};
+
+	pinctrl_relay1: relay1grp {
+		fsl,pins = <
+			SPIN123_GPIO      0x00000116
+		>;
+	};
+
+	pinctrl_relay2: relay2grp {
+		fsl,pins = <
+			SPIN107_GPIO      0x00000116
+		>;
+	};
+
+	pinctrl_pwm2: pwm2grp {
+		fsl,pins = <
+			SPIN159_PWM2_OUT      0x00000116
+		>;
+	};
+
+	pinctrl_pwm3: pwm3grp {
+		fsl,pins = <
+			SPIN161_PWM3_OUT      0x00000116
+		>;
+	};
+
+	pinctrl_pwm4: pwm4grp {
+		fsl,pins = <
+			SPIN69_PWM4_OUT     0x00000116
+		>;
+	};
+
+	pinctrl_bluetooth: btgrp {
+		fsl,pins = <
+			SPIN98_GPIO       0x00000154
+			SPIN163_GPIO      0x00000116
+		>;
+	};
+
+	pinctrl_backlight_pwm1: pwm-backlight {
+		fsl,pins = < SPIN77_PWM1_OUT	PAD_GPIO >;	/* BACKLIGHT_PWM */
+	};
+
+	pinctrl_backlight_enable: backlight-enable {
+		fsl,pins = < SPIN73_GPIO	    0x00001916 >;	/* BACKLIGHT_ENABLE SODIMM Pin 73 */
+	};
+
+	pinctrl_usb2_pwr: usb2_pwrgrp {
+		fsl,pins = <
+			SPIN129_GPIO        0x00000116 /* USB2_PEN */
+#ifdef TRIZEPS8MINI // TODO on the TR8MP this does always trigger
+			SPIN131_USB2_OC     0x00000116 /* USB2_OC# */
+#endif
+		>;
+	};
+
+	pinctrl_gpio_exp: gpioexpgrp {
+		fsl,pins = <
+			SPIN87_GPIO        0x00000156
+		>;
+	};
+
+	pinctrl_ecspi2: ecspi2grp {
+		fsl,pins = <
+			SPI2_MISO_ECSPI2_MISO    0x00000016
+			SPI2_MOSI_ECSPI2_MOSI    0x00000116
+			SPI2_SCLK_ECSPI2_SCLK    0x00001916
+			SPIN86_ECSPI2_SS0        0x00000116
+		>;
+	};
+};
+
+i2c_touch: &i2c1 { /* I2C Bus for Touch */
+	clock-frequency = <400000>;
+
+	cap_touch: cap_touch_controller {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_captouch>;
+		interrupt-parent = <touch_int_parent>;
+		interrupts = <touch_int_pin IRQ_TYPE_LEVEL_LOW>;
+		irq-gpio = <touch_int GPIO_ACTIVE_LOW>;
+		reset-gpio = <spin136_gpio GPIO_ACTIVE_LOW>;
+
+		status = "disabled";
+	};
+};
+
+&i2c2 {
+	clock-frequency = <400000>;
+
+	rtc: rtc@32 {
+		compatible = "microcrystal,rv8803";
+		reg = <0x32>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_rtc>, <&pinctrl_rtc_battery>;
+		interrupt-parent = <spin125_gpio_parent>;
+		interrupts = <spin125_gpio_pin IRQ_TYPE_LEVEL_LOW>;
+	};
+
+	gpio_expander: gpio-expander@43 {
+		compatible = "psc,pi4io";
+		reg = <0x43>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_gpio_exp>;
+		reset-gpios = <spin87_gpio GPIO_ACTIVE_LOW>;
+	};
+
+	temp: lm75b@49 {
+		compatible = "national,lm75b";
+		reg = <0x49>;
+		vbus-supply = <&reg_3P3_SW>;
+		vs-supply = <&reg_3P3_SW>;
+	};
+
+	eeprom: 24c64@50 {
+		compatible = "atmel,24c64";
+		reg = <0x50>;
+		pagesize = <32>;
+		vcc-supply = <&reg_3P3_SW>;
+	};
+
+	light-sensor@10 {
+		compatible = "vishay,veml6030";
+		reg = <0x10>;
+	};
+};
+
+&ecspi2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	fsl,spi-num-chipselects = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_ecspi2>;
+	cs-gpios = <spin86_gpio GPIO_ACTIVE_LOW>;
+	status = "okay";
+
+	tla2518: tla2518@0 {
+		compatible = "ti,tla2518";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+		status = "okay";
+	};
+};
+
+&panel_lvds {
+		pinctrl-0       = <&pinctrl_display_enable>;
+		enable-gpio     = <display_enable GPIO_ACTIVE_HIGH>;
+};
+
+/* RS485_2 Half-Duplex or Debug UART */
+&uart1 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart1>;
+	rts-gpios = <spin37_gpio GPIO_ACTIVE_HIGH>;
+};
+
+/* X4 RS485 Soft CIM */
+&uart2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart2>;
+	rts-gpios = <spin27_gpio GPIO_ACTIVE_HIGH>;
+	rs485-supply = <&reg_5P0_RS485>;
+	linux,rs485-enabled-at-boot-time;
+};
+
+/* X27 RS485 with RJ14 connector */
+&uart3 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart3>;
+	rts-gpios = <spin23_gpio GPIO_ACTIVE_HIGH>;
+};
+
+/* X19 CIM-Interface */
+&uart4 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart4>;
+	rts-gpios = <spin25_gpio GPIO_ACTIVE_HIGH>;
+};
+
+#ifdef TRIZEPS8MINI
+// TODO for Plus PCIe nodes need to be setup in a different way
+&pcie0 {
+	status = "okay";
+};
+#endif
+
+&pwm2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm2>;
+};
+
+&pwm3 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm3>;
+};
+
+&pwm4 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm4>;
+};
+
+&gpio1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_relay1>,
+				<&pinctrl_relay2>,
+				<&pinctrl_bluetooth>;
+
+	gpio-line-names =
+#ifdef TRIZEPS8PLUS
+			"BT_PAIRING", "LCD1_BL_PWM", "", "", "", "", "RTC_INT", "CIM_PWR_FLT#",
+			"I_CHARGE_0", "", "", "I_CHARGE_1", "", "", "", "",
+#elif defined TRIZEPS8MINI
+			"BT_PAIRING", "LCD1_BL_PWM", "", "RELAY1_ON", "", "", "RTC_INT", "CIM_PWR_FLT#",
+			"I_CHARGE_0", "", "", "", "", "", "", "",
+#endif
+			"", "", "", "", "", "", "", "",
+			"", "", "", "", "", "", "", "";
+
+};
+
+&gpio3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_dig_in>;
+
+	gpio-line-names =
+#ifdef TRIZEPS8PLUS
+			"EN_CHARGER", "RELAY2_ON", "", "", "", "RELAY1_ON", "DIG_IN0", "DIG_IN1",
+			"DIG_IN3", "DIG_IN4", "", "", "", "", "GPIO_EXP_RESET", "",
+			"", "", "", "", "RS485_1_PWR", "", "LCD1_BL_ON", "DEBUG_CABLE",
+			"", "", "", "", "", "", "", "";
+#elif defined TRIZEPS8MINI
+			"EN_CHARGER", "RELAY2_ON", "", "", "", "", "DIG_IN0", "DIG_IN1",
+			"DIG_IN3", "DIG_IN4", "DIG_IN5", "I_CHARGE_1", "", "", "GPIO_EXP_RESET", "",
+			"", "", "DEBUG_CABLE", "", "RS485_1_PWR", "", "LCD1_BL_ON", "",
+			"LOW_BATT_WARN", "", "", "", "", "", "", "";
+#endif
+
+};
+
+&gpio4 {
+	gpio-line-names =
+#if defined BLUETOOTH
+			// Currently theres one uart port missing
+			// so there is a dedicated bluetooth HW variant
+			"", "", "24VOUT_OK", "24VOUT_EN", "5P0_SW_OC#", "", "CIM_PRES#", "",
+			"DIG_IN2", "BOOTSELECT", "", "LIBAT_MEAS_EN", "", "", "", "",
+			"", "", "", "", "", "", "", "",
+			"", "", "", "", "", "", "", "BC_ACOK";
+#else
+			"", "", "24VOUT_OK", "24VOUT_EN", "5P0_SW_OC#", "", "", "",
+			"DIG_IN2", "BOOTSELECT", "", "LIBAT_MEAS_EN", "", "", "", "",
+			"", "", "", "", "", "", "", "",
+			"", "", "", "", "", "", "", "BC_ACOK";
+#endif
+};
+
+&gpio5 {
+	gpio-line-names =
+#if defined TRIZEPS8PLUS && defined BLUETOOTH
+			// Currently theres one uart port missing
+			// so there is a dedicated bluetooth HW variant
+			"LOW_BATT_WARN", "", "", "", "", "BT_LED", "", "",
+			"", "", "SPI2_SCLK", "SPI2_MOSI", "SPI2_MISO", "SPI2_SS0", "", "",
+			"", "", "", "", "", "DIG_IN5", "", "",
+			"", "", "", "", "", "", "", "";
+#elif defined TRIZEPS8PLUS
+			"LOW_BATT_WARN", "", "", "", "", "BT_LED", "", "",
+			"CIM_PRES#", "", "SPI2_SCLK", "SPI2_MOSI", "SPI2_MISO", "SPI2_SS0", "", "",
+			"", "", "", "", "", "DIG_IN5", "", "",
+			"", "", "", "", "", "", "", "";
+#elif defined TRIZEPS8MINI
+			"", "", "", "", "", "BT_LED", "", "",
+			"CIM_PRES#", "", "SPI2_SCLK", "SPI2_MOSI", "SPI2_MISO", "SPI2_SS0", "", "",
+			"", "", "", "", "", "", "", "",
+			"BC_STAT", "", "", "", "", "", "", "";
+#endif
+
+};
+
+&gpio_expander {
+	gpio-line-names =
+			"CFG0_0", "CFG0_1", "CFG1_0", "CFG1_1",
+			"CFG2_0", "CFG2_1", "CFG3_0", "CFG3_1";
+};
+
+/* ===============================================*/
+#ifdef TRIZEPS8MINI
+/* ===============================================*/
+
+/* USB1 (Type-C connector) device mode */
+&usbotg1 {
+	/delete-property/ usb-role-switch;
+	disable-over-current;
+	dr_mode = "peripheral";
+};
+
+/* USB2 PHY (Type-A connector) */
+&usbphynop2 {
+	vbus-regulator = <&reg_usbhost_pwr>;
+};
+
+/* USB2 (Type-A connector) host mode */
+&usbotg2 {
+	/delete-property/ usb-role-switch;
+	over-current-active-low;
+	dr_mode = "host";
+};
+
+/* ===============================================*/
+#elif defined TRIZEPS8PLUS
+/* ===============================================*/
+
+/* USB2 (Type A connector) host mode */
+&usb3_phy1 {
+	vbus-supply = <&reg_usbhost_pwr>;
+	over-current-active-low;
+};
+
+/* USB1 (Type C connector) otg mode */
+&usb_dwc3_0 {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usb3_phy0 {
+	disable-over-current;
+	status = "okay";
+};
+#endif

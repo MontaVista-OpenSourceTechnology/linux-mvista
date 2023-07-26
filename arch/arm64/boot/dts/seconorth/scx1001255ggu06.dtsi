@@ -1,0 +1,195 @@
+/*
+ * Copyright 2022 SECO Northern Europe GmbH
+ *
+ */
+
+/*
+Defines:
+    TOUCH_USE_INT2  Set if alternate touch-interrupt should be used.
+
+    TOUCH_INT      Defined in xxx_pinfunc.h. (SODIMM-pin: 45: pConXS)
+    TOUCH_INT2     Defined in xxx_pinfunc.h. (SODIMM-pin: 55: i-PANT7, i-PAN T10)
+    TOUCH_RESET    Defined in xxx_pinfunc.h. (SODIMM-pin: 75)
+*/
+
+/* Hints on the pixel clock selection
+ *
+ * We have some problems finding the correct pixel clock settings
+ * which seem to be based on the interface between the lcdif and the mipi_dsi
+ *
+ * The simplified clock tree:
+ * Video_pll_1 (with SSC)  ---> divider -> lcdif pixel clock
+ *                          |
+ *                          |-> divider -> dsi_phy_ref -> dsi_phy_pll ->|
+ *                                                                      |
+ *                            |--<----------------------------------<---|
+ *                            |
+ *                            |-> dsi bitrate -> divide by 6 -> dsi pixel clk
+ *
+ * Both "pixel clocks" are rounded according to their hw limitations
+ * individually, but the whole chain only seems to work probably if some
+ * dependency between both clocks is meet. If not, the sync signals are broken.
+ *
+ * One rule seems to be that the dsi pix clk has to be slightly higher then the
+ * lcdif pixel clock
+ *
+ * Known good combinations are:
+ *
+ * | video_pll1 | lcdif pix clk | dsi pref_rate | dsi bitrate | dsi pix clock |
+ * | 594 MHz    |    TODO
+ * | 700 MHz    |    70 MHz     |   14 MHz      |   430 MHz   |   71.666 MHz  |
+ *
+ * Video Pll 1
+ *
+ * The available frequencies for video pll 1 are set in
+ * drivers/clk/imx/clk-pll14xx.c, where a list of preconfigured frequencies
+ * is set in imx_pll1443x_tbl.
+ *
+ * How to add a new pixel clock:
+ * -----------------------------
+ *  - Create dtsi and dts files
+ *  - Set the correct timings in the panel section
+ *  - Check the resulting frequencies
+ *     - For lcdif:
+ *        cat /sys/kernel/debug/clk/clk_summary | grep -B 1 -A 2 video_pll1
+ *         lcdif_pixel is the relevant clock
+ *     - For mipi_dsi:
+ *        dmesg | grep -e "Found bit rate"
+ *         resulting pixel clock: 71666 kHz
+ *
+ *     Checks:
+ *        mipi_dsi, resulting pixel clock: inside the datasheet range?
+ *        lcdif_pixel: slightly lower as the mipi_dsi
+ *
+ *     - If the pixel clock is in the wrong range the VIDEO_PLL1_RATE has to be
+ *       adapted:
+ *       - On top of the seconorth-tanaro-DISPLAY.dts add VIDEO_PLL1_RATE macro.
+ *       - Adapt the 'pref-rate' setting to VIDEO_PLL1_RATE/50000, 14000 for 700MHz
+ *       Check again.
+ *     - If the pixel clock is on the correct range but lcdif_pixel is higher
+ *       or equal to mipi_dsi clock:
+ *       - Adapt the setting in the panel and check again
+ *     - Pray ...
+ *
+ */
+&cap_touch {
+	// Not yet working
+	// Reset pol unklar, da Reset gar nicht funktioniert
+	reg = <0x5c>;
+	compatible = "sis,sisi2c";
+	reset-low-active;
+	status = "okay";
+};
+
+&mipi_dsi {
+	pref-rate =     <14000>; // for 700MHz VIDEO_PLL1_RATE
+};
+
+&mipi2lvds_bridge {
+		status = "okay";
+};
+
+&panel_lvds {
+		status          = "okay";
+		compatible      = "panel-lvds";
+		data-mapping = "vesa-24";
+		width-mm = <217>;
+		height-mm = <136>;
+		backlight = <&backlight1>;
+
+		/* Enable pin is shared with the mipi-to-lvds bridge */
+		panel-timing {
+			/* The following frequency 71.107200 MHz is valid
+			 * for 60Hz fps.
+			 */
+			clock-frequency = <71107200>;
+			hactive = <1280>;
+			vactive = <800>;
+			hfront-porch = <70>;
+			hsync-len = <20>;
+			hback-porch = <70>;
+			vfront-porch = <10>;
+			vsync-len = <3>;
+			vback-porch = <10>;
+		};
+
+		port {
+			panel1_in: endpoint {
+				remote-endpoint = <&dsi_bridge_out>;
+			};
+		};
+};
+
+/************************************************************************/
+#if defined (__DTS_TRIZEPS8_PINFUNC_H)
+&hdmi {
+	status = "disabled";
+};
+
+&lcdif {
+	status = "disabled";
+};
+
+&dcss {
+	status = "okay";
+
+	clocks = <&clk IMX8MM_CLK_DISP_APB_ROOT>,
+		 <&clk IMX8MM_CLK_DISP_AXI_ROOT>,
+		 <&clk IMX8MM_CLK_DISP_RTRM_ROOT>,
+		 <&clk IMX8MM_CLK_DC_PIXEL>,
+		 <&clk IMX8MM_CLK_DISP_DTRC>;
+	clock-names = "apb", "axi", "rtrm", "pix", "dtrc";
+	assigned-clocks = <&clk IMX8MM_CLK_DC_PIXEL>,
+			  <&clk IMX8MM_VIDEO_PLL1_REF_SEL>,
+			  <&clk IMX8MM_CLK_DISP_RTRM>;
+	assigned-clock-parents = <&clk IMX8MM_VIDEO_PLL1_OUT>,
+				 <&clk IMX8MM_CLK_27M>,
+				 <&clk IMX8MM_SYS1_PLL_800M>;
+	assigned-clock-rates = <600000000>, <0>, <400000000>;
+
+	port@0 {
+		dcss_out: endpoint {
+			remote-endpoint = <&mipi_dsi_in>;
+		};
+	};
+};
+
+&mipi_dsi {
+	status = "okay";
+	fsl,clock-drop-level = <2>;
+
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			mipi_dsi_in: endpoint {
+				remote-endpoint = <&dcss_out>;
+			};
+		};
+
+		port@1 {
+			reg = <1>;
+			mipi_dsi_out: endpoint {
+				remote-endpoint = <&dsi_bridge_in>;
+				attach-bridge;
+			};
+		};
+	};
+};
+#endif
+/************************************************************************/
+#if defined (__DTS_IMX8MM_PINFUNC_H) || defined (__DTS_IMX8MN_PINFUNC_H)
+&mipi_dsi {
+	status = "okay";
+
+	port@1 {
+		mipi_dsi_out: endpoint {
+			remote-endpoint = <&dsi_bridge_in>;
+			attach-bridge;
+		};
+	};
+};
+#endif
+/************************************************************************/

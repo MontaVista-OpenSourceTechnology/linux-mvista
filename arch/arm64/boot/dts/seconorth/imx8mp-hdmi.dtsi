@@ -1,0 +1,86 @@
+/*
+ * Copyright 2022 SECO Northern Europe GmbH
+ */
+
+/dts-v1/;
+
+#include "imx8mp.dtsi"
+
+&iomuxc {
+	pinctrl_hog: hoggrp {
+		fsl,pins = <
+			MX8MP_IOMUXC_HDMI_DDC_SCL__HDMIMIX_HDMI_SCL 0x400001c3
+			MX8MP_IOMUXC_HDMI_DDC_SDA__HDMIMIX_HDMI_SDA	0x400001c3
+			MX8MP_IOMUXC_HDMI_HPD__HDMIMIX_HDMI_HPD		0x40000019
+			MX8MP_IOMUXC_HDMI_CEC__HDMIMIX_HDMI_CEC		0x40000019
+		>;
+	};
+
+	pinctrl_hdmi_lsoe: hdmi-lsoe {
+		fsl,pins = < SPIN124_GPIO	PAD_GPIO >;
+	};
+
+	pinctrl_hdmi_cthpd: hdmi-cthpd {
+		fsl,pins = < SPIN188_GPIO	PAD_GPIO >;
+	};
+};
+
+/ {
+	reg_hdmi_lsoe: rhdmi-lsoe {
+		compatible = "regulator-fixed";
+		regulator-name = "HDMI LSOE";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_hdmi_lsoe>;
+		gpio = <spin124_gpio 0>;
+		enable-active-high;
+		regulator-always-on;
+		vin-supply = <&reg_3v3>;
+	};
+
+	reg_hdmi_cthpd: rhdmi-cthpd {
+		compatible = "regulator-fixed";
+		regulator-name = "HDMI CTHPD";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_hdmi_cthpd>;
+		gpio = <spin188_gpio 0>;
+		enable-active-high;
+		regulator-always-on;
+		vin-supply = <&reg_3v3>;
+	};
+};
+
+/* HDMI */
+
+&irqsteer_hdmi {
+	status = "okay";
+};
+
+&hdmi_blk_ctrl {
+	status = "okay";
+};
+
+&hdmi_pavi {
+	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+};
+
+&hdmiphy {
+	status = "okay";
+};
+
+/* HDMI Audio */
+
+&aud2htx {
+	status = "okay";
+};
+
+&sound_hdmi {
+	status = "okay";
+};

@@ -1,0 +1,38 @@
+/*
+ * Copyright 2022 SECO Nothern Europe GmbH
+ *
+ * Changes since revision 1.2:
+ * - New Audio Codec WM8962
+ * - New Ethernet PHY RTL8211F(I)
+ */
+
+#include "trizeps8plus.dtsi"
+
+&ethphy0 {
+	/*
+	 * We need to set the phy id explictly since the reported id of the
+	 * 8211FI PHY is not matched correctly
+	 */
+	compatible = "ethernet-phy-id001c.c916";
+	reg = <0>;
+
+	/delete-property/ at803x,eee-disabled;
+	/delete-property/ at803x,vddio-1p8v;
+#if defined(ETHERNET_ONLY_100MBIT) && (ETHERNET_ONLY_100MBIT==1)
+	/delete-property/ at803x,100MBit;
+#endif
+};
+
+/*
+ * The Trizeps 8 Plus v1r3 has a new audio codec that isn't
+ * yet supported. Disable the old codec anyways, to prevent
+ * from unexpected behaviour.
+ */
+
+&wm8983 {
+    status = "disabled";
+};
+
+&sound_wm8983 {
+    status = "disabled";
+};

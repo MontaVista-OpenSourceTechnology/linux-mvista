@@ -1,0 +1,14 @@
+/*
+ * Copyright 2022 SECO Northern Europe GmbH
+ */
+/* 
+   Disables the soc internal ethernet mac for devices
+   without the GB phy eqipped.
+*/
+
+/dts-v1/;
+/plugin/;
+
+&fec1 {
+    status = "disabled";
+};

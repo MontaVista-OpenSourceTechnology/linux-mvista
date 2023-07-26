@@ -1,0 +1,12 @@
+/*
+ * Copyright 2022 SECO Northern Europe GmbH
+ */
+
+/dts-v1/;
+/plugin/;
+
+&rtc {
+    compatible = "nxp,pcf8563";
+    reg = <0x51>;
+    status = "okay";
+};
