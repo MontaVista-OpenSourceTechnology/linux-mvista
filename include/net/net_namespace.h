@@ -38,6 +38,7 @@
 #include <linux/idr.h>
 #include <linux/skbuff.h>
 #include <linux/notifier.h>
+#include <linux/xarray.h>
 
 struct user_namespace;
 struct proc_dir_entry;
@@ -68,7 +69,7 @@ struct net {
 	unsigned int		dev_unreg_count;
 
 	unsigned int		dev_base_seq;	/* protected by rtnl_mutex */
-	int			ifindex;
+	u32			ifindex;
 
 	spinlock_t		nsid_lock;
 	atomic_t		fnhe_genid;
@@ -107,6 +108,7 @@ struct net {
 
 	struct hlist_head 	*dev_name_head;
 	struct hlist_head	*dev_index_head;
+	struct xarray		dev_by_index;
 	struct raw_notifier_head	netdev_chain;
 
 	/* Note that @hash_mix can be read millions times per second,
