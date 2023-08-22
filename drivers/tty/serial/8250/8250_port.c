@@ -2528,7 +2528,7 @@ static unsigned char serial8250_compute_lcr(struct uart_8250_port *up,
 
 	if (c_cflag & CSTOPB)
 		cval |= UART_LCR_STOP;
-	if (c_cflag & PARENB)
+	if (c_cflag & PARENB) {
 		cval |= UART_LCR_PARITY;
 
 		if (!(c_cflag & PARODD))
