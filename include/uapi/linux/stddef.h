@@ -49,6 +49,7 @@
 		struct { } __empty_ ## NAME; \
 		TYPE NAME[]; \
 	}
+#endif
 
 #ifndef __counted_by
 #define __counted_by(m)
