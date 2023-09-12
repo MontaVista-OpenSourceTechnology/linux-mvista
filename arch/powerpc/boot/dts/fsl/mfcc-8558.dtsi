@@ -232,6 +232,7 @@
 
 	sdhc@114000 {
 		clock-frequency = <300000000>;
+		interrupts = <48 2 0 0>;
 		status = "okay";
 	};
 
