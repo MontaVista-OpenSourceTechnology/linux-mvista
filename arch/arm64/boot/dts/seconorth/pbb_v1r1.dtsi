@@ -1,2 +1,39 @@
 
 #include "pbb.dtsi"
+
+&i2c2 {
+	usb2422@2c {
+		compatible = "microchip,usb2422";
+		reg = <0x2c>;
+		string-support;
+		manufacturer = "SECO";
+		product = "Baseboard USB hub";
+
+		compound-device;
+		non-removable-ports = <1>; // Port 1 is hardwired to the ftdi usb2serial
+
+		reset-gpios = <spin129_gpio GPIO_ACTIVE_LOW>;
+		vdd-supply = <&reg_3P3_SW>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_usbhub>;
+	};
+
+};
+
+&iomuxc {
+	pinctrl_usbhub: usbhubgrp {
+		fsl,pins = <
+			SPIN129_GPIO    PAD_GPIO  // USBH_RESET#
+			SPIN131_GPIO    PAD_GPIO  // SUSP_IND ( seems not to be used by the driver)
+		>;
+	};
+};
+
+&reg_usbhost_pwr {
+	status = "disabled";  // Used the SPIN129 to enable USB Power on V1R0 of the baseboard
+};
+
+&usb3_phy1 {
+	/delete-property/ vbus-supply;
+};
