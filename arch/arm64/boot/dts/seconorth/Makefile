@@ -27,6 +27,7 @@ dtb-y += 	\
 		seconorth-trizeps8plus_v1r3-dual-espresso.dtb \
 		seconorth-trizeps8plus_v1r3-hdmi-gpu.dtb \
 		seconorth-trizeps8plus_v1r3-pbb-fn1010t007b.dtb \
+		seconorth-trizeps8plus_v1r3-pbb_v1r1-fn1010t007b.dtb \
 		seconorth-trizeps8plus_v1r3_ble-pbb-fn1010t007b.dtb \
 
 always		:= $(dtb-y)

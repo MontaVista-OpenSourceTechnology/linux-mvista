@@ -1,0 +1,18 @@
+/*
+ * Copyright 2023 SECO Northern Europe GmbH
+ */
+
+/dts-v1/;
+
+// Needs to be defined before the includes
+#define VIDEO_PLL1_RATE 700000000
+#define BLUETOOTH
+
+#include "trizeps8plus_v1r3.dtsi"
+#include "pbb_v1r1.dtsi"
+#include "fn1010t007b.dtsi"
+
+/ {
+	model      = "SECO Northern Europe GmbH PBB i.MX8MM Trizeps VIII Plus";
+	compatible = "kk,trizeps8", "kk,trizeps8plus", "fsl,imx8mp-evk", "fsl,imx8mp";
+};
