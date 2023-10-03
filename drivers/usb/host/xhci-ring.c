@@ -2148,7 +2148,6 @@ static int process_ctrl_td(struct xhci_hcd *xhci, struct xhci_td *td,
 		if (trb_type != TRB_STATUS)
 			xhci_dbg(xhci, "Success on ctrl %s TRB without IOC set?\n",
 				  (trb_type == TRB_DATA) ? "data" : "setup");
-			break;
 		td->status = 0;
 		break;
 	case COMP_SHORT_PACKET:
