@@ -124,4 +124,6 @@ source "drivers/staging/fsl_ppfe/Kconfig"
 
 source "drivers/staging/gpio/Kconfig"
 
+source "drivers/staging/mfd/Kconfig"
+
 endif # STAGING

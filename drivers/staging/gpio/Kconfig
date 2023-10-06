@@ -2,13 +2,20 @@
 #
 # GPIO infrastructure and drivers
 #
-menu "I2C GPIO expanders"
-	depends on I2C
+menu "GPIO expanders"
 
 config GPIO_PI4IOE5V6408
 	tristate "Pericom PI4IOE5V6408 I2C GPIO Expander"
 	select REGMAP_I2C
+	depends on I2C
 	help
 	  Say yes here to enable the Pericom PI4IOE5V6408 GPIO Expander
+
+config GPIO_TRIZEPS8_MCU
+	tristate "Trizeps8 MCU GPIO Expander"
+	depends on MFD_SECO_TRIZEPS8_MCU
+	help
+	  Say yes here to enable the Trizeps8 MCU based GPIO Expander
+
 
 endmenu

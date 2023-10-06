@@ -52,3 +52,4 @@ obj-$(CONFIG_WFX)		+= wfx/
 obj-y				+= hikey9xx/
 obj-$(CONFIG_FSL_PPFE)		+= fsl_ppfe/
 obj-y				+= gpio/
+obj-y               += mfd/

@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0
+
+menuconfig MFD_SECO_TRIZEPS8_MCU
+	bool "SECO Trizeps8 MCU Multifunction device driver"
+	help
+	  Say yes here to enable the Trizeps8 MCU Multifunction device driver
+
