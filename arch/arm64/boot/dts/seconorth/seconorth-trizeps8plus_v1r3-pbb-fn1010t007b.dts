@@ -6,6 +6,7 @@
 
 // Needs to be defined before the includes
 #define VIDEO_PLL1_RATE 700000000
+#define BLUETOOTH
 
 #include "trizeps8plus_v1r3.dtsi"
 #include "pbb.dtsi"
