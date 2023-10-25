@@ -138,6 +138,15 @@ static irqreturn_t um_timer(int irq, void *dev)
 static u64 timer_read(struct clocksource *cs)
 {
 	if (time_travel_mode != TT_MODE_OFF) {
+		unsigned long flags;
+
+		/*
+		 * Disable interrupts before calculating the new time so
+		 * that a real timer interrupt (signal) can't happen at
+		 * a bad time e.g. after we read time_travel_time but
+		 * before we've completed updating the time.
+		 */
+		local_irq_save(flags);
 		/*
 		 * We make reading the timer cost a bit so that we don't get
 		 * stuck in loops that expect time to move more than the
@@ -145,6 +154,7 @@ static u64 timer_read(struct clocksource *cs)
 		 * see https://bugs.python.org/issue37026.
 		 */
 		time_travel_set_time(time_travel_time + TIMER_MULTIPLIER);
+		local_irq_restore(flags);
 		return time_travel_time / TIMER_MULTIPLIER;
 	}
 
