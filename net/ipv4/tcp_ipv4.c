@@ -91,6 +91,7 @@ static int tcp_v4_md5_hash_hdr(char *md5_hash, const struct tcp_md5sig_key *key,
 			       __be32 daddr, __be32 saddr, const struct tcphdr *th);
 #endif
 
+static DEFINE_LOCAL_IRQ_LOCK(tcp_md5_lock);
 struct inet_hashinfo tcp_hashinfo;
 EXPORT_SYMBOL(tcp_hashinfo);
 
@@ -1147,6 +1148,7 @@ static int tcp_v4_md5_hash_hdr(char *md5_hash, const struct tcp_md5sig_key *key,
 	struct tcp_md5sig_pool *hp;
 	struct ahash_request *req;
 
+	local_lock(tcp_md5_lock);
 	hp = tcp_get_md5sig_pool();
 	if (!hp)
 		goto clear_hash_noput;
@@ -1163,12 +1165,14 @@ static int tcp_v4_md5_hash_hdr(char *md5_hash, const struct tcp_md5sig_key *key,
 		goto clear_hash;
 
 	tcp_put_md5sig_pool();
+	local_unlock(tcp_md5_lock);
 	return 0;
 
 clear_hash:
 	tcp_put_md5sig_pool();
 clear_hash_noput:
 	memset(md5_hash, 0, 16);
+	local_unlock(tcp_md5_lock);
 	return 1;
 }
 
@@ -1181,6 +1185,7 @@ int tcp_v4_md5_hash_skb(char *md5_hash, const struct tcp_md5sig_key *key,
 	const struct tcphdr *th = tcp_hdr(skb);
 	__be32 saddr, daddr;
 
+	local_lock(tcp_md5_lock);
 	if (sk) { /* valid for establish/request sockets */
 		saddr = sk->sk_rcv_saddr;
 		daddr = sk->sk_daddr;
@@ -1209,12 +1214,14 @@ int tcp_v4_md5_hash_skb(char *md5_hash, const struct tcp_md5sig_key *key,
 		goto clear_hash;
 
 	tcp_put_md5sig_pool();
+	local_unlock(tcp_md5_lock);
 	return 0;
 
 clear_hash:
 	tcp_put_md5sig_pool();
 clear_hash_noput:
 	memset(md5_hash, 0, 16);
+	local_unlock(tcp_md5_lock);
 	return 1;
 }
 EXPORT_SYMBOL(tcp_v4_md5_hash_skb);
