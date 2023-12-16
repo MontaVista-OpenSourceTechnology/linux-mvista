@@ -930,35 +930,3 @@ void notrace *bpf_mem_cache_alloc_flags(struct bpf_mem_alloc *ma, gfp_t flags)
 
 	return !ret ? NULL : ret + LLIST_NODE_SZ;
 }
-
-static __init int bpf_mem_cache_adjust_size(void)
-{
-	unsigned int size;
-
-	/* Adjusting the indexes in size_index() according to the object_size
-	 * of underlying slab cache, so bpf_mem_alloc() will select a
-	 * bpf_mem_cache with unit_size equal to the object_size of
-	 * the underlying slab cache.
-	 *
-	 * The maximal value of KMALLOC_MIN_SIZE and __kmalloc_minalign() is
-	 * 256-bytes, so only do adjustment for [8-bytes, 192-bytes].
-	 */
-	for (size = 192; size >= 8; size -= 8) {
-		unsigned int kmalloc_size, index;
-
-		kmalloc_size = kmalloc_size_roundup(size);
-		if (kmalloc_size == size)
-			continue;
-
-		if (kmalloc_size <= 192)
-			index = size_index[(kmalloc_size - 1) / 8];
-		else
-			index = fls(kmalloc_size - 1) - 1;
-		/* Only overwrite if necessary */
-		if (size_index[(size - 1) / 8] != index)
-			size_index[(size - 1) / 8] = index;
-	}
-
-	return 0;
-}
-subsys_initcall(bpf_mem_cache_adjust_size);
