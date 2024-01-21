@@ -1355,9 +1355,17 @@ struct bio *bio_copy_user_iov(struct request_queue *q,
 	/*
 	 * success
 	 */
-	if (((iter->type & WRITE) && (!map_data || !map_data->null_mapped)) ||
-	    (map_data && map_data->from_user)) {
+	if ((iter->type & WRITE) &&
+	    (!map_data || !map_data->null_mapped)) {
 		ret = bio_copy_from_iter(bio, *iter);
+		if (ret)
+			goto cleanup;
+	} else if (map_data && map_data->from_user) {
+		struct iov_iter iter2 = *iter;
+
+		/* This is the copy-in part of SG_DXFER_TO_FROM_DEV. */
+		iter2.type |= WRITE;
+		ret = bio_copy_from_iter(bio, iter2);
 		if (ret)
 			goto cleanup;
 	}
