@@ -1184,6 +1184,11 @@ phy_standalone_show(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_RO(phy_standalone);
 
+static bool phy_drv_supports_irq(struct phy_driver *phydrv)
+{
+	return phydrv->config_intr && phydrv->handle_interrupt;
+}
+
 /**
  * phy_attach_direct - attach a network device to a given PHY device pointer
  * @dev: network device to attach
@@ -1285,6 +1290,9 @@ int phy_attach_direct(struct net_device *dev, struct phy_device *phydev,
 	phydev->interface = interface;
 
 	phydev->state = PHY_READY;
+
+	if (!phy_drv_supports_irq(phydev->drv) && phy_interrupt_is_valid(phydev))
+		phydev->irq = PHY_POLL;
 
 	/* Initial carrier state is off as the phy is about to be
 	 * (re)initialized.
@@ -2172,11 +2180,6 @@ bool phy_validate_pause(struct phy_device *phydev,
 	return true;
 }
 EXPORT_SYMBOL(phy_validate_pause);
-
-static bool phy_drv_supports_irq(struct phy_driver *phydrv)
-{
-	return phydrv->config_intr && phydrv->ack_interrupt;
-}
 
 /**
  * phy_probe - probe and init a PHY device
