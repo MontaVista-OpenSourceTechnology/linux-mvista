@@ -461,6 +461,7 @@ extern int swap_duplicate(swp_entry_t);
 extern int swapcache_prepare(swp_entry_t);
 extern void swap_free(swp_entry_t);
 extern void swapcache_free_entries(swp_entry_t *entries, int n);
+extern void swapcache_clear(struct swap_info_struct *si, swp_entry_t entry);
 extern int free_swap_and_cache(swp_entry_t);
 extern int swap_type_of(dev_t, sector_t, struct block_device **);
 extern unsigned int count_swap_pages(int, int);
@@ -541,6 +542,11 @@ static inline int swap_duplicate(swp_entry_t swp)
 	return 0;
 }
 
+static inline int swapcache_prepare(swp_entry_t swp)
+{
+	return 0;
+}
+
 static inline void swap_free(swp_entry_t swp)
 {
 }
@@ -564,6 +570,10 @@ static inline struct page *swapin_readahead(swp_entry_t swp, gfp_t gfp_mask,
 static inline int swap_writepage(struct page *p, struct writeback_control *wbc)
 {
 	return 0;
+}
+
+static inline void swapcache_clear(struct swap_info_struct *si, swp_entry_t entry)
+{
 }
 
 static inline struct page *lookup_swap_cache(swp_entry_t swp,
