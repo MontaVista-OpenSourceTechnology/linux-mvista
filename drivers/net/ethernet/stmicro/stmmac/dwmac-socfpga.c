@@ -489,7 +489,7 @@ static int __maybe_unused socfpga_dwmac_runtime_suspend(struct device *dev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 
-	stmmac_bus_clks_config(priv, false);
+	stmmac_bus_clks_enable(priv, false);
 
 	return 0;
 }
@@ -499,7 +499,7 @@ static int __maybe_unused socfpga_dwmac_runtime_resume(struct device *dev)
 	struct net_device *ndev = dev_get_drvdata(dev);
 	struct stmmac_priv *priv = netdev_priv(ndev);
 
-	return stmmac_bus_clks_config(priv, true);
+	return stmmac_bus_clks_enable(priv, true);
 }
 
 static const struct dev_pm_ops socfpga_dwmac_pm_ops = {
