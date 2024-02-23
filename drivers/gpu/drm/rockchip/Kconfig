@@ -11,6 +11,10 @@ config DRM_ROCKCHIP
 	select DRM_DW_MIPI_DSI if ROCKCHIP_DW_MIPI_DSI
 	select DRM_RGB if ROCKCHIP_RGB
 	select SND_SOC_HDMI_CODEC if ROCKCHIP_CDN_DP && SND_SOC
+	select DRM_CDNS_MHDP
+	select DRM_CDNS_AUDIO
+	select DRM_CDNS_HDMI
+	select DRM_CDNS_HDCP
 	help
 	  Choose this option if you have a Rockchip soc chipset.
 	  This driver provides kernel mode setting and buffer
