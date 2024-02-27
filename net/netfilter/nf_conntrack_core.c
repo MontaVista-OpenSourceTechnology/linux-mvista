@@ -2194,6 +2194,7 @@ err_cachep:
 
 static struct nf_ct_hook nf_conntrack_hook = {
 	.destroy	= destroy_conntrack,
+	.confirm        = __nf_conntrack_confirm,
 };
 
 void nf_conntrack_init_end(void)

@@ -393,6 +393,7 @@ enum ip_conntrack_info;
 
 struct nf_ct_hook {
 	void (*destroy)(struct nf_conntrack *);
+	int (*confirm)(struct sk_buff *skb);
 };
 extern struct nf_ct_hook __rcu *nf_ct_hook;
 
