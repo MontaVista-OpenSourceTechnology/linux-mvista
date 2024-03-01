@@ -93,7 +93,8 @@ netcp: netcp@2090000 {
 		slaves {
 			slave0 {
 				label		= "slave0";
-				link-interface	= <4>;
+				link-interface	= <1>;
+				phy-handle      = <&ethphy0>;
 			};
 			slave1 {
 				label		= "slave1";
