@@ -1735,4 +1735,15 @@ extern struct smb_version_values smb302_values;
 #define ALT_SMB311_VERSION_STRING "3.11"
 extern struct smb_version_operations smb311_operations;
 extern struct smb_version_values smb311_values;
+
+static inline bool cifs_ses_exiting(struct cifs_ses *ses)
+{
+	bool ret;
+
+	spin_lock(&GlobalMid_Lock);
+	ret = ses->status == CifsExiting;
+	spin_unlock(&GlobalMid_Lock);
+	return ret;
+}
+
 #endif	/* _CIFS_GLOB_H */
