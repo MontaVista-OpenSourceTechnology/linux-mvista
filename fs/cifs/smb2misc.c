@@ -617,6 +617,8 @@ smb2_is_valid_lease_break(char *buffer)
 
 		list_for_each(tmp1, &server->smb_ses_list) {
 			ses = list_entry(tmp1, struct cifs_ses, smb_ses_list);
+			if (cifs_ses_exiting(ses))
+				continue;
 
 			list_for_each(tmp2, &ses->tcon_list) {
 				tcon = list_entry(tmp2, struct cifs_tcon,
