@@ -1080,6 +1080,8 @@ static int do_replace(struct net *net, const void __user *user,
 	struct ebt_table_info *newinfo;
 	struct ebt_replace tmp;
 
+	if (len < sizeof(tmp))
+		return -EINVAL;
 	if (copy_from_user(&tmp, user, sizeof(tmp)) != 0)
 		return -EFAULT;
 
@@ -1305,6 +1307,8 @@ static int update_counters(struct net *net, const void __user *user,
 {
 	struct ebt_replace hlp;
 
+	if (len < sizeof(hlp))
+		return -EINVAL;
 	if (copy_from_user(&hlp, user, sizeof(hlp)))
 		return -EFAULT;
 
@@ -2316,6 +2320,8 @@ static int compat_update_counters(struct net *net, void __user *user,
 {
 	struct compat_ebt_replace hlp;
 
+	if (len < sizeof(hlp))
+		return -EINVAL;
 	if (copy_from_user(&hlp, user, sizeof(hlp)))
 		return -EFAULT;
 
