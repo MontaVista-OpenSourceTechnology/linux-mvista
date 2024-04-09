@@ -429,6 +429,7 @@ struct br_input_skb_cb {
 	bool proxyarp_replied;
 	bool src_port_isolated;
 
+	u8 promisc:1;
 #ifdef CONFIG_BRIDGE_VLAN_FILTERING
 	bool vlan_filtered;
 #endif
