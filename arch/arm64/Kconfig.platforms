@@ -166,6 +166,7 @@ config ARCH_MVEBU
 	   - Armada 3700 SoC Family
 	   - Armada 7K SoC Family
 	   - Armada 8K SoC Family
+	   - AC5 Family
 
 config ARCH_MXC
 	bool "ARMv8 based NXP i.MX SoC family"

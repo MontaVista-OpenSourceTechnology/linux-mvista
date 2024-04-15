@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Device Tree For AC5X 4G DB.
+ *
+ * Copyright (C) 2021 Marvell
+ *
+ */
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/*
+ * Device Tree file for Marvell Alleycat 5X 4G development board
+ * This board file supports the B configuration of the board
+ */
+
+#include "ac5.dtsi"
+
+/ {
+	model = "Marvell AC5X 4G DB board";
+};
+
+&mmc_dma {
+	/* Host phy ram DMA mapping */
+	dma-ranges = <0x2 0x0 0x2 0x80000000 0x1 0x0>;
+};
+
+&sdhci0 {
+	reg = <0x0 0x805c0000 0x0 0x300>, <0x0 0x80440230 0x0 0x4>;
+};
+
+&eth0 {
+	status = "okay";
+	phy = <&phy0>;
+};
+
+&usb1 {
+	compatible = "chipidea,usb2";
+	phys = <&usb1phy>;
+	phy-names = "usb-phy";
+	dr_mode = "peripheral";
+};
+

@@ -17,6 +17,7 @@
 #include <linux/of.h>
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
+#include <linux/of_address.h>
 
 #include "sdhci-pltfm.h"
 #include "sdhci-xenon.h"
@@ -411,6 +412,9 @@ static int xenon_probe_dt(struct platform_device *pdev)
 	struct xenon_priv *priv = sdhci_pltfm_priv(pltfm_host);
 	u32 sdhc_id, nr_sdhc;
 	u32 tuning_count;
+	struct resource *decoder;
+	u64 dma_addr, paddr, size;
+	struct sysinfo si;
 
 	/* Disable HS200 on Armada AP806 */
 	if (of_device_is_compatible(np, "marvell,armada-ap806-sdhci"))
@@ -438,6 +442,28 @@ static int xenon_probe_dt(struct platform_device *pdev)
 		}
 	}
 	priv->tuning_count = tuning_count;
+
+	decoder = platform_get_resource_byname(pdev, IORESOURCE_MEM, "decoder");
+	if (decoder) {
+		if (!of_dma_get_range(np, &dma_addr, &paddr, &size)) {
+			void __iomem *regs = ioremap(decoder->start, resource_size(decoder));
+			if (!regs) {
+				dev_err(mmc_dev(mmc), "Failed to map decoder address 0x%llx\n",
+						decoder->start);
+			} else {
+				writel(paddr>>16, regs);
+				iounmap(regs);
+			}
+		}
+	}
+
+	si_meminfo(&si);
+
+	if (of_device_is_compatible(np, "marvell,ac5-sdhci") &&
+		((si.totalram * si.mem_unit) > 0x80000000 /*2G*/)) {
+		host->quirks |= SDHCI_QUIRK_BROKEN_DMA;
+		host->quirks |= SDHCI_QUIRK_BROKEN_ADMA;
+	}
 
 	return xenon_phy_parse_dt(np, host);
 }
@@ -665,6 +691,8 @@ static const struct of_device_id sdhci_xenon_dt_ids[] = {
 	{ .compatible = "marvell,armada-ap806-sdhci",},
 	{ .compatible = "marvell,armada-cp110-sdhci",},
 	{ .compatible = "marvell,armada-3700-sdhci",},
+	{ .compatible = "marvell,armada-ap810-sdhci",},
+	{ .compatible = "marvell,ac5-sdhci",},
 	{}
 };
 MODULE_DEVICE_TABLE(of, sdhci_xenon_dt_ids);

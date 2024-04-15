@@ -48,6 +48,9 @@
 	aliases {
 		serial0 = &uart0;
 		spiflash0 = &spiflash0;
+		gpio0 = &gpio0;
+		ethernet0 = &eth0;
+		ethernet1 = &eth1;
 	};
 
 	psci {
@@ -134,7 +137,23 @@
 				interrupts = <GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>;
 				clock-frequency=<100000>;
 				status="okay";
+
+				pinctrl-names = "i2c-mpp-state", "i2c-gpio-state";
+				pinctrl-0 = <&i2c_mpps>;
+				pinctrl-1 = <&i2c_gpio>;
+
+				scl_gpio = <&gpio0 26 GPIO_ACTIVE_HIGH>;
+				sda_gpio = <&gpio0 27 GPIO_ACTIVE_HIGH>;
 			};
+			gpio0: gpio@18100 {
+				compatible = "marvell,ac5-gpio";
+				#gpio-cells = <2>;
+				gpio-controller;
+				reg = <0x18100 0x200>;
+				// gpio-ranges = <&pinctrl0 0 0 46>;
+				ngpios = <46>;
+			};
+
 			gpio0: gpio@18100 {
 				compatible = "marvell,ac5-gpio";
 				#gpio-cells = <2>;
@@ -145,6 +164,30 @@
 			};
 		};
 
+		mmc_dma: mmc-dma-peripherals@80500000 {
+				compatible = "simple-bus";
+				#address-cells = <0x2>;
+				#size-cells = <0x2>;
+				ranges;
+				dma-coherent;
+
+				sdhci0: sdhci@805c0000 {
+					compatible = "marvell,ac5-sdhci", "marvell,armada-ap806-sdhci";
+					reg = <0x0 0x805c0000 0x0 0x300>;
+					reg-names = "ctrl", "decoder";
+					interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
+					clocks = <&core_clock>;
+					clock-names = "core";
+					status = "okay";
+					bus-width = <8>;
+					/*marvell,xenon-phy-slow-mode;*/
+					non-removable;
+					mmc-ddr-1_8v;
+					mmc-hs200-1_8v;
+					mmc-hs400-1_8v;
+				};
+		};
+
 		/* Dedicated section for devices behind 32bit controllers so we
 		   can configure specific DMA mapping for them */
 		behind-32bit-controller@7f000000 {
@@ -152,7 +195,7 @@
 			#address-cells = <0x2>;
 			#size-cells = <0x2>;
 			ranges = <0x0 0x0 0x0 0x7f000000 0x0 0x1000000>;
-			/* Host addresses starts at 0x2000000 */
+			/* Host phy ram starts at 0x200M */
 			dma-ranges = <0x0 0x0 0x2 0x0 0x1 0x0>;
 			dma-coherent;
 
@@ -200,6 +243,22 @@
 			};
 		};
 		
+		pinctrl0: pinctrl@80020100 {
+			compatible = "marvell,ac5-pinctrl",
+				     "syscon", "simple-mfd";
+			reg = <0 0x80020100 0 0x20>;
+
+			i2c_mpps: i2c-mpps {
+				marvell,pins = "mpp26", "mpp27";
+				marvell,function = "i2c0-opt";
+			};
+
+			i2c_gpio: i2c-gpio {
+				marvell,pins = "mpp26", "mpp27";
+				marvell,function = "gpio";
+			};
+		};
+
 		pinctrl0: pinctrl@80020100 {
 			compatible = "marvell,ac5-pinctrl",
 				     "syscon", "simple-mfd";
@@ -306,21 +365,6 @@
 			status = "disabled";
 		};
 
-		sdhci@805c0000 {
-			compatible = "marvell, ac5-sdhci", "marvell,armada-ap806-sdhci";
-			reg = <0x0 0x805c0000 0x0 0x300>;
-			interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&core_clock>;
-			clock-names = "core";
-			status = "okay";
-			bus-width = <8>;
-			//marvell,xenon-phy-slow-mode;
-			non-removable;
-			mmc-ddr-1_8v;
-			mmc-hs200-1_8v;
-			mmc-hs400-1_8v;
-		};
-
 		nand: nand@805b00 {
 			compatible = "marvell,ac5-nand-controller";
 			reg =  <0x0 0x805b0000 0x0 0x00000054
@@ -332,7 +376,6 @@
 			clocks = <&core_clock>;
 			/*marvell,system-controller = <0x15>*/
 			status = "okay";
-			nand-timing-mode = <1>;
 
 			nand@0 {
 				reg = <0x0>;
@@ -348,6 +391,14 @@
 			compatible = "marvell,armada-ac5-switch";
 			interrupts = <GIC_SPI 0x23 IRQ_TYPE_LEVEL_HIGH>;
 			status = "okay";
+		};
+
+		watchdog@80216000 {
+			compatible = "marvell,ac5-wd";
+			reg = <0x0 0x80216000 0 0x1000>,
+				  <0x0 0x80215000 0 0x1000>;
+			interrupts = <GIC_SPI 124 IRQ_TYPE_LEVEL_HIGH>;
+			timeout-sec = <30>;
 		};
 
 	};
@@ -402,6 +453,7 @@
 	memory@00000000 {
 		device_type = "memory";
 		reg = <0x2 0x00000000 0x0 0x40000000>;
+		// linux,usable-memory = <0x2 0x00000000 0x0 0x80000000>;
 	};
 
 };

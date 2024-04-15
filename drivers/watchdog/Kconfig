@@ -383,6 +383,22 @@ config ARMADA_37XX_WATCHDOG
 	   To compile this driver as a module, choose M here: the
 	   module will be called armada_37xx_wdt.
 
+config MARVELL_AC5_WATCHDOG
+	tristate "Marvell AlleyCat 5 Watchdog"
+	depends on ARM64
+	depends on ARM_ARCH_TIMER
+	select WATCHDOG_CORE
+	help
+	  AC5 Watchdog has two stage timeouts:
+	  the first signal (WS0) is for alerting the system by interrupt,
+	  the second one (WS1) is a real hardware reset.
+
+	  This driver can operate as a single stage or a two stages watchdog,
+	  depends on the module parameter "action" (moudle name is ac5-gwd).
+
+	  Note: the maximum timeout in the two stages mode is half of that in
+	  the single stage mode.
+
 config ASM9260_WATCHDOG
 	tristate "Alphascale ASM9260 watchdog"
 	depends on MACH_ASM9260 || COMPILE_TEST
