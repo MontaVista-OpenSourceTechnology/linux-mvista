@@ -349,6 +349,10 @@ static int sbsa_gwdt_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	/* CPSS-14280: 	WD HW need to trigger reset on WS1.
+	   Enable GWD reset out */
+	smc_writel(0xFFFFFFBF, 0x80210030);
+
 	dev_info(dev, "Initialized with %ds timeout @ %u Hz, action=%d.%s\n",
 		 wdd->timeout, gwdt->clk, action,
 		 status & SBSA_GWDT_WCS_EN ? " [enabled]" : "");
