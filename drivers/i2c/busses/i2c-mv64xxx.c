@@ -906,8 +906,7 @@ mv64xxx_of_config(struct mv64xxx_i2c_data *drv_data,
 			drv_data->errata_delay = true;
 	}
 
-	if (of_device_is_compatible(np, "marvell,mv78230-i2c") ||
-	    of_device_is_compatible(np, "marvell,mv64xxx-i2c") ) {
+	if (of_device_is_compatible(np, "marvell,mv78230-a0-i2c")) {
 		drv_data->offload_enabled = false;
 		/* The delay is only needed in standard mode (100kHz) */
 		if (bus_freq <= 100000)

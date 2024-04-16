@@ -110,7 +110,7 @@
 				#size-cells = <0>;
 				compatible = "marvell,orion-mdio";
 				reg = <0x22004 0x4>;
-				clocks = <&core_clock>;
+				clocks = <&cnm_clock>;
 				phy0: ethernet-phy@0 {
 					reg = < 0 0 >;
 				};
@@ -120,7 +120,7 @@
 				compatible = "marvell,mv78230-i2c";
 				reg = <0x11000 0x20>;
 
-				clocks = <&core_clock>;
+				clocks = <&cnm_clock>;
 				clock-names = "core";
 				interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
 				clock-frequency=<100000>;
@@ -137,7 +137,7 @@
 				compatible = "marvell,mv78230-i2c";
 				reg = <0x11100 0x20>;
 
-				clocks = <&core_clock>;
+				clocks = <&cnm_clock>;
 				clock-names = "core";
 				interrupts = <GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>;
 				clock-frequency=<100000>;
@@ -181,7 +181,7 @@
 					reg = <0x0 0x805c0000 0x0 0x300>;
 					reg-names = "ctrl", "decoder";
 					interrupts = <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
-					clocks = <&core_clock>;
+					clocks = <&emmc_clock>;
 					clock-names = "core";
 					status = "okay";
 					bus-width = <8>;
@@ -208,7 +208,7 @@
 				compatible = "marvell,armada-ac5-neta";
 				reg = <0x0 0x20000 0x0 0x4000>;
 				interrupts = <GIC_SPI 45 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&core_clock>;
+				clocks = <&cnm_clock>;
 				status = "disabled";
 				phy-mode = "sgmii";
 			};
@@ -217,7 +217,7 @@
 				compatible = "marvell,armada-ac5-neta";
 				reg = <0x0 0x24000 0x0 0x4000>;
 				interrupts = <GIC_SPI 55 IRQ_TYPE_LEVEL_HIGH>;
-				clocks = <&core_clock>;
+				clocks = <&cnm_clock>;
 				status = "disabled";
 				phy-mode = "sgmii";
 				fixed-link {
@@ -301,25 +301,31 @@
 			num-lanes = <1>;
 			status = "disabled";
 
-			clocks = <&core_clock>;
+			clocks = <&cnm_clock>;
 		};
 
-		core_clock: core_clock@0 {
+		cnm_clock: cnm_clock@0 {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
-			clock-frequency = <400000000>;
-		};
-
-		axi_clock: axi_clock@0 {
-			compatible = "fixed-clock";
-			#clock-cells = <0>;
-			clock-frequency = <325000000>;
+			clock-frequency = <328000000>;
 		};
 
 		spi_clock: spi_clock@0 {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
 			clock-frequency = <200000000>;
+		};
+
+		nand_clock: nand_clock@0 {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <400000000>;
+		};
+
+		emmc_clock: emmc_clock@0 {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <400000000>;
 		};
 
 		spi@805a0000 {
@@ -378,7 +384,7 @@
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
 			interrupts = <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&core_clock>;
+			clocks = <&nand_clock>;
 			/*marvell,system-controller = <0x15>*/
 			status = "okay";
 

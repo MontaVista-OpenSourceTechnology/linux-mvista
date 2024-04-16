@@ -171,7 +171,8 @@ static inline u64 lo_hi_smc_readq(unsigned int addr)
 	u32 low, high;
 
 	low = smc_readl(addr);
-	high = smc_readl(addr + 1);
+	high = smc_readl(addr + 4);
+	low = smc_readl(addr); /* read twice, as a workaround to HW limitation */
 
 	return low + ((u64)high << 32);
 }
