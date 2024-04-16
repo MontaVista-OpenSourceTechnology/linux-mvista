@@ -259,12 +259,27 @@ static const struct watchdog_ops sbsa_gwdt_ops = {
 
 static int sbsa_gwdt_probe(struct platform_device *pdev)
 {
+#define AC5_ID      0xB400
+#define AC5X_ID     0x9800
+#define IML_ID      0xA000
+#define IMM_ID      0xA200
+
+#define WRITE_MASK(addr, mask, val)     \
+	writel( (readl(addr) & (~(mask))) | val, addr);
+
+#define MAP_CLR_BIT(addr, bit)  \
+	reg = devm_ioremap(dev, addr, 1); \
+	if (IS_ERR(reg))    \
+		return PTR_ERR(reg); \
+	WRITE_MASK(reg, bit, 0); \
+
 	u32 rf_base, cf_base;
 	struct device *dev = &pdev->dev;
 	struct watchdog_device *wdd;
 	struct sbsa_gwdt *gwdt;
 	struct resource *res;
 	int ret, irq;
+	void *__iomem reg;
 	u32 status;
 
 	gwdt = devm_kzalloc(dev, sizeof(*gwdt), GFP_KERNEL);
@@ -353,6 +368,24 @@ static int sbsa_gwdt_probe(struct platform_device *pdev)
 	/* CPSS-14280: 	WD HW need to trigger reset on WS1.
 	   Enable GWD reset out */
 	smc_writel(0xFFFFFFBF, 0x80210030);
+
+	reg = devm_ioremap(dev, 0x7f90004c, 1);
+	if (IS_ERR(reg))
+		return PTR_ERR(reg);
+	switch ((readl(reg) >> 4) & 0xFF00) {
+	case AC5_ID:
+		MAP_CLR_BIT(0x840F800C, BIT(6));
+		break;
+	case AC5X_ID:
+		MAP_CLR_BIT(0x944F800C, BIT(7));
+		break;
+	case IML_ID:
+	case IMM_ID:
+		MAP_CLR_BIT(0x840F800C, BIT(7));
+		break;
+	default:
+		dev_warn(dev, "Failed to enable DFX reset path\n");
+	}
 
 	dev_info(dev, "Initialized with %ds timeout @ %u Hz, action=%d.%s\n",
 		 wdd->timeout, gwdt->clk, action,

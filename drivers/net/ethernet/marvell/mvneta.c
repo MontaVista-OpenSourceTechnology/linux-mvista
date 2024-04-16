@@ -1848,19 +1848,16 @@ static int mvneta_rx_refill(struct mvneta_port *pp,
 			    gfp_t gfp_mask)
 {
 	dma_addr_t phys_addr;
+	void *virt_addr;
 	struct page *page;
 
-	page = __dev_alloc_page(gfp_mask);
-	if (!page)
+	virt_addr = dma_alloc_coherent(pp->dev->dev.parent,
+			PAGE_SIZE,
+			&phys_addr, gfp_mask);
+	if (!virt_addr)
 		return -ENOMEM;
 
-	/* map page for use */
-	phys_addr = dma_map_page(pp->dev->dev.parent, page, 0, PAGE_SIZE,
-				 DMA_FROM_DEVICE);
-	if (unlikely(dma_mapping_error(pp->dev->dev.parent, phys_addr))) {
-		__free_page(page);
-		return -ENOMEM;
-	}
+	page = virt_to_page(virt_addr);
 
 	phys_addr += pp->rx_offset_correction;
 	mvneta_rx_desc_fill(rx_desc, phys_addr, page, rxq);
