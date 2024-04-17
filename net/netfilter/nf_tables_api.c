@@ -426,6 +426,12 @@ static int nft_mapelem_deactivate(const struct nft_ctx *ctx,
 				  const struct nft_set_iter *iter,
 				  struct nft_set_elem *elem)
 {
+	struct nft_set_ext *ext = nft_set_elem_ext(set, elem);
+
+	if (!nft_set_elem_active(ext, iter->genmask))
+		return 0;
+
+	nft_set_elem_change_active(ctx->net, set, ext);
 	nft_setelem_data_deactivate(ctx->net, set, elem);
 
 	return 0;
@@ -4069,6 +4075,9 @@ static int nf_tables_bind_check_setelem(const struct nft_ctx *ctx,
 	const struct nft_set_ext *ext = nft_set_elem_ext(set, elem->priv);
 	enum nft_registers dreg;
 
+	if (!nft_set_elem_active(ext, iter->genmask))
+		return 0;
+
 	dreg = nft_type_to_reg(set->dtype);
 	return nft_validate_register_store(ctx, dreg, nft_set_ext_data(ext),
 					   set->dtype == NFT_DATA_VERDICT ?
@@ -4140,6 +4149,13 @@ static int nft_mapelem_activate(const struct nft_ctx *ctx,
 				const struct nft_set_iter *iter,
 				struct nft_set_elem *elem)
 {
+	struct nft_set_ext *ext = nft_set_elem_ext(set, elem);
+
+	/* called from abort path, reverse check to undo changes. */
+	if (nft_set_elem_active(ext, iter->genmask))
+		return 0;
+
+	nft_clear(ctx->net, ext);
 	nft_setelem_data_activate(ctx->net, set, elem);
 
 	return 0;
@@ -4383,6 +4399,9 @@ static int nf_tables_dump_setelem(const struct nft_ctx *ctx,
 {
 	const struct nft_set_ext *ext = nft_set_elem_ext(set, elem->priv);
 	struct nft_set_dump_args *args;
+
+	if (!nft_set_elem_active(ext, iter->genmask))
+		return 0;
 
 	if (nft_set_elem_expired(ext) || nft_set_elem_is_dead(ext))
 		return 0;
@@ -5234,8 +5253,12 @@ static int nft_flush_set(const struct nft_ctx *ctx,
 			 const struct nft_set_iter *iter,
 			 struct nft_set_elem *elem)
 {
+	const struct nft_set_ext *ext = nft_set_elem_ext(set, elem);
 	struct nft_trans *trans;
 	int err;
+
+	if (!nft_set_elem_active(ext, iter->genmask))
+		return 0;
 
 	trans = nft_trans_alloc_gfp(ctx, NFT_MSG_DELSETELEM,
 				    sizeof(struct nft_trans_elem), GFP_ATOMIC);
