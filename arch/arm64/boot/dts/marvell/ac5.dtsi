@@ -159,14 +159,6 @@
 				ngpios = <46>;
 			};
 
-			gpio0: gpio@18100 {
-				compatible = "marvell,ac5-gpio";
-				#gpio-cells = <2>;
-				gpio-controller;
-				reg = <0x18100 0x200>;
-				// gpio-ranges = <&pinctrl0 0 0 46>;
-				ngpios = <46>;
-			};
 		};
 
 		mmc_dma: mmc-dma-peripherals@80500000 {
@@ -248,22 +240,6 @@
 			};
 		};
 		
-		pinctrl0: pinctrl@80020100 {
-			compatible = "marvell,ac5-pinctrl",
-				     "syscon", "simple-mfd";
-			reg = <0 0x80020100 0 0x20>;
-
-			i2c_mpps: i2c-mpps {
-				marvell,pins = "mpp26", "mpp27";
-				marvell,function = "i2c0-opt";
-			};
-
-			i2c_gpio: i2c-gpio {
-				marvell,pins = "mpp26", "mpp27";
-				marvell,function = "gpio";
-			};
-		};
-
 		pinctrl0: pinctrl@80020100 {
 			compatible = "marvell,ac5-pinctrl",
 				     "syscon", "simple-mfd";
