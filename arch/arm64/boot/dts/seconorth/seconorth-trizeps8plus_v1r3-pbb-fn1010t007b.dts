@@ -9,7 +9,7 @@
 #define BLUETOOTH
 
 #include "trizeps8plus_v1r3.dtsi"
-#include "pbb.dtsi"
+#include "pbb_v1r1.dtsi"
 #include "fn1010t007b.dtsi"
 
 / {
