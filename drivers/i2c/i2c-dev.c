@@ -258,8 +258,8 @@ static noinline int i2cdev_ioctl_rdwr(struct i2c_client *client,
 	if (rdwr_arg.nmsgs > I2C_RDWR_IOCTL_MAX_MSGS)
 		return -EINVAL;
 
-	rdwr_pa = memdup_array_user(rdwr_arg.msgs,
-				    rdwr_arg.nmsgs, sizeof(struct i2c_msg));
+	rdwr_pa = memdup_user(rdwr_arg.msgs,
+			      rdwr_arg.nmsgs * sizeof(struct i2c_msg));
 	if (IS_ERR(rdwr_pa))
 		return PTR_ERR(rdwr_pa);
 
