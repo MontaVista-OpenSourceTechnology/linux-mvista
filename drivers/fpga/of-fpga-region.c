@@ -433,10 +433,6 @@ static int of_fpga_region_probe(struct platform_device *pdev)
 
 	pm_runtime_put(&pdev->dev);
 
-	ret = fpga_region_register(region);
-	if (ret)
-		goto err_pm;
-
 	of_platform_populate(np, fpga_region_of_match, NULL, &region->dev);
 	platform_set_drvdata(pdev, region);
 
