@@ -192,6 +192,7 @@
 #define XAE_ID_OFFSET		0x000004F8 /* Identification register */
 #define XAE_EMMC_OFFSET		0x00000410 /* MAC speed configuration */
 #define XAE_RMFC_OFFSET		0x00000414 /* RX Max Frame Configuration */
+#define XAE_ID_OFFSET		0x000004F8 /* Identification register */
 #define XAE_TSN_ABL_OFFSET	0x000004FC /* Ability Register */
 #define XAE_MDIO_MC_OFFSET	0x00000500 /* MDIO Setup */
 #define XAE_MDIO_MCR_OFFSET	0x00000504 /* MDIO Control */
@@ -204,6 +205,7 @@
 #define XAE_UAW0_OFFSET		0x00000700 /* Unicast address word 0 */
 #define XAE_UAW1_OFFSET		0x00000704 /* Unicast address word 1 */
 #define XAE_FMC_OFFSET		0x00000708 /* Frame Filter Control */
+#define XAE_FMI_OFFSET		0x00000708 /* Frame Filter Control */
 #define XAE_AF0_OFFSET		0x00000710 /* Address Filter 0 */
 #define XAE_AF1_OFFSET		0x00000714 /* Address Filter 1 */
 
@@ -333,6 +335,8 @@
 /* Bit masks for Axi Ethernet FMC register */
 #define XAE_FMC_PM_MASK			0x80000000 /* Promis. mode enable */
 #define XAE_FMC_IND_MASK		0x00000003 /* Index Mask */
+#define XAE_FMI_PM_MASK			0x80000000 /* Promis. mode enable */
+#define XAE_FMI_IND_MASK		0x00000003 /* Index Mask */
 
 #define XAE_MDIO_DIV_DFT		29 /* Default MDIO clock divisor */
 
