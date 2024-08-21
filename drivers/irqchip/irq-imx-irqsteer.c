@@ -406,8 +406,8 @@ static int imx_irqsteer_runtime_resume(struct device *dev)
 static const struct dev_pm_ops imx_irqsteer_pm_ops = {
 	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
 				      pm_runtime_force_resume)
-	SET_RUNTIME_PM_OPS(imx_irqsteer_suspend,
-			   imx_irqsteer_resume, NULL)
+	SET_RUNTIME_PM_OPS(imx_irqsteer_runtime_suspend,
+			   imx_irqsteer_runtime_resume, NULL)
 };
 
 static const struct of_device_id imx_irqsteer_dt_ids[] = {
