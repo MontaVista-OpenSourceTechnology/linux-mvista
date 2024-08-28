@@ -546,6 +546,7 @@ struct nfsd4_copy {
 	struct task_struct	*copy_task;
 	refcount_t		refcount;
 	bool			stopped;
+	struct nfsd_net		*cp_nn;
 };
 
 struct nfsd4_seek {
