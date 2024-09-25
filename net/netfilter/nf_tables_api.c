@@ -4936,7 +4936,7 @@ static int nft_add_set_elem(struct nft_ctx *ctx, struct nft_set *set,
 		else
 			dtype = NFT_DATA_VALUE;
 
-		if (dtype != d2.type || set->dlen != d2.len)
+		if (set->dtype != NFT_DATA_VERDICT && desc.len != set->dlen)
 			goto err3;
 
 		dreg = nft_type_to_reg(set->dtype);
