@@ -1127,19 +1127,6 @@ int dwc3_core_init(struct dwc3 *dwc)
 		dwc3_writel(dwc->regs, DWC3_GUCTL2, reg);
 	}
 
-<<<<<<< HEAD
-	/* When configured in HOST mode, after issuing U3/L2 exit controller
-	 * fails to send proper CRC checksum in CRC5 feild. Because of this
-	 * behaviour Transaction Error is generated, resulting in reset and
-	 * re-enumeration of usb device attached. Enabling bit 10 of GUCTL1
-	 * will correct this problem
-	 */
-	if (dwc->enable_guctl1_resume_quirk) {
-		reg = dwc3_readl(dwc->regs, DWC3_GUCTL1);
-		reg |= DWC3_GUCTL1_RESUME_QUIRK;
-		dwc3_writel(dwc->regs, DWC3_GUCTL1, reg);
-	}
-
 	/* SNPS controller when configureed in HOST mode maintains Inter Packet
 	 * Delay (IPD) of ~380ns which works with most of the super-speed hubs
 	 * except VIA-LAB hubs. When IPD is ~380ns HOST controller fails to
@@ -1151,7 +1138,9 @@ int dwc3_core_init(struct dwc3 *dwc)
 	if (dwc->enable_guctl1_ipd_quirk) {
 		reg = dwc3_readl(dwc->regs, DWC3_GUCTL1);
 		reg |= DWC3_GUCTL1_IPD_QUIRK;
-=======
+		dwc3_writel(dwc->regs, DWC3_GUCTL1, reg);
+	}
+
 	/*
 	 * STAR 9001285599: This issue affects DWC_usb3 version 3.20a
 	 * only. If the PM TIMER ECM is enabled through GUCTL2[19], the
@@ -1179,7 +1168,6 @@ int dwc3_core_init(struct dwc3 *dwc)
 	if (dwc->resume_hs_terminations) {
 		reg = dwc3_readl(dwc->regs, DWC3_GUCTL1);
 		reg |= DWC3_GUCTL1_RESUME_OPMODE_HS_HOST;
->>>>>>> b6160f2f23d3 (usb: dwc3: core: Enable GUCTL1 bit 10 for fixing termination error after resume bug)
 		dwc3_writel(dwc->regs, DWC3_GUCTL1, reg);
 	}
 
@@ -1514,6 +1502,14 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 				"snps,dis-tx-ipgap-linecheck-quirk");
 	dwc->resume_hs_terminations = device_property_read_bool(dev,
 				"snps,resume-hs-terminations");
+	/*
+	 * resume_hs_terminations was named enable_guctl1_resume_quirk
+	 * in the original Xilinx code.  Allow either one to enable
+	 * this property.
+	 */
+	dwc->resume_hs_terminations |= device_property_read_bool(dev,
+				"snps,enable_guctl1_resume_quirk");
+
 	dwc->parkmode_disable_ss_quirk = device_property_read_bool(dev,
 				"snps,parkmode-disable-ss-quirk");
 
@@ -1528,8 +1524,6 @@ static void dwc3_get_properties(struct dwc3 *dwc)
 
 	dwc->refclk_fladj = device_property_read_bool(dev,
 						      "snps,refclk_fladj");
-	dwc->enable_guctl1_resume_quirk = device_property_read_bool(dev,
-				"snps,enable_guctl1_resume_quirk");
 	dwc->enable_guctl1_ipd_quirk = device_property_read_bool(dev,
 				"snps,enable_guctl1_ipd_quirk");
 	dwc->dis_metastability_quirk = device_property_read_bool(dev,
