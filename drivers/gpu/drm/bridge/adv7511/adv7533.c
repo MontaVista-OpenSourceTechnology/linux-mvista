@@ -223,7 +223,7 @@ int adv7533_parse_dt(struct device_node *np, struct adv7511 *adv)
 	of_property_read_u32(np, "adi,dsi-channel", &channel_id);
 	of_property_read_u32(np, "adi,dsi-lanes", &num_lanes);
 
-	if (num_lanes < 1 || num_lanes > 4) {
+	if (num_lanes < 2 || num_lanes > 4) {
 		dev_err(dev, "Invalid dsi-lanes: %d\n", num_lanes);
 		return -EINVAL;
 	}
