@@ -71,6 +71,20 @@ static int zynqmp_dpsub_probe(struct platform_device *pdev)
 
 	/* Sub-driver will access dpsub from drvdata */
 	platform_set_drvdata(pdev, dpsub);
+
+	ret = dma_set_mask(dpsub->dev, DMA_BIT_MASK(ZYNQMP_DISP_MAX_DMA_BIT));
+	if (ret)
+		return ret;
+
+	dma_set_max_seg_size(&pdev->dev, DMA_BIT_MASK(32));
+
+	/* Try the reserved memory. Proceed if there's none. */
+	of_reserved_mem_device_init(&pdev->dev);
+
+	ret = zynqmp_dpsub_init_clocks(dpsub);
+	if (ret < 0)
+		goto err_mem;
+
 	pm_runtime_enable(&pdev->dev);
 
 	/*
