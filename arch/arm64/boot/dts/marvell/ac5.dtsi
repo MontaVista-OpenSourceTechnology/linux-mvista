@@ -369,6 +369,7 @@
 				label = "main-storage";
 				nand-rb = <0>;
 				nand-ecc-mode = "hw";
+				nand-on-flash-bbt;
 				nand-ecc-strength = <12>;
 				nand-ecc-step-size = <512>;
 			};
@@ -379,8 +380,24 @@
 			interrupts = <GIC_SPI 0x23 IRQ_TYPE_LEVEL_HIGH>;
 			status = "okay";
 		};
+/*
+		PWD-0@80212000 {
+			compatible = "marvell,ac5-wd";
+			reg = <0x0 0x80212000 0 0x1000>,
+				  <0x0 0x80211000 0 0x1000>;
+			interrupts = <GIC_SPI 122 IRQ_TYPE_LEVEL_HIGH>;
+			timeout-sec = <30>;
+		};
 
-		watchdog@80216000 {
+		PWD-1@80214000 {
+			compatible = "marvell,ac5-wd";
+			reg = <0x0 0x80214000 0 0x1000>,
+				  <0x0 0x80213000 0 0x1000>;
+			interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>;
+			timeout-sec = <30>;
+		};
+*/
+		GWD@80216000 {
 			compatible = "marvell,ac5-wd";
 			reg = <0x0 0x80216000 0 0x1000>,
 				  <0x0 0x80215000 0 0x1000>;
@@ -442,5 +459,21 @@
 		reg = <0x2 0x00000000 0x0 0x40000000>;
 		// linux,usable-memory = <0x2 0x00000000 0x0 0x80000000>;
 	};
+
+	firmware {
+		sdei {
+			compatible	= "arm,sdei-1.0";
+			method		= "smc";
+		};
+	};
+	drv-sdei-event {
+		compatible = "marvell,drv-sdei-event";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		//event-id = <1080>;	/* PWD0 */
+		//event-id = <1081>;	/* PWD1 */
+		event-id = <1082>;	/* GWD */
+	};
+
 
 };

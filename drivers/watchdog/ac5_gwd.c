@@ -117,7 +117,7 @@ MODULE_PARM_DESC(timeout,
  */
 static int action;
 module_param(action, int, 0);
-MODULE_PARM_DESC(action, "after watchdog gets WS0 interrupt, do: "
+MODULE_PARM_DESC(action, "Action to perform after watchdog gets WS0 interrupt, do: "
 		 "0 = skip(*)  1 = panic");
 
 static bool nowayout = WATCHDOG_NOWAYOUT;
@@ -125,6 +125,29 @@ module_param(nowayout, bool, S_IRUGO);
 MODULE_PARM_DESC(nowayout,
 		 "Watchdog cannot be stopped once started (default="
 		 __MODULE_STRING(WATCHDOG_NOWAYOUT) ")");
+
+/*
+ * Action to perform after watchdog gets WS1 interrupt
+ *
+ * 0 = Enable  1 = Disable (Default)
+ *
+ * BIT  0: CPU 0 reset by PWD 0
+ * BIT  1: CPU 1 reset by PWD 1
+ * BIT  2: CPU 0 reset by GWD
+ * BIT  3: CPU 1 reset by GWD
+ * BIT  4: PWD 0 sys reset out
+ * BIT  5: PWD 1 sys reset out
+ * BIT  6: GWD sys reset out
+ * BIT  7: Reserved
+ * BIT  8: PWD 0 mpp reset out
+ * BIT  9: PWD 1 mpp reset out
+ * BIT 10: GWD mpp reset out
+ *
+ */
+
+static unsigned int reset = 0xFFFFFFBF;
+module_param(reset, uint, 0);
+MODULE_PARM_DESC(reset, "Action to perform after watchdog gets WS1 interrupt");
 
 static inline u32 smc_readl(unsigned int addr)
 {
@@ -367,7 +390,7 @@ static int sbsa_gwdt_probe(struct platform_device *pdev)
 
 	/* CPSS-14280: 	WD HW need to trigger reset on WS1.
 	   Enable GWD reset out */
-	smc_writel(0xFFFFFFBF, 0x80210030);
+	smc_writel(reset, 0x80210030);
 
 	reg = devm_ioremap(dev, 0x7f90004c, 1);
 	if (IS_ERR(reg))
@@ -387,9 +410,9 @@ static int sbsa_gwdt_probe(struct platform_device *pdev)
 		dev_warn(dev, "Failed to enable DFX reset path\n");
 	}
 
-	dev_info(dev, "Initialized with %ds timeout @ %u Hz, action=%d.%s\n",
+	dev_info(dev, "Initialized with %ds timeout @ %u Hz, action=%d.%s reset=0x%x\n",
 		 wdd->timeout, gwdt->clk, action,
-		 status & SBSA_GWDT_WCS_EN ? " [enabled]" : "");
+		 status & SBSA_GWDT_WCS_EN ? " [enabled]" : "", reset);
 
 	return 0;
 }
