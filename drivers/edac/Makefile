@@ -89,3 +89,7 @@ obj-$(CONFIG_EDAC_TI)			+= ti_edac.o
 obj-$(CONFIG_EDAC_QCOM)			+= qcom_edac.o
 obj-$(CONFIG_EDAC_ASPEED)		+= aspeed_edac.o
 obj-$(CONFIG_EDAC_BLUEFIELD)		+= bluefield_edac.o
+
+obj-$(CONFIG_EDAC_PRESTERA_MC)		+= prestera_mc_edac.o
+obj-$(CONFIG_EDAC_PRESTERA_PCI)		+= prestera_pci_edac.o
+obj-$(CONFIG_EDAC_A55_CPU)		+= a55_edac.o

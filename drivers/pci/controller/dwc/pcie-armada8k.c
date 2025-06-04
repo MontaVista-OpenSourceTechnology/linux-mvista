@@ -45,6 +45,7 @@ struct armada8k_pcie {
 
 #define PCIE_GLOBAL_CONTROL_REG		(PCIE_VENDOR_REGS_OFFSET + 0x0)
 #define PCIE_APP_LTSSM_EN		BIT(2)
+#define PCIE_APP_LTSSM_EN_AC5		BIT(24)
 #define PCIE_DEVICE_TYPE_SHIFT		4
 #define PCIE_DEVICE_TYPE_MASK		0xF
 #define PCIE_DEVICE_TYPE_RC		0x4 /* Root complex */
@@ -67,6 +68,7 @@ struct armada8k_pcie {
 #define PCIE_INT_B_ASSERT_MASK_AC5	BIT(13)
 #define PCIE_INT_C_ASSERT_MASK_AC5	BIT(14)
 #define PCIE_INT_D_ASSERT_MASK_AC5	BIT(15)
+#define PCIE_MSI_MASK_AC5		BIT(11)
 
 #define PCIE_ARCACHE_TRC_REG		(PCIE_VENDOR_REGS_OFFSET + 0x50)
 #define PCIE_AWCACHE_TRC_REG		(PCIE_VENDOR_REGS_OFFSET + 0x54)
@@ -157,11 +159,14 @@ static void armada8k_pcie_establish_link(struct armada8k_pcie *pcie)
 	if (!dw_pcie_link_up(pci)) {
 		/* Disable LTSSM state machine to enable configuration */
 		reg = dw_pcie_readl_dbi(pci, PCIE_GLOBAL_CONTROL_REG);
-		reg &= ~(PCIE_APP_LTSSM_EN);
+		if (pcie->pcie_type == MVPCIE_TYPE_AC5)
+			reg &= ~(PCIE_APP_LTSSM_EN_AC5);
+		else
+			reg &= ~(PCIE_APP_LTSSM_EN);
 		dw_pcie_writel_dbi(pci, PCIE_GLOBAL_CONTROL_REG, reg);
 	}
 
-	if (pcie->pcie_type == MVPCIE_TYPE_A8K){
+	if (pcie->pcie_type == MVPCIE_TYPE_A8K) {
 		/* Set the device to root complex mode */
 		reg = dw_pcie_readl_dbi(pci, PCIE_GLOBAL_CONTROL_REG);
 		reg &= ~(PCIE_DEVICE_TYPE_MASK << PCIE_DEVICE_TYPE_SHIFT);
@@ -205,7 +210,10 @@ static void armada8k_pcie_establish_link(struct armada8k_pcie *pcie)
 	if (!dw_pcie_link_up(pci)) {
 		/* Configuration done. Start LTSSM */
 		reg = dw_pcie_readl_dbi(pci, PCIE_GLOBAL_CONTROL_REG);
-		reg |= PCIE_APP_LTSSM_EN;
+		if (pcie->pcie_type == MVPCIE_TYPE_AC5)
+			reg |= PCIE_APP_LTSSM_EN_AC5;
+		else
+			reg |= PCIE_APP_LTSSM_EN;
 		dw_pcie_writel_dbi(pci, PCIE_GLOBAL_CONTROL_REG, reg);
 	}
 
@@ -214,6 +222,21 @@ static void armada8k_pcie_establish_link(struct armada8k_pcie *pcie)
 		dev_err(pci->dev, "Link not up after reconfiguration\n");
 }
 
+void ac5_pcie_msi_init(struct pcie_port *pp)
+{
+	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
+	u32 val;
+
+	dw_pcie_msi_init(&pci->pp);
+
+	/* Set MSI bit in interrupt mask */
+	val = dw_pcie_readl_dbi(pci, PCIE_GLOBAL_INT_MASK1_REG);
+	val |= PCIE_MSI_MASK_AC5;
+	dw_pcie_writel_dbi(pci, PCIE_GLOBAL_INT_MASK1_REG, val);
+
+}
+
+
 static int armada8k_pcie_host_init(struct pcie_port *pp)
 {
 	struct dw_pcie *pci = to_dw_pcie_from_pp(pp);
@@ -221,6 +244,9 @@ static int armada8k_pcie_host_init(struct pcie_port *pp)
 
 	dw_pcie_setup_rc(pp);
 	armada8k_pcie_establish_link(pcie);
+
+	if (IS_ENABLED(CONFIG_PCI_MSI) && (pcie->pcie_type == MVPCIE_TYPE_AC5))
+		ac5_pcie_msi_init(pp);
 
 	return 0;
 }
@@ -238,6 +264,8 @@ static irqreturn_t armada8k_pcie_irq_handler(int irq, void *arg)
 	 */
 	val = dw_pcie_readl_dbi(pci, PCIE_GLOBAL_INT_CAUSE1_REG);
 	dw_pcie_writel_dbi(pci, PCIE_GLOBAL_INT_CAUSE1_REG, val);
+	if ((PCIE_MSI_MASK_AC5 & val) && (pcie->pcie_type == MVPCIE_TYPE_AC5))
+		dw_handle_msi_irq(&pci->pp);
 
 	val = dw_pcie_readl_dbi(pci, PCIE_GLOBAL_INT_CAUSE2_REG);
 
@@ -249,7 +277,10 @@ static irqreturn_t armada8k_pcie_irq_handler(int irq, void *arg)
 		 * device accesses will return all-Fs without freezing the
 		 * CPU.
 		 */
-		reg &= ~(PCIE_APP_LTSSM_EN);
+		if (pcie->pcie_type == MVPCIE_TYPE_AC5)
+			reg &= ~(PCIE_APP_LTSSM_EN_AC5);
+		else
+			reg &= ~(PCIE_APP_LTSSM_EN);
 		dw_pcie_writel_dbi(pci, PCIE_GLOBAL_CONTROL_REG, reg);
 		/*
 		 * Mask link down interrupts. They can be re-enabled once
@@ -282,15 +313,26 @@ static int armada8k_add_pcie_port(struct armada8k_pcie *pcie,
 	struct dw_pcie *pci = pcie->pci;
 	struct pcie_port *pp = &pci->pp;
 	struct device *dev = &pdev->dev;
+	struct device_node *dn = pdev->dev.of_node;
 	int ret;
 
 	pp->root_bus_nr = -1;
 	pp->ops = &armada8k_pcie_host_ops;
 
-	pp->irq = platform_get_irq(pdev, 0);
-	if (pp->irq < 0) {
-		dev_err(dev, "failed to get irq for port\n");
-		return pp->irq;
+	if (!of_find_property(dn, "msi-controller", NULL)) {
+		pp->irq = platform_get_irq(pdev, 0); /* Legacy INTx emulation mode */
+		if (pp->irq < 0) {
+			dev_err(dev, "failed to get irq for port\n");
+			return pp->irq;
+		}
+	} else {
+		pp->irq = pp->msi_irq = platform_get_irq(pdev, 0); /* MSI mode */
+		if (pp->msi_irq < 0) {
+			dev_err(dev, "failed to get msi irq for port\n");
+			return pp->irq;
+		}
+		if (pcie->pcie_type == MVPCIE_TYPE_AC5)
+			dma_set_mask(dev, DMA_BIT_MASK(34)); /* AC5: DDR start at 0x2_0000_0000. Must set 34 bit DMA mask so MSI DMA allocation can be done */
 	}
 
 	ret = devm_request_irq(dev, pp->irq, armada8k_pcie_irq_handler,

@@ -524,4 +524,25 @@ config EDAC_BLUEFIELD
 	  Support for error detection and correction on the
 	  Mellanox BlueField SoCs.
 
+config EDAC_PRESTERA_MC
+	tristate "Marvell Prestera DDR-DRAM Memory Controller (MC) ECC"
+	depends on ARM64
+	help
+	  Support for memory error detection and correction on the
+	  Marvell Prestera AC5/AC5X/IM family of switching SOCs.
+
+config EDAC_PRESTERA_PCI
+	tristate "Marvell Prestera PCIe Controller EDAC"
+	depends on PCI && ARM64
+	help
+	  Support for PCIe error detection and correction on the
+	  Marvell Prestera AC5/AC5X/IM family of SOCs.
+
+config EDAC_A55_CPU
+	tristate "ARM Cortex A55 CPU EDAC"
+	depends on ARM64
+	help
+	  Support for CPU error detection and correction on the
+	  ARM Cortex A55 CPU.
+
 endif # EDAC

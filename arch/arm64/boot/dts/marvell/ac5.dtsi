@@ -56,6 +56,9 @@
 		gpio0 = &gpio0;
 		ethernet0 = &eth0;
 		ethernet1 = &eth1;
+		sdhci0 = &sdhci0;
+		pcie0 = &pcie0;
+		spi0 = &spi0;
 	};
 
 	psci {
@@ -273,11 +276,36 @@
 			interrupt-map = <0 0 0 1 &gic GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH>;
 
 			interrupts = <GIC_SPI 99 IRQ_TYPE_LEVEL_HIGH>;
+			/*
+			 * For MSI use 98.
+			 * Also define this device as msi-controller.
+			 */
 
 			num-lanes = <1>;
 			status = "disabled";
 
 			clocks = <&cnm_clock>;
+		};
+
+		edac_ddr: edac_ddr@80100000 {
+			compatible = "marvell,prestera-edac-mc";
+			#address-cells = <0x2>;
+			#size-cells = <0x2>;
+			reg = <0x0 0x80100000 0x0 0x1000>;
+			status = "disabled";
+		};
+
+		edac_pci: edac_pci@800A0000 {
+			compatible = "marvell,prestera-edac-pci";
+			#address-cells = <0x2>;
+			#size-cells = <0x2>;
+			reg = <0x0 0x800A0000 0x0 0x1000>;
+			status = "disabled";
+		};
+
+		edac_a55: edac_a55@0 {
+			compatible = "arm,armv8-a55-edac";
+			status = "disabled";
 		};
 
 		cnm_clock: cnm_clock@0 {
@@ -304,7 +332,7 @@
 			clock-frequency = <400000000>;
 		};
 
-		spi@805a0000 {
+		spi0: spi@805a0000 {
 			compatible = "marvell,armada-3700-spi";
 			reg = <0x0 0x805a0000 0x0 0x50>;
 			#address-cells = <0x1>;
@@ -341,7 +369,7 @@
 			};
 		};
 
-		spi@805a8000 {
+		spi1: spi@805a8000 {
 			compatible = "marvell,armada-3700-spi";
 			reg = <0x0 0x805a8000 0x0 0x50>;
 			#address-cells = <0x1>;
@@ -412,7 +440,7 @@
 		#interrupt-cells = <3>;
 		interrupt-controller;
 		/*#redistributor-regions = <1>;*/
-		redistributor-stride = <0x0 0x20000>;	// 128kB stride
+		redistributor-stride = <0x0 0x20000>; /* 128kB stride */
 		reg = <0x0 0x80600000 0x0 0x10000>, /* GICD */
 			  <0x0 0x80660000 0x0 0x40000>; /* GICR */
 		interrupts = <GIC_PPI 6 IRQ_TYPE_LEVEL_HIGH>;
@@ -452,6 +480,12 @@
 		L2_0: l2-cache0 {
 			compatible = "cache";
 		};
+/*
+		CPU_EDAC: cpu-edac {
+			compatible = "arm,armv8-a55-edac";
+			status = "disabled";
+		};
+*/
 	};
 
 	memory@00000000 {

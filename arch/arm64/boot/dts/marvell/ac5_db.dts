@@ -42,3 +42,15 @@
 		reg = <0x52>;
 	};
 };
+
+&edac_ddr {
+	status = "okay";
+};
+
+&edac_pci {
+	status = "okay";
+};
+
+&edac_a55 {
+	status = "okay";
+};
