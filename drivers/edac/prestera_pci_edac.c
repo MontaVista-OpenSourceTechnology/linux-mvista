@@ -85,6 +85,9 @@
 #define PRESTERA_PCI_ERR_SRC_ID_REG_REQ_MASK			0xFFFF
 
 #define PRESTERA_PCI_ERR_INJ_COUNT_MASK			0xFF
+#define PRESTERA_PCI_ERR_INJ_CTRL_CRC_TYPE_FCRC			0x400
+#define PRESTERA_PCI_ERR_INJ_CTRL_SPEC_TLP_TYPE_NULLIFY		0x100
+
 #define PRESTERA_PCI_ERR_INJ_CTRL_SEQ_REG_BAD_SEQNUM_BSHIFT	16
 #define PRESTERA_PCI_ERR_INJ_CTRL_SEQ_REG_BAD_SEQNUM_MASK	0x1FFF
 #define PRESTERA_PCI_ERR_INJ_CTRL_CREDIT_REG_BAD_VAL_BSHIFT	16
@@ -247,20 +250,6 @@ static void prestera_pci_poll(struct edac_pci_ctl_info *pci)
 	/* write 1 to clear error status bits: */
 	writel(val, drvdata->base + PRESTERA_PCI_ROOT_ERR_STAT_REG);
 
-	if (err_cnt > 0) {
-		snprintf(msg, sizeof(msg),
-			 "TLP header: %x %x %x %x prefix: %x %x %x %x",
-			 readl(drvdata->base + PRESTERA_PCI_ERR_HDR_LOG_REG),
-			 readl(drvdata->base + PRESTERA_PCI_ERR_HDR_LOG_REG + 0x4),
-			 readl(drvdata->base + PRESTERA_PCI_ERR_HDR_LOG_REG + 0x8),
-			 readl(drvdata->base + PRESTERA_PCI_ERR_HDR_LOG_REG + 0xC),
-			 readl(drvdata->base + PRESTERA_PCI_TLP_PREFIX_LOG_REG),
-			 readl(drvdata->base + PRESTERA_PCI_TLP_PREFIX_LOG_REG + 0x4),
-			 readl(drvdata->base + PRESTERA_PCI_TLP_PREFIX_LOG_REG + 0x8),
-			 readl(drvdata->base + PRESTERA_PCI_TLP_PREFIX_LOG_REG + 0xC));
-			 edac_pci_handle_npe(pci, msg);
-	}
-
 	/* if update requested, update the PCIe error injection registers: */
 	if (drvdata->err_inj_update) {
 		pr_info("%s: Injecting error...\n", __func__);
@@ -274,8 +263,14 @@ static void prestera_pci_poll(struct edac_pci_ctl_info *pci)
 		       drvdata->base + PRESTERA_PCI_ERR_INJ_ENABLE_REG);
 
 		/* Now update all error types 0..6 configuration registers: */
-		writel(drvdata->err_inj_crc_err_count &
-		       PRESTERA_PCI_ERR_INJ_COUNT_MASK,
+
+		/*
+		 * Use FCRC error type for error injection, because this is the
+		 * only error caught by the controller
+		 */
+		writel((drvdata->err_inj_crc_err_count &
+		       PRESTERA_PCI_ERR_INJ_COUNT_MASK) |
+			PRESTERA_PCI_ERR_INJ_CTRL_CRC_TYPE_FCRC,
 		       drvdata->base + PRESTERA_PCI_ERR_INJ_CTRL_CRC_REG);
 
 		writel(((drvdata->err_inj_bad_seq &
@@ -303,8 +298,13 @@ static void prestera_pci_poll(struct edac_pci_ctl_info *pci)
 		         PRESTERA_PCI_ERR_INJ_COUNT_MASK),
 		       drvdata->base + PRESTERA_PCI_ERR_INJ_CTRL_CREDIT_REG);
 
-		writel(drvdata->err_inj_tlp_err_cnt &
-		       PRESTERA_PCI_ERR_INJ_COUNT_MASK,
+		/*
+		 * Use TLP Nullify error type for error injection,
+		 * because this is the only error caught by the controller
+		 */
+		writel((drvdata->err_inj_tlp_err_cnt &
+		       PRESTERA_PCI_ERR_INJ_COUNT_MASK) |
+			PRESTERA_PCI_ERR_INJ_CTRL_SPEC_TLP_TYPE_NULLIFY,
 		       drvdata->base + PRESTERA_PCI_ERR_INJ_CTRL_TLP_REG);
 
 		for (i = 0; i < PRESTERA_PCI_NUM_HDR_REGS; i++) {

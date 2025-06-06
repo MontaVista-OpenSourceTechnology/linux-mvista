@@ -131,6 +131,7 @@ static void prestera_lmc_edac_poll(struct mem_ctl_info *mci)
 	phys_addr_t pa;
 	unsigned long pfn;
 	u8 *p8;
+	bool require_unmap = false;
 
 	u32 stat, errcnt, ce_addr[2], ce_syndrome[3], ue_syndrome[3],
 	    bitmasks[3], ue_addr[2], axi_parity[3], pstat, ce_cnt,
@@ -187,8 +188,14 @@ static void prestera_lmc_edac_poll(struct mem_ctl_info *mci)
 			iounmap(p8);
 			pa = memstart_addr + drvdata->inline_ecc_ofs;
 			p32 = phys_to_virt(pa);
+			if (!virt_addr_valid(p32)) {
+				p32 = ioremap(pa, si.mem_unit);
+				require_unmap = true;
+			}
 			/* read address to generate ECC error: */
 			val32 = *p32;
+			if (require_unmap)
+				iounmap(p32);
 		} else {
 #ifdef PRESTERA_SIDEBAND_ECC
 			/*
