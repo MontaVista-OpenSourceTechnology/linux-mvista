@@ -38,3 +38,12 @@
 	dr_mode = "peripheral";
 };
 
+/{
+	sdma_drv {
+		compatible = "marvell,mvppnd";
+		interrupts = <GIC_SPI 0x23 IRQ_TYPE_LEVEL_HIGH>;
+		status = "okay";
+	};
+
+};
+
