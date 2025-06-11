@@ -165,13 +165,10 @@ static int a3700_spi_pin_mode_set(struct a3700_spi *a3700_spi,
 	case SPI_NBITS_SINGLE:
 		break;
 	case SPI_NBITS_DUAL:
-		val |= A3700_SPI_DATA_PIN0;
+		val |= A3700_SPI_DATA_PIN0 |  A3700_SPI_ADDR_PIN;
 		break;
 	case SPI_NBITS_QUAD:
-		val |= A3700_SPI_DATA_PIN1;
-		/* RX during address reception uses 4-pin */
-		if (receiving)
-			val |= A3700_SPI_ADDR_PIN;
+		val |= A3700_SPI_DATA_PIN1 | A3700_SPI_ADDR_PIN;
 		break;
 	default:
 		dev_err(&a3700_spi->master->dev, "wrong pin mode %u", pin_mode);
@@ -229,6 +226,8 @@ static void a3700_spi_clock_set(struct a3700_spi *a3700_spi,
 	 */
 	if (prescale > 15)
 		prescale = A3700_SPI_CLK_EVEN_OFFS + DIV_ROUND_UP(prescale, 2);
+	if (prescale == 1)
+		prescale = 0;
 
 	val = spireg_read(a3700_spi, A3700_SPI_IF_CFG_REG);
 	val = val & ~A3700_SPI_CLK_PRESCALE_MASK;

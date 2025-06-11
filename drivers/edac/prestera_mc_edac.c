@@ -492,7 +492,11 @@ static int prestera_lmc_edac_probe(struct platform_device *pdev)
 
 	drvdata = mci->pvt_info;
 	drvdata->base = base;
-	drvdata->inline_ecc = (config >> PRESTERA_DDR_ECCCFG0_ECC_TYPE_BSHIFT) & PRESTERA_DDR_ECCCFG0_ECC_TYPE_MASK;
+#ifdef PRESTERA_SIDEBAND_ECC
+	drvdata->inline_ecc = 0;
+#else
+	drvdata->inline_ecc = 1;
+#endif
 	mci->pdev = &pdev->dev;
 	mci->dev_name = dev_name(&pdev->dev);
 
