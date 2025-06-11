@@ -319,6 +319,9 @@ static int armada8k_add_pcie_port(struct armada8k_pcie *pcie,
 	pp->root_bus_nr = -1;
 	pp->ops = &armada8k_pcie_host_ops;
 
+	if (pcie->pcie_type == MVPCIE_TYPE_AC5)
+		dma_set_mask(dev, DMA_BIT_MASK(34)); /* AC5: DDR start at 0x2_0000_0000. Must set 34 bit DMA mask so MSI DMA allocation can be done */
+
 	if (!of_find_property(dn, "msi-controller", NULL)) {
 		pp->irq = platform_get_irq(pdev, 0); /* Legacy INTx emulation mode */
 		if (pp->irq < 0) {
@@ -331,8 +334,6 @@ static int armada8k_add_pcie_port(struct armada8k_pcie *pcie,
 			dev_err(dev, "failed to get msi irq for port\n");
 			return pp->irq;
 		}
-		if (pcie->pcie_type == MVPCIE_TYPE_AC5)
-			dma_set_mask(dev, DMA_BIT_MASK(34)); /* AC5: DDR start at 0x2_0000_0000. Must set 34 bit DMA mask so MSI DMA allocation can be done */
 	}
 
 	ret = devm_request_irq(dev, pp->irq, armada8k_pcie_irq_handler,
