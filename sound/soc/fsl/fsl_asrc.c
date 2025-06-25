@@ -517,7 +517,7 @@ static int fsl_asrc_config_pair(struct fsl_asrc_pair *pair, bool use_ideal_rate)
 
 	/* Default setting: use internal measured ratio */
 	regmap_update_bits(asrc->regmap, REG_ASRCTR,
-			   ASRCTR_USRi_MASK(index) | ASRCTR_IDRi_MASK(index),
+			   ASRCTR_IDRi_MASK(index) | ASRCTR_USRi_MASK(index),
 			   ASRCTR_USR(index));
 
 	/* Set the input and output clock sources */
