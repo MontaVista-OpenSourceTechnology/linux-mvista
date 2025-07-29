@@ -4228,8 +4228,6 @@ static int dpaa2_eth_connect_mac(struct dpaa2_eth_priv *priv)
 	if (IS_ERR(dpmac_dev) || dpmac_dev->dev.type != &fsl_mc_bus_dpmac_type)
 		return 0;
 
-	dpaa2_eth_dpmac_driver_detach(dpmac_dev);
-
 	mac = kzalloc(sizeof(struct dpaa2_mac), GFP_KERNEL);
 	if (!mac)
 		return -ENOMEM;
@@ -4241,17 +4239,21 @@ static int dpaa2_eth_connect_mac(struct dpaa2_eth_priv *priv)
 	err = dpaa2_mac_open(mac);
 	if (err)
 		goto err_free_mac;
+	priv->mac = mac;
 
-	err = dpaa2_mac_connect(mac);
-	if (err) {
-		netdev_err(priv->net_dev, "Error connecting to the MAC endpoint\n");
-		goto err_close_mac;
+	if (dpaa2_eth_is_type_phy(priv)) {
+		err = dpaa2_mac_connect(mac);
+		if (err) {
+			netdev_err(priv->net_dev, "Error connecting to the MAC endpoint\n");
+			goto err_close_mac;
+		}
 	}
 
 	return 0;
 
 err_close_mac:
 	dpaa2_mac_close(mac);
+	priv->mac = NULL;
 err_free_mac:
 	kfree(mac);
 	return err;
@@ -4262,10 +4264,6 @@ static void dpaa2_eth_disconnect_mac(struct dpaa2_eth_priv *priv)
 	if (dpaa2_eth_is_type_phy(priv))
 		dpaa2_mac_disconnect(priv->mac);
 
-	if (!dpaa2_eth_has_mac(priv))
-		return;
-
-	dpaa2_mac_disconnect(priv->mac);
 	dpaa2_mac_close(priv->mac);
 	kfree(priv->mac);
 	priv->mac = NULL;
@@ -4294,6 +4292,7 @@ static irqreturn_t dpni_irq0_handler_thread(int irq_num, void *arg)
 		dpaa2_eth_set_mac_addr(netdev_priv(net_dev));
 		dpaa2_eth_update_tx_fqids(priv);
 
+		rtnl_lock();
 		if (dpaa2_eth_has_mac(priv))
 			dpaa2_eth_disconnect_mac(priv);
 		else

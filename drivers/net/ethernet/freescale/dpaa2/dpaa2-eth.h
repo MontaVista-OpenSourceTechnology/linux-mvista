@@ -713,16 +713,9 @@ static inline unsigned int dpaa2_eth_rx_head_room(struct dpaa2_eth_priv *priv)
 	return priv->tx_data_offset - DPAA2_ETH_RX_HWA_SIZE;
 }
 
-static inline int dpaa2_eth_ch_count(struct dpaa2_eth_priv *priv)
-{
-	return 1;
-}
-
 static inline bool dpaa2_eth_is_type_phy(struct dpaa2_eth_priv *priv)
 {
-	if (priv->mac &&
-	    (priv->mac->attr.link_type == DPMAC_LINK_TYPE_PHY ||
-	     priv->mac->attr.link_type == DPMAC_LINK_TYPE_BACKPLANE))
+	if (priv->mac && priv->mac->attr.link_type == DPMAC_LINK_TYPE_PHY)
 		return true;
 
 	return false;
