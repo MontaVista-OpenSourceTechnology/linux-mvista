@@ -326,7 +326,7 @@ int dpaa2_mac_connect(struct dpaa2_mac *mac)
 
 	mac->if_link_type = mac->attr.link_type;
 
-	dpmac_node = dpaa2_mac_get_node(mac->attr.id);
+	dpmac_node = mac->fw_node;
 	if (!dpmac_node) {
 		netdev_err(net_dev, "No dpmac@%d node found.\n", mac->attr.id);
 		return -ENODEV;
@@ -334,8 +334,7 @@ int dpaa2_mac_connect(struct dpaa2_mac *mac)
 
 	err = dpaa2_mac_get_if_mode(dpmac_node, mac->attr);
 	if (err < 0) {
-		err = -EINVAL;
-		goto err_put_node;
+		return -ENODEV;
 	}
 	mac->if_mode = err;
 
@@ -387,8 +386,6 @@ err_phylink_destroy:
 	phylink_destroy(mac->phylink);
 err_pcs_destroy:
 	dpaa2_pcs_destroy(mac);
-err_put_node:
-	of_node_put(dpmac_node);
 
 	return err;
 }
@@ -424,6 +421,12 @@ int dpaa2_mac_open(struct dpaa2_mac *mac)
 		netdev_err(net_dev, "dpmac_get_attributes() = %d\n", err);
 		goto err_close_dpmac;
 	}
+
+       /* Find the device node representing the MAC device and link the device
+        * behind the associated netdev to it.
+        */
+       mac->fw_node = dpaa2_mac_get_node(&mac->mc_dev->dev, mac->attr.id);
+       net_dev->dev.of_node = to_of_node(mac->fw_node);
 
 	return 0;
 
