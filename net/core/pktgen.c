@@ -170,6 +170,7 @@
 #include <linux/uaccess.h>
 #include <asm/dma.h>
 #include <asm/div64.h>		/* do_div */
+#include <linux/cpu.h>
 
 #define VERSION	"2.75"
 #define IP_NAME_SZ 32
