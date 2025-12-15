@@ -1688,8 +1688,6 @@ int jbd2_journal_forget (handle_t *handle, struct buffer_head *bh)
 		spin_unlock(&journal->j_list_lock);
 	}
 
-	jbd_unlock_bh_state(bh);
-	__brelse(bh);
 	if (wait_for_writeback)
 		wait_on_buffer(bh);
 drop:
