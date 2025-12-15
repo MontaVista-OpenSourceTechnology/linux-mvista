@@ -140,6 +140,6 @@ static inline struct fanotify_event *FANOTIFY_E(struct fsnotify_event *fse)
 }
 
 struct fanotify_event *fanotify_alloc_event(struct fsnotify_group *group,
-					    struct inode *inode, u32 mask,
-					    const void *data, int data_type,
+					    u32 mask, const void *data,
+					    int data_type, struct inode *dir,
 					    __kernel_fsid_t *fsid);
