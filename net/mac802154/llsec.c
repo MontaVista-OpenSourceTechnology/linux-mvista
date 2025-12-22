@@ -274,7 +274,7 @@ static void mac802154_llsec_key_del_rcu(struct rcu_head *rcu)
 	mkey = container_of(pos->key, struct mac802154_llsec_key, key);
 
 	llsec_key_put(mkey);
-	kfree_sensitive(pos);
+	kzfree(pos);
 }
 
 int mac802154_llsec_key_del(struct mac802154_llsec *sec,
