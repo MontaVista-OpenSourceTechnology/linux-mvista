@@ -11,7 +11,7 @@
  * This board file supports the B configuration of the board
  */
 
-#include "ac5.dtsi"
+#include "ac5-98dx25xx.dtsi"
 
 / {
 	model = "Marvell AC5 DB board";
