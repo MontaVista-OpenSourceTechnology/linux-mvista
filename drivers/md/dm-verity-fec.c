@@ -46,7 +46,7 @@ static int fec_decode_rs8(struct dm_verity *v, struct dm_verity_fec_io *fio,
 			  u8 *data, u8 *fec, int neras)
 {
 	int i;
-	uint16_t par[DM_VERITY_FEC_RSM - DM_VERITY_FEC_MIN_RSN];
+	uint16_t par[DM_VERITY_FEC_MAX_ROOTS];
 
 	for (i = 0; i < v->fec->roots; i++)
 		par[i] = fec[i];
@@ -634,8 +634,8 @@ int verity_fec_parse_opt_args(struct dm_arg_set *as, struct dm_verity *v,
 
 	} else if (!strcasecmp(arg_name, DM_VERITY_OPT_FEC_ROOTS)) {
 		if (sscanf(arg_value, "%hhu%c", &num_c, &dummy) != 1 || !num_c ||
-		    num_c < (DM_VERITY_FEC_RSM - DM_VERITY_FEC_MAX_RSN) ||
-		    num_c > (DM_VERITY_FEC_RSM - DM_VERITY_FEC_MIN_RSN)) {
+		    num_c < DM_VERITY_FEC_MIN_ROOTS ||
+		    num_c > DM_VERITY_FEC_MAX_ROOTS) {
 			ti->error = "Invalid " DM_VERITY_OPT_FEC_ROOTS;
 			return -EINVAL;
 		}
