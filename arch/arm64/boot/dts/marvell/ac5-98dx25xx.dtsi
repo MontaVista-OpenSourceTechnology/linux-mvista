@@ -19,6 +19,12 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 
+	sdma_drv {
+		compatible = "marvell,mvppnd";
+		interrupts = <GIC_SPI 0x23 IRQ_TYPE_LEVEL_HIGH>;
+		status = "okay";
+	};
+
 	reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
@@ -108,7 +114,17 @@
 				status = "okay";
 			};
 
-			mdio: mdio@20000 {
+			uart1: serial@12100 {
+				compatible = "snps,dw-apb-uart";
+				reg = <0x12100 0x100>;
+				reg-shift = <2>;
+				interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
+				reg-io-width = <1>;
+				clock-frequency = <328000000>;
+				status = "disabled";
+			};
+
+		mdio: mdio@20000 {
 				#address-cells = <1>;
 				#size-cells = <0>;
 				compatible = "marvell,orion-mdio";
@@ -119,7 +135,7 @@
 				};
 			};
 
-			i2c0: i2c@11000{
+			i2c0: i2c@11000 {
 				compatible = "marvell,mv78230-i2c";
 				reg = <0x11000 0x20>;
 
@@ -127,7 +143,7 @@
 				clock-names = "core";
 				interrupts = <GIC_SPI 87 IRQ_TYPE_LEVEL_HIGH>;
 				clock-frequency=<100000>;
-				status="okay";
+				status = "okay";
 				pinctrl-names = "i2c-mpp-state", "i2c-gpio-state";
 				pinctrl-0 = <&i2c_mpps>;
 				pinctrl-1 = <&i2c_gpio>;
@@ -136,15 +152,15 @@
 				sda_gpio = <&gpio0 27 GPIO_ACTIVE_HIGH>;
 			};
 
-			i2c1: i2c@11100{
+			i2c1: i2c@11100 {
 				compatible = "marvell,mv78230-i2c";
 				reg = <0x11100 0x20>;
 
 				clocks = <&cnm_clock>;
 				clock-names = "core";
 				interrupts = <GIC_SPI 88 IRQ_TYPE_LEVEL_HIGH>;
-				clock-frequency=<100000>;
-				status="okay";
+				clock-frequency = <100000>;
+				status = "okay";
 
 				pinctrl-names = "i2c-mpp-state", "i2c-gpio-state";
 				pinctrl-0 = <&i2c_mpps>;
@@ -153,6 +169,17 @@
 				scl_gpio = <&gpio0 26 GPIO_ACTIVE_HIGH>;
 				sda_gpio = <&gpio0 27 GPIO_ACTIVE_HIGH>;
 			};
+
+			i2c2: i2c@11200 {
+				status = "disabled";
+				compatible = "marvell,mv78230-i2c";
+				reg = <0x11200 0x20>;
+				clocks = <&cnm_clock>;
+				clock-names = "core";
+				interrupts = <GIC_SPI 93 IRQ_TYPE_LEVEL_HIGH>;
+				clock-frequency = <100000>;
+			};
+
 			gpio0: gpio@18100 {
 				compatible = "marvell,ac5-gpio";
 				#gpio-cells = <2>;
