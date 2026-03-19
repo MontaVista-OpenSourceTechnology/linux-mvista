@@ -482,8 +482,7 @@ static ssize_t bq24190_sysfs_store(struct device *dev,
 		return ret;
 
 	ret = pm_runtime_resume_and_get(bdi->dev);
-	if (ret < 0) {
-		pm_runtime_put_noidle(bdi->dev);
+	if (ret < 0)
 		return ret;
 
 	ret = bq24190_write_mask(bdi, info->reg, info->mask, info->shift, v);
