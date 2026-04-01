@@ -4784,6 +4784,7 @@ static int __maybe_unused macb_suspend(struct device *dev)
 				queue_writel(queue, RBQP,
 					     lower_32_bits(bp->rx_ring_tieoff_dma));
 		}
+
 		ctrl = macb_readl(bp, NCR);
 		ctrl |= MACB_BIT(RE);
 		macb_writel(bp, NCR, ctrl);
@@ -4858,7 +4859,24 @@ static int __maybe_unused macb_resume(struct device *dev)
 		gem_writel(bp, WOL, 0);
 		/* Clear Q0 ISR as WOL was enabled on Q0 */
 		if (bp->caps & MACB_CAPS_ISR_CLEAR_ON_WRITE)
+<<<<<<< HEAD
 			macb_writel(bp, ISR, -1);
+=======
+			queue_writel(bp->queues, ISR, -1);
+		spin_unlock_irqrestore(&bp->lock, flags);
+
+		/* Replace interrupt handler on queue 0 */
+		devm_free_irq(dev, bp->queues[0].irq, bp->queues);
+		err = devm_request_irq(dev, bp->queues[0].irq, macb_interrupt,
+				       IRQF_SHARED, netdev->name, bp->queues);
+		if (err) {
+			dev_err(dev,
+				"Unable to request IRQ %d (error %d)\n",
+				bp->queues[0].irq, err);
+			return err;
+		}
+
+>>>>>>> 54c7babcc74c (net: macb: Move devm_{free,request}_irq() out of spin lock area)
 		disable_irq_wake(bp->queues[0].irq);
 		spin_unlock_irqrestore(&bp->lock, flags);
 		/* Now make sure we disable phy before moving
