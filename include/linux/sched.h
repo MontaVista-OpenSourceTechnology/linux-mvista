@@ -739,6 +739,9 @@ struct task_struct {
 	/* Force alignment to the next boundary: */
 	unsigned			:0;
 
+	/* Save user-dumpable when mm goes away */
+	unsigned			user_dumpable:1;
+
 	/* Unserialized, strictly 'current' */
 
 	/* Bit to tell LSMs we're in execve(): */
