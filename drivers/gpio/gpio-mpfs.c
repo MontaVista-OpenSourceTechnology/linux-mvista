@@ -20,6 +20,7 @@
 #include <linux/of_irq.h>
 #include <linux/platform_device.h>
 #include <linux/spinlock.h>
+#include <linux/interrupt.h>
 
 #define NUM_GPIO			32
 #define MPFS_GPIO_X_CFG_EN_INT		3
@@ -240,22 +241,6 @@ static struct irq_chip mpfs_gpio_irqchip = {
 	.irq_disable = microchip_mpfs_gpio_irq_disable,
 	.flags = IRQCHIP_MASK_ON_SUSPEND,
 };
-
-static void microchip_mpfs_gpio_irq_handler(struct irq_desc *desc)
-{
-	struct mpfs_gpio_chip *mpfs_gpio =
-	    gpiochip_get_data(irq_desc_get_handler_data(desc));
-	struct irq_chip *irqchip = irq_desc_get_chip(desc);
-	unsigned long status;
-	int offset;
-
-	chained_irq_enter(irqchip, desc);
-	status = readl(mpfs_gpio->base + IRQ_OFFSET) & MPFS_GPIO_IRQ_MASK;
-	for_each_set_bit(offset, &status, mpfs_gpio->gc.ngpio)
-		generic_handle_irq(irq_find_mapping(mpfs_gpio->gc.irq.domain, offset));
-
-	chained_irq_exit(irqchip, desc);
-}
 
 static irqreturn_t mpfs_gpio_irq_handler(int irq, void *mpfs_gpio_data)
 {
