@@ -715,13 +715,17 @@ struct clk_hw *imx_clk_scu_alloc_dev(const char *name,
 		return ERR_PTR(-ENOMEM);
 	}
 
-	ret = platform_device_add_data(pdev, &clk, sizeof(clk));
+	ret = device_set_driver_override(&pdev->dev, "imx-scu-clk");
 	if (ret) {
 		platform_device_put(pdev);
 		return ERR_PTR(-ENOMEM);
 	}
 
-	pdev->driver_override = "imx-scu-clk";
+	ret = platform_device_add_data(pdev, &clk, sizeof(clk));
+	if (ret) {
+		platform_device_put(pdev);
+		return ERR_PTR(-ENOMEM);
+	}
 
 	ret = imx_clk_scu_attach_pd(&pdev->dev, rsrc_id);
 	if (ret)
