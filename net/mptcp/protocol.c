@@ -2870,8 +2870,10 @@ bool mptcp_finish_join(struct sock *ssk)
 		sock_hold(ssk);
 	}
 	spin_unlock_bh(&msk->join_list_lock);
-	if (!ret)
+	if (!ret) {
+		mptcp_pm_close_subflow(msk);
 		return false;
+	}
 
 	/* attach to msk socket only after we are sure he will deal with us
 	 * at close time
