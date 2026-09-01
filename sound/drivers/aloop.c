@@ -327,43 +327,37 @@ static int loopback_check_format(struct loopback_cable *cable, int stream)
 	struct snd_pcm_runtime *runtime, *cruntime;
 	struct loopback_setup *setup;
 	struct snd_card *card;
-	bool stop_capture = false;
-	int check;
 	unsigned long flags;
-	int ret = 0;
+	bool stop_capture = false;
+	int check, err = 0;
 
 	spin_lock_irqsave(&cable->lock, flags);
-
 	dpcm_play = cable->streams[SNDRV_PCM_STREAM_PLAYBACK];
 	dpcm_capt = cable->streams[SNDRV_PCM_STREAM_CAPTURE];
 
 	if (cable->valid != CABLE_VALID_BOTH) {
-		if (stream == SNDRV_PCM_STREAM_CAPTURE || !dpcm_play) {
-			ret = 0;
+		if (stream == SNDRV_PCM_STREAM_CAPTURE || !dpcm_play)
 			goto unlock;
-		}
 	} else {
 		if (!dpcm_play || !dpcm_capt) {
-			ret = -EIO;
+			err = -EIO;
 			goto unlock;
 		}
 		runtime = dpcm_play->substream->runtime;
 		cruntime = dpcm_capt->substream->runtime;
 		if (!runtime || !cruntime) {
-			ret = -EIO;
+			err = -EIO;
 			goto unlock;
 		}
 		check = runtime->format != cruntime->format ||
 			runtime->rate != cruntime->rate ||
 			runtime->channels != cruntime->channels;
-		if (!check) {
-			ret = 0;
+		if (!check)
 			goto unlock;
-		}
 		if (stream == SNDRV_PCM_STREAM_CAPTURE) {
-			ret = -EIO;
+			err = -EIO;
 			goto unlock;
-		} else if (cruntime->status->state == SNDRV_PCM_STATE_RUNNING) {
+		} else if (snd_pcm_running(dpcm_capt->substream)) {
 			/* close must not free the peer runtime below */
 			atomic_inc(&cable->stop_count);
 			stop_capture = true;
@@ -375,30 +369,29 @@ static int loopback_check_format(struct loopback_cable *cable, int stream)
 	runtime = dpcm_play->substream->runtime;
 	if (setup->format != runtime->format) {
 		snd_ctl_notify(card, SNDRV_CTL_EVENT_MASK_VALUE,
-						&setup->format_id);
+			       &setup->format_id);
 		setup->format = runtime->format;
 	}
 	if (setup->rate != runtime->rate) {
 		snd_ctl_notify(card, SNDRV_CTL_EVENT_MASK_VALUE,
-						&setup->rate_id);
+			       &setup->rate_id);
 		setup->rate = runtime->rate;
 	}
 	if (setup->channels != runtime->channels) {
 		snd_ctl_notify(card, SNDRV_CTL_EVENT_MASK_VALUE,
-						&setup->channels_id);
+			       &setup->channels_id);
 		setup->channels = runtime->channels;
 	}
 
 unlock:
 	spin_unlock_irqrestore(&cable->lock, flags);
-
 	if (stop_capture) {
 		snd_pcm_stop(dpcm_capt->substream, SNDRV_PCM_STATE_DRAINING);
 		if (atomic_dec_and_test(&cable->stop_count))
 			wake_up(&cable->stop_wait);
 	}
 
-	return ret;
+	return err;
 }
 
 static void loopback_active_notify(struct loopback_pcm *dpcm)
