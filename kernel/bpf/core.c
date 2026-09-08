@@ -1796,11 +1796,15 @@ bool bpf_prog_array_compatible(struct bpf_array *array,
 		 */
 		array->aux->owner.type  = fp->type;
 		array->aux->owner.jited = fp->jited;
+		array->aux->owner.expected_attach_type = fp->expected_attach_type;
 		array->aux->owner.attach_func_proto = aux->attach_func_proto;
 		ret = true;
 	} else {
 		ret = array->aux->owner.type  == fp->type &&
 		      array->aux->owner.jited == fp->jited;
+		if (ret &&
+		    array->aux->owner.expected_attach_type != fp->expected_attach_type)
+			ret = false;
 		if (ret &&
 		    array->aux->owner.attach_func_proto != aux->attach_func_proto) {
 			switch (fp->type) {
