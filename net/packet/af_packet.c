@@ -2872,6 +2872,9 @@ static int tpacket_snd(struct packet_sock *po, struct msghdr *msg)
 			copylen = __virtio16_to_cpu(vio_le(),
 						    vnet_hdr->hdr_len);
 		}
+		/* Prevent the byte count from wrapping into a negative errno */
+		if (unlikely(tp_len > INT_MAX - len_sum))
+			break;
 		copylen = max_t(int, copylen, hard_header_len);
 		skb = sock_alloc_send_skb(&po->sk,
 				hlen + tlen + sizeof(struct sockaddr_ll) +
